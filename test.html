@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+	<meta charset="UTF-8">
+	<title>Template Sombre</title>
+	<style>
+		body {
+			background-color: #030320;
+			color: #fff;
+			font-family: Arial, sans-serif;
+			font-size: 16px;
+			margin: 0;
+			padding: 0;
+		}
+
+		.container {
+			display: flex;
+			flex-direction: column;
+			align-items: center;
+			justify-content: center;
+			height: 100vh;
+			padding-bottom: 90px;
+			padding-right: 40px;
+			box-sizing: border-box;
+		}
+
+		h1 {
+			font-size: 36px;
+			margin-bottom: 20px;
+			text-align: center;
+		}
+
+		.text-zone {
+			background-color: #26313a;
+			border: none;
+			border-radius: 5px;
+			box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+			color: #fff;
+			padding: 20px;
+			resize: none;
+			width: 218px;
+			height: 44px;
+			font-size: 18px;
+			margin-bottom: 20px;
+		}
+
+		.btn {
+			background-color: #003cff;
+			border: none;
+			border-radius: 5px;
+			box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+			color: #fff;
+			cursor: pointer;
+			font-size: 18px;
+			padding: 10px 20px;
+			transition: all 0.3s;
+			text-align: center;
+			text-decoration: none;
+			margin-left: 0px;
+		}
+
+		.btn:hover {
+			background-color: #0857df;
+		}
+
+		#tour,
+		#tour2 {
+			width: 400px;
+			display: flex;
+			justify-content: center;
+			margin: 0px;
+		}
+
+		#tour p,
+		#tour2 p {
+			padding-right: 6px;
+		}
+
+		#rule {
+			display: flex;
+			align-items: center;
+		}
+
+		h4 {
+			margin: 0px;
+		}
+
+		h3 {
+			margin: 0px;
+		}
+
+		p {
+			margin-block-start: 15px;
+			margin-block-end: 15px;
+		}
+		#note{
+			margin-block-start: 0px;
+			margin-block-end: 40px;
+		}
+	</style>
+	<script>
+		const mots = [
+			"Adepte",
+			"Albedo",
+			"Amber",
+			"Anémoculus",
+			"Archon",
+			"Argétoile",
+			"Baie de Jueyun",
+			"Barbara",
+			"Beidou",
+			"Bennett",
+			"Chasseur de trésor",
+			"Chongyun",
+			"Columbina",
+			"Compagnons",
+			"Cryo",
+			"Dendro",
+			"Diluc",
+			"Electro",
+			"Eula",
+			"Fatui",
+			"Fischl",
+			"Ganyu",
+			"Geo",
+			"Hu Tao",
+			"Jean",
+			"Kaeya",
+			"Kamisato Ayaka",
+			"Keqing",
+			"Klee",
+			"Kujou Sara",
+			"Lames de l'Ombre",
+			"Liyue",
+			"Mondstadt",
+			"Mora",
+			"Ningguang",
+			"Noël",
+			"Jade Noctiluque",
+			"Paimon",
+			"Poussière d'étoiles",
+			"Primo-gemme",
+			"Pyro",
+			"Qiqi",
+			"Raiden Shogun",
+			"Razor",
+			"Rosaria",
+			"Sayu",
+			"Sucrose",
+			"Tartaglia",
+			"Thoma",
+			"Venti",
+			"Xiangling",
+			"Xiao",
+			"Xingqiu",
+			"Yaoyao",
+			"Yoimiya",
+			"Zhongli",
+			"Éclats de Chaos",
+			"Électroculus",
+			"Élixir d'énergie originelle",
+			"Épée d'Harmonie",
+			"Île Watatsumi",
+			"Événement",
+			"Œuf",
+			"Oeuf",
+			"Bourgeonnement",
+			"Catalyseur",
+			"Foçalors",
+			"Joël",
+			"Kusanali",
+			"Main",
+			"Natlan",
+			"Océanide",
+			"Qingce",
+			"Rukkhadevata",
+			"Signora",
+			"Teyvat",
+			"Célestia",
+			"Ult",
+			"Ulti",
+			"Husbendo",
+			"Waifu",
+			"Varka",
+			"Victor",
+			"Wangsheng Funeral Parlor",
+			"Wangsheng",
+			"Wuwang",
+			"Yaoyao",
+			"Layla",
+			"Shenhe",
+			"Yunjin",
+			"Yae Miko",
+			"Kamisato Ayato",
+			"Kamisato Ayaka",
+			"Ayato",
+			"Yelan",
+			"Kuki Shinobu",
+			"Shikanoin Heizou",
+			"Heizou",
+			"Dori",
+			"Collei",
+			"Tighnari",
+			"Candace",
+			"Cyno",
+			"Nilou",
+			"Nahida",
+			"Faruzan",
+			"Nomade",
+			"Sumeru",
+			"Dehya",
+			"Alhaitham",
+			"Main",
+			"Vision",
+			"Element",
+			"Primo-gémme",
+			"Septembre",
+			"Mystérieux",
+			"Catalyseur",
+			"Permafrost",
+			"Loup",
+			"Cendre",
+			"Sceau",
+			"Embrasement",
+			"Améthyste",
+			"Rapace",
+			"Luxe",
+			"Abyssal",
+			"Scarabée",
+			"Robuste",
+			"Feuille",
+			"Lourd",
+			"Fumée",
+			"Sérénité",
+			"Héritage",
+			"Conte",
+			"Effondrement",
+			"Fluide",
+			"Courant",
+			"Ombre",
+			"Esprit",
+			"Jardin",
+			"Cristal",
+			"Lac",
+			"Nirvana",
+			"Espace",
+			"Poignard",
+			"Blizzard",
+			"Éclair",
+			"Givre",
+			"Miroir",
+			"Défenseur",
+			"Inébranlable",
+			"Foudre",
+			"Roche",
+			"Poussière",
+			"Horizon",
+			"Aile",
+			"Férocité",
+			"Aube",
+			"Os",
+			"Diamant",
+			"Océan",
+			"Tour",
+			"Ambition",
+			"Exécuteur",
+			"Léger",
+			"Maître",
+			"Nuit",
+			"Tempête",
+			"Lion",
+			"Métal",
+			"Braise",
+			"Souffle",
+			"Eclat",
+			"Montagne",
+			"Flamme",
+			"Vent",
+			"Givre",
+			"Eau",
+			"Crimson",
+			"Dendrobium",
+			"Abondance",
+			"Adeptus",
+			"Ailes de la nuit",
+			"Ailes du vent",
+			"Albédo",
+			"Amakumo",
+			"Arche des Sept",
+			"Aubétoile",
+			"Barbatos",
+			"Bouclier de jade",
+			"Champ de lune",
+			"Champ d'étoiles",
+			"Changement de plan",
+			"Chasseur de tempêtes",
+			"Cité des vents",
+			"Cité sans voix",
+			"Contrat sans fin",
+			"Cueillette",
+			"Danse des lumières",
+			"Dédale des ombres",
+			"Défis célestes",
+			"Demi-masque",
+			"Dragonspine",
+			"Durandal",
+			"Einzbern",
+			"Épine de cristal",
+			"Épine du dragon",
+			"Eula",
+			"Exuvia",
+			"Festin de la terre",
+			"Flèches de résistance",
+			"Flèches de vent",
+			"Flèches tourbillonnantes",
+			"Forêt de pierres",
+			"Frostflake",
+			"Genshin",
+			"Goulûment",
+			"Goulûraptor",
+			"Grande aigrette",
+			"Hypostase",
+			"Inazuma",
+			"Kamisato",
+			"Keqing",
+			"Kujou",
+			"Lames éclairs",
+			"Lances ardentes",
+			"Lingju",
+			"Liyue",
+			"Lune d'eau",
+			"Marais brumeux",
+			"Mille armées",
+			"Mirage",
+			"Mithrax",
+			"Mona",
+			"Nid de la grue",
+			"Noble",
+			"Nouvelle ère",
+			"Océanide",
+			"Onikabuto",
+			"Ordalie",
+			"Perle noire",
+			"Pierre de résonance",
+			"Piliers de la vieille loi",
+			"Pluie du ciel",
+			"Portique de la fortune",
+			"Puissance du vent",
+			"Qingxin",
+			"Raiden",
+			"Résine condensée",
+			"Retour du jade",
+			"Rosée du matin",
+			"Rosée noire",
+			"Ruines de Sal Terrae",
+			"Sang de dragon",
+			"Scarabée géant",
+			"Sceau céleste",
+			"Sceau du vide",
+			"Sceau lunaire",
+			"Sceau solaire",
+			"Séraphine",
+			"Sérénité potentielle",
+			"Serment du sang",
+			"Sifflement des vents",
+			"Soie de sang",
+			"Souffle du dragon",
+			"Souffle de la forêt",
+			"Souhait",
+			"Statue des sept",
+			"Symbole géo",
+			"Symbole pyro",
+			"Symbole cryo",
+			"Symbole électro",
+			"Symbole hydro",
+			"Talents",
+			"Terre brûlée",
+			"Terre des beaux-arts",
+			"Terre des défis",
+			"Terres des vents",
+			"Théière",
+			"Aurore"
+		];
+
+		var alphabet = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z"];
+		var lettreCourante = 0;
+		function changerLettre() {
+
+			var h1 = document.getElementById("lettre");
+			var h1Val = document.getElementById("lettre").textContent;
+			const texte = document.getElementById("txt");
+			const premiereLettre = texte.value[0].toUpperCase();
+			if (h1Val === premiereLettre) {
+				console.log("La première lettre du texte est dans l'alphabet.");
+			} else {
+				console.log("La première lettre du texte n'est pas dans l'alphabet.");
+				texte.style.color = "#e02525"
+				setTimeout(() => {
+					texte.style.color = "white"
+				}, 700);
+				return
+			}
+			var top;
+			for (let i = 0; i < mots.length; i++) {
+				const texte = document.getElementById("txt");
+				if (mots[i].toUpperCase() === texte.value.toUpperCase()) {
+					mots.splice(i, 1);
+					console.log(`Le mot a été trouvé et supprimé du tableau.`);
+					top = 0;
+					break
+				} else {
+					top = 1
+					texte.style.color = "#e02525"
+					setTimeout(() => {
+						texte.style.color = "white"
+					}, 700);
+
+
+				}
+			}
+			if (top == 1) return
+			lettreCourante++;
+			if (lettreCourante >= alphabet.length) {
+				console.log("ouiiii");
+				lettreCourante = 0;
+				var nb = document.getElementById("nb");
+				var jsp = + nb.textContent
+				jsp++
+				nb.innerHTML = jsp;
+
+
+			}
+			console.log("nooooo");
+			h1.innerHTML = alphabet[lettreCourante];
+			texte.value = ''
+			var nb2 = document.getElementById("nb2");
+			var jsp2 = + nb2.textContent
+			jsp2++
+			nb2.innerHTML = jsp2;
+		}
+		document.addEventListener('keypress', function (event) {
+			// vérifier si la touche pressée est la touche Entrée
+			if (event.keyCode === 13) {
+				// exécuter le même code que lorsque le bouton est cliqué
+				changerLettre()
+				const texte = document.getElementById("txt");
+
+			}
+		});
+	</script>
+</head>
+
+<body>
+	<div class="container">
+		<p id="rule">
+		<h3><u>Règles:</u></h3> <br>
+		<h4>Trouvé un mot en rapport avec Genshin ! </h4> <br><p id="note">Note: Les Majuscules ne sont pas pris en compte</p></p>
+		<h2 id="tour">
+			<p>Vous êtes à:</p>
+			<p id="nb">0</p>
+			<p>tours</p>
+		</h2>
+		<h2 id="tour2">
+			<p>Vous avez trouvé:</p>
+			<p id="nb2">0</p>
+			<p>mots</p>
+		</h2>
+		<h1 id="lettre">A</h1>
+
+		<input type="text" id="txt" class="text-zone" placeholder="Entrez votre texte ici"></input>
+		<button onclick="changerLettre()" class="btn">Suivant</button>
+
+	</div>
+</body>
+
+</html>
