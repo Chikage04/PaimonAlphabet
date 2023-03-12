@@ -119,6 +119,7 @@
 
         #note {
             margin-block-end: 5px;
+            
         }
 
         #note2 {
@@ -143,11 +144,11 @@
                 align-items: center;
                 justify-content: center;
                 height: 100vh;
-                padding-bottom: 110px;
+                padding-bottom: 0px;
                 padding-right: 0px;
                 box-sizing: border-box;
                 transform: scale(2);
-                left: 27%;
+                left: 34%;
                 position: absolute;
             }
 
@@ -159,6 +160,45 @@
                 font-family: 'Baloo 2', cursive;
                 font-weight: 300;
                 color: rgba(255, 255, 255, 0.550);
+            }
+
+            #normal {
+                display: flex;
+                flex-direction: column;
+                width: 400px;
+                top: 91%;
+                position: absolute;
+                transform: scale(2);
+                align-items: center;
+                left: 47%;
+            }
+
+            .formulaire {
+                transform: scale(2);
+                left: 20%;
+                top: 139px;
+            }
+            #note{
+                width: 58%;
+            }
+            #note2 {
+                width: 507px;
+                text-align: center;
+            }
+
+            .create {
+                
+                flex-direction: column;
+                align-items: center;
+
+            }
+
+            hr {
+                opacity: 0;
+
+            }
+            body{
+                overflow: hidden;
             }
         }
     </style>
@@ -866,7 +906,8 @@
                     });
                 } else {
                     verif.style.display = "none"
-                    document.querySelector(".container").style.height = "81vh"
+                   document.querySelector(".container").style.height = "90vh"
+            
                     while (verif.firstChild) {
                         verif.removeChild(verif.firstChild);
                     }
@@ -883,34 +924,33 @@
 
         }, 100);
         var truc = 0;
-        setTimeout(() => {
-
-
-            if (truc == 1) return
+        var interva = 0;
+        setInterval(() => {
 
             var message = document.getElementById('message').value;
             var user = auth.currentUser;
             if (user) {
-                console.log("1")
+                console.log(interva)
                 var fin = document.querySelector(".end")
                 if (truc == 0) {
-                    console.log("1ddd")
 
                     console.log("ffefef")
-                    truc = 1;
+
                     var userId = user.uid;
                     var userEmail = user.email;
 
                     const id = push(child(ref(database), 'users/' + userId + '/messages' + '/anime')).key;
                     setInterval(() => {
 
+                        if (interva == 1) return
+
                         var pts = document.querySelector("#nb2").textContent;
                         const refr = ref(database, '/messages/' + '/anime/');
                         const dbRef = ref(getDatabase());
                         get(child(dbRef, `messages/anime/`)).then((snapshot) => {
-                           
+
                             if (snapshot.exists()) {
-                              
+
                                 snapshot.forEach((childSnapshot) => {
 
                                     // Récupération des données du message
@@ -918,15 +958,16 @@
                                     if (point.pseudo !== pseudoG) return
                                     // Ajout du message au tableau
                                     if (point.message > pts) {
-                                        console.log("Pts inférieur")
+                                        //console.log("Pts inférieur")
                                         return
-                                    } else{
+                                    } else {
+                                        //console.log("c ça vasy")
                                         set(ref(database, '/messages/' + '/anime/' + pseudoG), {
-                                        message: pts,
-                                        pseudo: pseudoG
-                                    });
+                                            message: pts,
+                                            pseudo: pseudoG
+                                        });
                                     }
-                                    
+
 
                                 });
                             } else {
@@ -937,7 +978,7 @@
                         });
 
 
-                    }, 3000);
+                    }, 300);
                     //messages.push(message);
                     document.getElementById('message').value = "";
                     //alert('message has sent to ' + userEmail);
@@ -1011,10 +1052,15 @@
                                                 password: password,
                                                 pseudo: pseudo
                                             })
+                                            var pts = document.querySelector("#nb2").textContent;
+                                            set(ref(database, '/messages/' + '/anime/' + pseudoG), {
+                                                message: pts,
+                                                pseudo: pseudoG
+                                            })
                                                 .then(() => {
                                                     // Data saved successfully!
                                                     alert('user created successfully');
-
+                                                    interva = 0
 
                                                 })
                                                 .catch((error) => {
@@ -1082,12 +1128,14 @@
             signOut(auth).then(() => {
                 // Sign-out successful.
                 stop = 0;
+                truc = 0
+                interva = 1
                 formulaire.style.display = 'unset'
                 var connect = document.querySelector(".truc")
                 connect.remove();
                 deco.style.display = "none"
                 verif.style.display = "none"
-                document.querySelector(".container").style.height = "81vh"
+                document.querySelector(".container").style.height = "90vh"
                 while (verif.firstChild) {
                     verif.removeChild(verif.firstChild);
                 }
@@ -1121,7 +1169,7 @@
                         .then(() => {
                             // Data saved successfully!
                             alert('user logged in successfully');
-
+                            interva = 0
 
                         })
                         .catch((error) => {
@@ -1227,13 +1275,6 @@
 
 
     </form>
-    <div class="project-title animated fadeInUp" id="normal">
-        <h2> <u>Classement:</u>
-        </h2>
-        <br>
-        <ol id="messages-list1">
-        </ol>
-    </div>
     <div class="container">
 
         <h4>Règles: Trouver un mot ou groupe de mots en rapport avec Genshin ! </h4> <br>
@@ -1257,7 +1298,14 @@
 
         <input type="text" id="txt" class="text-zone" placeholder="Entrez votre texte ici"></input>
         <button onclick="changerLettre()" class="btn">Suivant</button>
-
+        
+    </div>
+    <div class="project-title animated fadeInUp" id="normal">
+        <h2> <u>Classement:</u>
+        </h2>
+        <br>
+        <ol id="messages-list1">
+        </ol>
     </div>
 </body>
 
