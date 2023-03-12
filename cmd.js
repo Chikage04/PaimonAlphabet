@@ -8,7 +8,7 @@ function back() {
     var co = document.querySelector(".co")
     co.style.display = "none"
     if (isMobile()){
-    document.querySelector("#normal").style.top = "100%"
+    document.querySelector("#normal").style.top = "103%"
     }
 }
 function inscri() {
@@ -23,7 +23,7 @@ function inscri() {
     document.querySelector(".apres1").style.display = "unset"
     document.querySelector("#retour1").style.display = "unset"
     if (isMobile()){
-        document.querySelector("#normal").style.top = "111%"
+        document.querySelector("#normal").style.top = "116%"
     }
    
 
@@ -36,7 +36,7 @@ function connect() {
     document.querySelector(".apres2").style.display = "unset"
     document.querySelector("#retour2").style.display = "unset"
     if (isMobile()){
-        document.querySelector("#normal").style.top = "105%"
+        document.querySelector("#normal").style.top = "108%"
     }
 }
 var tab = 1;
