@@ -119,7 +119,7 @@
 
         #note {
             margin-block-end: 5px;
-            
+
         }
 
         #note2 {
@@ -175,19 +175,23 @@
 
             .formulaire {
                 transform: scale(2);
-                left: 20%;
+                left: 42%;
                 top: 139px;
+                width: 579px;
+                justify-content: center;
             }
-            #note{
+
+            #note {
                 width: 58%;
             }
+
             #note2 {
                 width: 507px;
                 text-align: center;
             }
 
             .create {
-                
+
                 flex-direction: column;
                 align-items: center;
 
@@ -197,7 +201,8 @@
                 opacity: 0;
 
             }
-            body{
+
+            body {
                 overflow: hidden;
             }
         }
@@ -849,7 +854,7 @@
             measurementId: "G-QP4M89SW8F",
             databaseURL: "https://memory-c1192-default-rtdb.europe-west1.firebasedatabase.app/",
         };
-
+        function isMobile() { return ('ontouchstart' in document.documentElement); }
         // Initialize Firebase
         const app = initializeApp(firebaseConfig);
         const auth = getAuth();
@@ -906,13 +911,18 @@
                     });
                 } else {
                     verif.style.display = "none"
-                   document.querySelector(".container").style.height = "90vh"
-            
+                    document.querySelector(".container").style.height = "90vh"
+
                     while (verif.firstChild) {
                         verif.removeChild(verif.firstChild);
                     }
                     stop = 0;
-                    formulaire.style.display = 'grid'
+                    if (isMobile()) {
+                        formulaire.style.display = 'flex'
+                    } else {
+                        formulaire.style.display = 'grid'
+
+                    }
                     formulaire.style.height = '0px%'
                     deco.style.display = "none"
                     setTimeout(() => {
@@ -1298,7 +1308,7 @@
 
         <input type="text" id="txt" class="text-zone" placeholder="Entrez votre texte ici"></input>
         <button onclick="changerLettre()" class="btn">Suivant</button>
-        
+
     </div>
     <div class="project-title animated fadeInUp" id="normal">
         <h2> <u>Classement:</u>
