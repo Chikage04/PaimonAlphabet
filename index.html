@@ -2,908 +2,1263 @@
 <html>
 
 <head>
-	<meta charset="UTF-8">
-	<meta property="og:title" content="Testez votre vocabulaire Genshin !">
-	<title>PaimonAlphabet</title>
-	<style>
-		@import url(http://fonts.googleapis.com/css?family=Roboto:100,400,300,500,700);
-		@import url('https://fonts.googleapis.com/css2?family=Baloo+2&display=swap');
 
-		body {
-			background-color: #010520;
-			color: #fff;
-			font-family: "Roboto", sans-serif;
-			font-size: 16px;
-			margin: 0;
-			padding: 0;
-			overflow: hidden;
-			-webkit-font-smoothing: antialiased;
-		}
+    <meta charset="UTF-8">
+    <meta property="og:title" content="Testez votre vocabulaire Genshin !">
+    <title>PaimonAlphabet</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="cmd.js"></script>
+    <style>
+        @import url(http://fonts.googleapis.com/css?family=Roboto:100,400,300,500,700);
+        @import url('https://fonts.googleapis.com/css2?family=Baloo+2&display=swap');
 
-		.container {
-			display: flex;
-			flex-direction: column;
-			align-items: center;
-			justify-content: center;
-			height: 100vh;
-			padding-bottom: 110px;
-			padding-right: 40px;
-			box-sizing: border-box;
-			overflow: hidden;
-		}
+        body {
+            background-color: #010520;
+            color: #fff;
+            font-family: "Roboto", sans-serif;
+            font-size: 16px;
+            margin: 0;
+            padding: 0;
+            overflow-x: hidden;
+            -webkit-font-smoothing: antialiased;
+        }
 
-
-		h1 {
-			font-size: 36px;
-			margin-bottom: 20px;
-			text-align: center;
-		}
-
-		.text-zone {
-			background-color: #26313a;
-			border: none;
-			border-radius: 5px;
-			box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
-			color: #fff;
-			padding: 20px;
-			resize: none;
-			width: 218px;
-			height: 44px;
-			font-size: 18px;
-			margin-bottom: 20px;
-		}
-
-		.btn {
-			background-color: #003cff;
-			border: none;
-			border-radius: 5px;
-			box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
-			color: #fff;
-			cursor: pointer;
-			font-size: 18px;
-			padding: 10px 20px;
-			transition: all 0.3s;
-			text-align: center;
-			text-decoration: none;
-			margin-left: 0px;
-		}
-
-		.btn:hover {
-			background-color: #0857df;
-		}
-
-		#tour,
-		#tour2 {
-			width: 400px;
-			display: flex;
-			justify-content: center;
-			margin: 0px;
-		}
-
-		#tour {
-			margin-block-end: -13px !important;
-		}
-
-		#tour p,
-		#tour2 p {
-			padding-right: 6px;
-		}
-
-		#rule {
-			display: flex;
-			align-items: center;
-		}
-
-		h4 {
-			margin: 0px;
-		}
-
-		h3 {
-			margin: 0px;
-		}
-
-		p {
-			margin-block-start: 15px;
-			margin-block-end: 15px;
-		}
-
-		#note,
-		#note2 {
-			color: rgb(180, 190, 196);
-			margin-block-start: 0px;
-			margin-block-end: 43px;
-		}
-
-		#note {
-			margin-block-end: 5px;
-		}
-
-		h5 {
-			position: absolute;
-			font-size: 11px;
-			left: 1%;
-			top: 1%;
-			font-family: 'Baloo 2', cursive;
-			font-weight: 300;
-			color: rgba(255, 255, 255, 0.550);
-		}
-
-		@media screen and (max-width: 1090px) {
-			.container {
-				display: flex;
-				flex-direction: column;
-				align-items: center;
-				justify-content: center;
-				height: 100vh;
-				padding-bottom: 110px;
-				padding-right: 0px;
-				box-sizing: border-box;
-				transform: scale(2);
-				left: 27%;
-				position: absolute;
-			}
-
-			h5 {
-				position: absolute;
-				font-size: 20px;
-				left: 4%;
-				top: 0%;
-				font-family: 'Baloo 2', cursive;
-				font-weight: 300;
-				color: rgba(255, 255, 255, 0.550);
-			}
-		}
-	</style>
-	<script>
-		var mots = [
-			"Abdomen luminescent",
-			"Abondance",
-			"Abyssal",
-			"Abyssal étoilé",
-			"Abysse",
-			"Adepte",
-			"Adeptus",
-			"Agate pourpre",
-			"Aile",
-			"Ailes de la nuit",
-			"Ailes de papillon",
-			"Ailes du vent",
-			"Akai maou",
-			"Ayaka",
-			"Albedo",
-			"Alhaitham",
-			"Aloy",
-			"Lumine",
-			"Aether",
-			"Amakumo",
-			"Amber",
-			"Ambition",
-			"Anguille",
-			"Anguille des sables",
-			"Anémoblob",
-			"Anémoblob flottant",
-			"Anémoculus",
-			"Apôtre de l'Abîme",
-			"Aranaras",
-			"Arataki Itto",
-			"Arbre congelé",
-			"Arbre des rêves",
-			"Arbre enflammé",
-			"Arbre foudroyé",
-			"Arbre permagelé",
-			"Arche des Sept",
-			"Archon",
-			"Argétoile",
-			"Arme",
-			"Dehya",
-			"Arpente-neige",
-			"Artéfact",
-			"Attrape-aube",
-			"Aube",
-			"Aubétoile",
-			"Aurore",
-			"Ayato",
-			"Azhdaha",
-			"Baie",
-			"Baie de Jueyun",
-			"Baie à crochet",
-			"Bake-danuki",
-			"Bannière",
-			"Barbara",
-			"Barbatos",
-			"Beidou",
-			"Belette",
-			"Belette bottée",
-			"Belette des neiges",
-			"Belette foudrazurée",
-			"Belette masquée",
-			"Belette rousse",
-			"Bennett",
-			"Blizzard",
-			"Blob",
-			"électroblob",
-			"pyroblob",
-			"dendroblob",
-			"hydroblob",
-			"géoblob",
-			"cryblob",
-			"Electro-cristal",
-			"Lyre",
-			"Cristal primitif",
-			"Cristal Glacé",
-			"Crocs-de-sang",
-			"Dainsleif",
-			"Cristal Glacé",
-			"Cristal Glacé",
-			"Bois",
-			"Borée",
-			"Loup du Nord",
-			"Andrius",
-			"Bouclier de jade",
-			"Bourgeonnement",
-			"Braise",
-			"Braises primales",
-			"Brasero des ruines",
-			"Brutocollinus",
-			"Brutocollinus étrange",
-			"Brutoshaman",
-			"Brutoviandu",
-			"Bulle",
-			"Bâton de la décision",
-			"Bête des neiges",
-			"Caisse en bois",
-			"Candace",
-			"Capitaine des chevaliers de Favonius",
-			"Carotte",
-			"Casse-noisette",
-			"Catalyseur",
-			"Cellules de lumière profuse",
-			"Cendres ombrageuses",
-			"Cerisier sacré",
-			"Chambre de Jade",
-			"Champ d'étoiles",
-			"Champ de lune",
-			"Champieffroi panaché",
-			"Champignon",
-			"Champignon anémophile",
-			"Champignon fluorescent",
-			"Champignon sacramental",
-			"Champignon sucré",
-			"Champitoile",
-			"Changement de personnage",
-			"Changement de plan",
-			"Chasseur de tempêtes",
-			"Chasseur de trésor",
-			"Chasseur des ruines",
-			"Chat",
-			"Cheminée de fée",
-			"Chevaliers de Favonius",
-			"Chongyun",
-			"Chrysanthème à aubes",
-			"Cité des vents",
-			"Cité sans voix",
-			"Cocogoat",
-			"Coffre délicat",
-			"Coffre enterré",
-			"Coffre luxueux",
-			"Coffre ordinaire",
-			"Coffre précieux",
-			"Coffre scellé",
-			"Coffre étrange",
-			"Col de Guyun",
-			"Collei",
-			"Colosse des ruines",
-			"Columbina",
-			"Pierro",
-			"Dottore",
-			"Pantalone",
-			"Capitano",
-			"Pulcinella",
-			"Sandrone",
-			"Scaramuccia",
-			"Arlecchino",
-			"Khaenri'ah",
-			"Commerçant",
-			"Compagnons",
-			"Conque d'étoile",
-			"Constellation",
-			"Conte",
-			"Alice",
-			"Lawrence",
-			"Fontaine",
-			"Vannessa",
-			"Contrat sans fin",
-			"Coquillage doré",
-			"Archipel de la Pomme dorée",
-			"Corbeau",
-			"Corolle de fleur de brume",
-			"Courant",
-			"Crabe",
-			"Crimson",
-			"Cristal",
-			"Cristal brut",
-			"Cristal de Résonance Élémentaire",
-			"Cristal de lumen",
-			"Cristal de sang",
-			"Cryo",
-			"Cube mécanique",
-			"Cueillette",
-			"Cyno",
-			"Cécilia",
-			"Célestia",
-			"Cœur de lapis",
-			"Coeur de lapis",
-			"Dame Ayaka",
-			"Dame Gorou",
-			"Dendro",
-			"Dendrobium",
-			"Dendrobium sanglant",
-			"Dendroculus",
-			"Dendrogranums",
-			"Dent étrange",
-			"Destinée éternelle",
-			"Destructeur de la flamme",
-			"Diamant",
-			"Diluc",
-			"Diona",
-			"Donjon",
-			"Dori",
-			"Dragon cataclysmique",
-			"Dragon des ruines",
-			"Dragonspine",
-			"Défenseur",
-			"Contre la montre",
-			"Défi",
-			"Corrosion",
-			"Détective privé",
-			"Dôme de la foudre",
-			"Eau",
-			"Eau bénite",
-			"Eclat",
-			"Effluve des péchés",
-			"Effondrement",
-			"Einzbern",
-			"Electro",
-			"Element",
-			"Embrasement",
-			"Encens de purification",
-			"Ennemi",
-			"Entraîneur de pivoine",
-			"Espace",
-			"Esprit",
-			"Esprit de la forêt",
-			"Esprit sinistre de vent",
-			"Eula",
-			"Exuvia",
-			"Exécuteur",
-			"Faruzan",
-			"Fatui",
-			"Fauconuit",
-			"Fennec",
-			"Festin de la terre",
-			"Feu de camp/torche",
-			"Feuille",
-			"Fischl",
-			"Flamme",
-			"Fleur de cerisier",
-			"Fleur de prunier",
-			"Fleur de rêve",
-			"Fleur de soie",
-			"Fleur du souvenir",
-			"Fleur mensongère",
-			"Fleur sucrante",
-			"Fleurs de la lignée",
-			"Fluide",
-			"Flèches de résistance",
-			"Flèches de vent",
-			"Flèches tourbillonnantes",
-			"Fondue aux fruits de mer",
-			"Fongus",
-			"Fontaine des étoiles",
-			"Forêt de pierres",
-			"Foudre",
-			"Foçalors",
-			"Fresque illusoire",
-			"Frostbearer",
-			"Frostflake",
-			"Fruit de Tenkumo",
-			"Fruit de lotus",
-			"Fruit harra",
-			"Fruit pompon",
-			"Fumée",
-			"Fée",
-			"Fée ardente",
-			"Fée Électro",
-			"Fée électro",
-			"Férocité",
-			"Ganoderma marin",
-			"Ganyu",
-			"Garde d'épée",
-			"Gardien",
-			"Mob",
-			"Garde des ruines",
-			"Gardien de la flamme",
-			"Geo",
-			"Givre",
-			"Glace antique",
-			"Gorou",
-			"Goulûment",
-			"Goulûraptor",
-			"Graine de pissenlit",
-			"Graine des trois yânas",
-			"Grande aigrette",
-			"Grenouille",
-			"Grotte",
-			"Guerrier de Xinyan",
-			"Gueule de loup",
-			"Gyrocristal",
-			"Gyrocristal radiant",
-			"Géoculus",
-			"Géogranum",
-			"Géosaure",
-			"Géosaure antique",
-			"Haut Conseil de Snezhnaya",
-			"Haut-de-forme",
-			"Heizou",
-			"Herbe marine",
-			"Herbe à lampe",
-			"Herbe à sanglots",
-			"Horizon",
-			"Horloge d'Azhdaha",
-			"Hu Tao",
-			"Husbendo",
-			"Hyakunin Ikki",
-			"Hypostase",
-			"Hypostase Anémo",
-			"Hypostase Cryo",
-			"Hypostase Dendro",
-			"Hypostase Géo",
-			"Hypostase Hydro",
-			"Hypostase Pyro",
-			"Hypostase Électro",
-			"Héraut de la flamme",
-			"Héritage",
-			"Héros de Mondstadt",
-			"Héros",
-			"Illusion",
-			"Inazuma",
-			"Ingrédient",
-			"Insigne d'honneur",
-			"Jade Noctiluque",
-			"Jardin",
-			"Jardin de pierre",
-			"Jean",
-			"Jeune Dragolézard Géo",
-			"Jeunes feuilles",
-			"Joël",
-			"Kaeya",
-			"Kalpalotus",
-			"Kamisato",
-			"Kamisato Art",
-			"Kamisato Ayaka",
-			"Kamisato Ayato",
-			"Karma de la guerre",
-			"Keqing",
-			"Oeil divin",
-			"Klee",
-			"Sangonomiya Kokomi",
-			"Koï doré",
-			"Koï rouillé",
-			"Enkanomiya",
-			"Kujou Sara",
-			"Kuki Shinobu",
-			"Kusanali",
-			"Lac",
-			"Lame oni",
-			"Lames de l'Ombre",
-			"Lames éclairs",
-			"Lampe de lumen",
-			"Lance de l'Aube",
-			"Lances ardentes",
-			"Larme de Vajra",
-			"Layla",
-			"Le Crux : L'Alcor",
-			"Les Serpents noirs",
-			"Lien du feu",
-			"Lieu de culte de l'essence",
-			"Lingju",
-			"Lion",
-			"Livre de la sagesse",
-			"Livre de rêves",
-			"Livre des morts",
-			"Liyue",
-			"Loche crépusculaire",
-			"Loche d'or",
-			"Loche de soleil",
-			"Lotus d'Amdo",
-			"Port d'Ormos",
-			"Leak",
-			"Loup alpha doré",
-			"Loup de faille",
-			"Luciolichance",
-			"Lueur d'espoir",
-			"Lune d'eau",
-			"Lys calla",
-			"Lys verni",
-			"Léger",
-			"Lézard",
-			"Machine saghira",
-			"Mage de l'Abîme",
-			"Mage luciole des Fatui",
-			"Maguu Kenki",
-			"Main",
-			"Manifestation du tonnerre",
-			"Marais brumeux",
-			"Marlin à hache de jade",
-			"Marlin à hache de lazurite",
-			"Marmite",
-			"artefact",
-			"Masque de l'ombre",
-			"Masque du mensonge",
-			"Matrice mécanique perpétuelle",
-			"Matsutake",
-			"Maître",
-			"Melon lavande",
-			"Menthe",
-			"Merveilleux festin",
-			"Militaire de Snezhnaya",
-			"Snezhnaya",
-			"F2P",
-			"Mille armées",
-			"Mille nuages pourpre",
-			"Mille-Feuille",
-			"Minerai d'argétoile",
-			"Minerai",
-			"Mini-énigme",
-			"Mirage",
-			"Miroir",
-			"Mithrax",
-			"Moelle cristalline",
-			"Mona",
-			"Monastry",
-			"Mondstadt",
-			"Mondstadt libre",
-			"Mondstadt, cité du vent",
-			"Mont Aocang",
-			"Mont Yougou",
-			"Montagne",
-			"Mora",
-			"Moras",
-			"Morceau d'améthyste",
-			"Morceau de fer",
-			"Morceau de fer blanc",
-			"Muguet bleu",
-			"Musée de l'archéologie",
-			"Mystérieux",
-			"Méandres",
-			"Mécanisme",
-			"Mécanisme de moulin",
-			"Mécanisme de « cycle jour/nuit »",
-			"Mécanisme triangulaire",
-			"Mécanisme à pression",
-			"Médaka",
-			"Médaka bleuté",
-			"Médaka sucrant",
-			"Médaka verni",
-			"Métal",
-			"Nahida",
-			"Natlan",
-			"Nid de la grue",
-			"Nilotpalotus",
-			"Nilou",
-			"Ningguang",
-			"Nirvana",
-			"Nobilis",
-			"Nobushi",
-			"Noix d'ajilenakh",
-			"Nomade",
-			"Nouveau contractant",
-			"Noyau cristallin",
-			"Noyau de tempête",
-			"Noël",
-			"Obélisques primaux",
-			"Océan",
-			"Océanide",
-			"Oeuf",
-			"Ombre",
-			"Onikabuto",
-			"Suivante Miroir",
-			"Ordalie",
-			"Os",
-			"Ouvrages",
-			"Padisachidée",
-			"Paimon",
-			"Panorama",
-			"Papillon cristallin",
-			"Perle",
-			"Perle noire",
-			"Permafrost",
-			"Petit Kujirai",
-			"Petit tas de pierres",
-			"Pierre de résonance",
-			"Pierre séculaire",
-			"Pierre unique",
-			"Pay to win",
-			"Pigeon",
-			"Pilier Dendro",
-			"Mika",
-			"Akasha",
-			"Piliers de la vieille loi",
-			"Pilleur de trésors",
-			"Piment de Jueyun",
-			"Pinson",
-			"Pistil de fleur enflammée",
-			"Plante à cueillir",
-			"Pluie du ciel",
-			"Poignard",
-			"Point de pêche",
-			"Point de téléportation",
-			"Poisson",
-			"Pomme crépusculaire",
-			"Pomme de pin",
-			"Porpignon",
-			"Portique de la fortune",
-			"Pousse de bambou",
-			"Poussière",
-			"Poussière d'étoiles",
-			"Primo-gemme",
-			"Puissance du vent",
-			"Pyro",
-			"Pépinières sauvages",
-			"Pêche zaytun",
-			"Qingce",
-			"Qingxin",
-			"Qiqi",
-			"Quandong",
-			"Queue de cheval",
-			"Queue de lézard",
-			"Quête du monde",
-			"Radis",
-			"Raiden",
-			"Raiden Shogun",
-			"Raie divda",
-			"Raie formalo",
-			"Rapace",
-			"Razor",
-			"Rebonpignon",
-			"Recettes",
-			"Renard",
-			"Roche",
-			"Roi Brutocollinus",
-			"Brutocollinus",
-			"Roi des sangliers",
-			"Rosalia",
-			"Rose sumérienne",
-			"Rosée noire",
-			"Ruines de Sal Terrae",
-			"Rukkhadevata",
-			"Lisa",
-			"Dvalin",
-			"Réservoir d'eau",
-			"Résine condensée",
-			"Sablier primal",
-			"Sanctuaire",
-			"Sanctuaire des profondeurs",
-			"Sang de dragon",
-			"Sanglier des neiges",
-			"Sangonomiya",
-			"Sayu",
-			"Anémo",
-			"Scalaire chousei",
-			"Scalaire raimei",
-			"Scarabuto",
-			"Scarabée",
-			"Scarabée géant",
-			"Sceau",
-			"Sentinelles des ruines",
-			"Serment du sang",
-			"Serpent des ruines",
-			"Shenhe",
-			"Shikanoin Heizou",
-			"Siccité",
-			"Sigil",
-			"Signora",
-			"Soie de sang",
-			"Sonde de foudre",
-			"Souffle",
-			"Souhait",
-			"Spectre",
-			"Statue des Sept",
-			"Statues mystérieuses",
-			"Structure primale",
-			"Stèle mystérieuse",
-			"Stèle élémentaire",
-			"Stèle érodée",
-			"Sucrose",
-			"Suivante miroir des Fatui",
-			"Sumeru",
-			"Talent",
-			"Tartaglia",
-			"Tas de pierres",
-			"Tas de sable",
-			"Tempête",
-			"Teyvat",
-			"Thoma",
-			"Théière",
-			"Tige de bambou",
-			"Tighnari",
-			"Tirailleur Fatui",
-			"Tireur Brutocollinus",
-			"Tombaie",
-			"Torches",
-			"Tour",
-			"Téléporteur de barge (téléportation impossible)",
-			"Ult",
-			"Ulti",
-			"Usurier des Fatui",
-			"Varka",
-			"Vautour rouge sacralisé",
-			"Vent",
-			"Venti",
-			"Viande crue",
-			"Viande froide",
-			"Victor",
-			"Viparyas",
-			"Vision",
-			"Voeu",
-			"Volaille",
-			"Waifu",
-			"Lore",
-			"Wangsheng",
-			"Wangsheng Funeral Parlor",
-			"Watatsumi",
-			"Wenut de Setekh",
-			"Wuwang",
-			"Xiangling",
-			"Xiao",
-			"Xingqiu",
-			"Yae Miko",
-			"Yaoyao",
-			"Yelan",
-			"Yoimiya",
-			"Yunjin",
-			"Zhongli",
-			"coffre",
-			"coffre délicat",
-			"coffre luxueux",
-			"coffre ordinaire",
-			"coffre précieux",
-			"coffre étrange",
-			"Éclair",
-			"aptitude",
-			"Éclat de cristal magique",
-			"Éclats de Chaos",
-			"Écureuil",
-			"Électrocristal",
-			"Électroculus",
-			"Électrogranum",
-			"Élémentosaure abyssal",
-			"énigme",
-			"Énigme de Sumeru",
-			"Épine de cristal",
-			"Épine du dragon",
-			"Épinoche combattante",
-			"Épinoche dovenin",
-			"Épinoche pulmonée",
-			"Épée d'Harmonie",
-			"Érémites",
-			"Étoile d'or",
-			"Événement",
-			"Molrani",
-			"Événement de baptême de la mer",
-			"Île de Watatsumi",
-			"Île de Seirai",
-			"Île de Yashiori",
-			"Île de Tsurumi",
-			"Île de Narukami",
-			"Gouffre",
-			"Dosdragon",
-		];
+        .container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 83vh;
+            padding-right: 40px;
+            box-sizing: border-box;
+            overflow: hidden;
+        }
 
 
-		var lettreCourante = 0;
-		function changerLettre() {
-			var alphabet = mots.map(function (mot) {
-				return mot.charAt(0)/*.normalize("NFD").replace(/[\u0300-\u036f]/g, ""*/;
-			});
-			var h1 = document.getElementById("lettre");
-			var h1Val = document.getElementById("lettre").textContent;
-			const texte = document.getElementById("txt");
-			const premiereLettre = texte.value[0].toUpperCase();
-			if (h1Val === premiereLettre) {
-				console.log("La première lettre du texte est dans l'alphabet.");
-			} else {
-				console.log("La première lettre du texte n'est pas dans l'alphabet.");
-				texte.style.color = "#e02525"
-				setTimeout(() => {
-					texte.style.color = "white"
-				}, 700);
-				return
-			}
-			var top;
-			for (let i = 0; i < mots.length; i++) {
-				const texte = document.getElementById("txt");
-				if (mots[i].toUpperCase() === texte.value.toUpperCase()) {
-					mots.splice(i, 1);
-					console.log(`Le mot a été trouvé et supprimé du tableau.`);
-					top = 0;
-					break
-				} else {
-					top = 1
-					texte.style.color = "#e02525"
-					setTimeout(() => {
-						texte.style.color = "white"
-					}, 700);
+        h1 {
+            font-size: 36px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .text-zone {
+            background-color: #26313a;
+            border: none;
+            border-radius: 5px;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+            color: #fff;
+            padding: 20px;
+            resize: none;
+            width: 218px;
+            height: 44px;
+            font-size: 18px;
+            margin-bottom: 20px;
+        }
+
+        .btn {
+            background-color: #003cff;
+            border: none;
+            border-radius: 5px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+            color: #fff;
+            cursor: pointer;
+            font-size: 18px;
+            padding: 10px 20px;
+            transition: all 0.3s;
+            text-align: center;
+            text-decoration: none;
+            margin-left: 0px;
+        }
+
+        .btn:hover {
+            background-color: #0857df;
+        }
+
+        #tour,
+        #tour2 {
+            width: 400px;
+            display: flex;
+            justify-content: center;
+            margin: 0px;
+        }
+
+        #tour {
+            margin-block-end: -13px !important;
+        }
+
+        #tour p,
+        #tour2 p {
+            padding-right: 6px;
+        }
+
+        #rule {
+            display: flex;
+            align-items: center;
+        }
+
+        h4 {
+            margin: 0px;
+        }
+
+        h3 {
+            margin: 0px;
+        }
+
+        p {
+            margin-block-start: 15px;
+            margin-block-end: 15px;
+        }
+
+        #note,
+        #note2 {
+            color: rgb(180, 190, 196);
+            margin-block-start: 0px;
+            margin-block-end: 43px;
+            font-size: 14px;
+        }
+
+        #note {
+            margin-block-end: 5px;
+        }
+
+        #note2 {
+            width: 623px;
+            text-align: justify;
+        }
+
+        h5 {
+            position: absolute;
+            font-size: 11px;
+            left: 1%;
+            top: 1%;
+            font-family: 'Baloo 2', cursive;
+            font-weight: 300;
+            color: rgba(255, 255, 255, 0.550);
+        }
+
+        @media screen and (max-width: 1090px) {
+            .container {
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                height: 100vh;
+                padding-bottom: 110px;
+                padding-right: 0px;
+                box-sizing: border-box;
+                transform: scale(2);
+                left: 27%;
+                position: absolute;
+            }
+
+            h5 {
+                position: absolute;
+                font-size: 20px;
+                left: 4%;
+                top: 0%;
+                font-family: 'Baloo 2', cursive;
+                font-weight: 300;
+                color: rgba(255, 255, 255, 0.550);
+            }
+        }
+    </style>
+    <script>
+        var mots = [
+            "Abdomen luminescent",
+            "Abondance",
+            "Abyssal",
+            "Abyssal étoilé",
+            "Abysse",
+            "Adepte",
+            "Adeptus",
+            "Agate pourpre",
+            "Aile",
+            "Ailes de la nuit",
+            "Ailes de papillon",
+            "Ailes du vent",
+            "Akai maou",
+            "Ayaka",
+            "Albedo",
+            "Alhaitham",
+            "Aloy",
+            "Lumine",
+            "Aether",
+            "Amakumo",
+            "Amber",
+            "Ambition",
+            "Anguille",
+            "Anguille des sables",
+            "Anémoblob",
+            "Anémoblob flottant",
+            "Anémoculus",
+            "Apôtre de l'Abîme",
+            "Aranaras",
+            "Arataki Itto",
+            "Arbre congelé",
+            "Arbre des rêves",
+            "Arbre enflammé",
+            "Arbre foudroyé",
+            "Arbre permagelé",
+            "Arche des Sept",
+            "Archon",
+            "Argétoile",
+            "Arme",
+            "Dehya",
+            "Arpente-neige",
+            "Artéfact",
+            "Attrape-aube",
+            "Aube",
+            "Aubétoile",
+            "Aurore",
+            "Ayato",
+            "Azhdaha",
+            "Baie",
+            "Baie de Jueyun",
+            "Baie à crochet",
+            "Bake-danuki",
+            "Bannière",
+            "Barbara",
+            "Barbatos",
+            "Beidou",
+            "Belette",
+            "Belette bottée",
+            "Belette des neiges",
+            "Belette foudrazurée",
+            "Belette masquée",
+            "Belette rousse",
+            "Bennett",
+            "Blizzard",
+            "Blob",
+            "électroblob",
+            "pyroblob",
+            "dendroblob",
+            "hydroblob",
+            "hydro",
+            "géoblob",
+            "cryblob",
+            "Electro-cristal",
+            "Lyre",
+            "Cristal primitif",
+            "Cristal Glacé",
+            "Crocs-de-sang",
+            "Dainsleif",
+            "Cristal Glacé",
+            "Cristal Glacé",
+            "Bois",
+            "Borée",
+            "Loup du Nord",
+            "Andrius",
+            "Bouclier de jade",
+            "Bourgeonnement",
+            "Braise",
+            "Braises primales",
+            "Brasero des ruines",
+            "Brutocollinus",
+            "Brutocollinus étrange",
+            "Brutoshaman",
+            "Brutoviandu",
+            "Bulle",
+            "Bâton de la décision",
+            "Bête des neiges",
+            "Caisse en bois",
+            "Candace",
+            "Capitaine des chevaliers de Favonius",
+            "Carotte",
+            "Casse-noisette",
+            "Catalyseur",
+            "Cellules de lumière profuse",
+            "Cendres ombrageuses",
+            "Cerisier sacré",
+            "Chambre de Jade",
+            "Champ d'étoiles",
+            "Champ de lune",
+            "Champieffroi panaché",
+            "Champignon",
+            "Champignon anémophile",
+            "Champignon fluorescent",
+            "Champignon sacramental",
+            "Champignon sucré",
+            "Champitoile",
+            "Changement de personnage",
+            "Changement de plan",
+            "Chasseur de tempêtes",
+            "Chasseur de trésor",
+            "Chasseur des ruines",
+            "Chat",
+            "Cheminée de fée",
+            "Chevaliers de Favonius",
+            "Chongyun",
+            "Chrysanthème à aubes",
+            "Cité des vents",
+            "Cité sans voix",
+            "Cocogoat",
+            "Coffre délicat",
+            "Coffre enterré",
+            "Coffre luxueux",
+            "Coffre ordinaire",
+            "Coffre précieux",
+            "Coffre scellé",
+            "Coffre étrange",
+            "Col de Guyun",
+            "Collei",
+            "Colosse des ruines",
+            "Columbina",
+            "Pierro",
+            "Dottore",
+            "Pantalone",
+            "Capitano",
+            "Pulcinella",
+            "Sandrone",
+            "Scaramuccia",
+            "Arlecchino",
+            "Khaenri'ah",
+            "Commerçant",
+            "Compagnons",
+            "Conque d'étoile",
+            "Constellation",
+            "Conte",
+            "Alice",
+            "Lawrence",
+            "Fontaine",
+            "Vannessa",
+            "Lance",
+            "Lanterne",
+            "Contrat sans fin",
+            "Coquillage",
+            "Archipel de la Pomme dorée",
+            "Corbeau",
+            "Corolle de fleur de brume",
+            "Courant",
+            "Crabe",
+            "Crimson",
+            "Cristal",
+            "Cristal de lumen",
+            "Cristal de sang",
+            "Cryo",
+            "Cube mécanique",
+            "Cyno",
+            "Cécilia",
+            "Célestia",
+            "Cœur de lapis",
+            "Coeur de lapis",
+            "Dame Ayaka",
+            "Dame Gorou",
+            "Dendro",
+            "Dendrobium",
+            "Dendroculus",
+            "Dendrogranums",
+            "Destructeur de la flamme",
+            "Diamant",
+            "Diluc",
+            "Diona",
+            "Donjon",
+            "Dori",
+            "Dragon cataclysmique",
+            "Dragon des ruines",
+            "Dragonspine",
+            "Défenseur",
+            "Contre la montre",
+            "Défi",
+            "Corrosion",
+            "Détective privé",
+            "Eau",
+            "Eclat",
+            "électro",
+            "Element",
+            "Ennemi",
+            "Eula",
+            "Exécuteur",
+            "Faruzan",
+            "Fatui",
+            "Fauconuit",
+            "Feu de camp",
+            "Fischl",
+            "Flamme",
+            "Fleur",
+            "Flèche",
+            "Fongus",
+            "Forêt",
+            "Morax",
+            "Baal",
+            "Belzebuth",
+            "Pierre de la déstinée",
+            "Pierre de la fatalité",
+            "Buer",
+            "Tsarine",
+            "Belzebuth",
+            "Forêt de pierres",
+            "Foudre",
+            "Foçalors",
+            "Fée",
+            "Ganyu",
+            "Garde",
+            "Gardien",
+            "Mob",
+            "Gardien des ruines",
+            "Géo",
+            "Givre",
+            "Glace antique",
+            "Gorou",
+            "Graine de pissenlit",
+            "Pissenlit",
+            "Grenouille",
+            "Grotte",
+            "Guerrier de Xinyan",
+            "Gueule de loup",
+            "Gyrocristal",
+            "Gyrocristal radiant",
+            "Géoculus",
+            "Géogranum",
+            "Géosaure",
+            "Géosaure antique",
+            "Heizou",
+            "Herbe marine",
+            "Herbe à lampe",
+            "Hu Tao",
+            "Husbando",
+            "Hyakunin Ikki",
+            "Hypostase",
+            "Hypostase Anémo",
+            "Hypostase Cryo",
+            "Hypostase Dendro",
+            "Hypostase Géo",
+            "Géo",
+            "Hypostase Hydro",
+            "Hypostase Pyro",
+            "Hypostase Électro",
+            "Heildriss n'est pas un goat",
+            "Illusion",
+            "Inazuma",
+            "Ingrédient",
+            "Insigne d'honneur",
+            "Jade Noctiluque",
+            "Jardin",
+            "Jardin de pierre",
+            "Jean",
+            "Jeune Dragolézard Géo",
+            "Jeunes feuilles",
+            "Joël",
+            "Kaeya",
+            "Kalpalotus",
+            "Kamisato Ayaka",
+            "Kamisato Ayato",
+            "Karma de la guerre",
+            "Keqing",
+            "Oeil divin",
+            "Klee",
+            "Sangonomiya Kokomi",
+            "Koï doré",
+            "Koï rouillé",
+            "Enkanomiya",
+            "Kujou Sara",
+            "Kuki Shinobu",
+            "Kusanali",
+            "Lac",
+            "Lame oni",
+            "Lames de l'Ombre",
+            "Lames éclairs",
+            "Lampe de lumen",
+            "Lance de l'Aube",
+            "Lances ardentes",
+            "Larme de Vajra",
+            "Layla",
+            "Le Crux : L'Alcor",
+            "Les Serpents noirs",
+            "Lien du feu",
+            "Lieu de culte de l'essence",
+            "Lingju",
+            "Livre",
+            "Liyue",
+            "Loche",
+            "Port d'Ormos",
+            "Leak",
+            "Loup alpha doré",
+            "Loup de faille",
+            "Luciolichance",
+            "Lueur d'espoir",
+            "Lune d'eau",
+            "Lys calla",
+            "Lys verni",
+            "Léger",
+            "Lézard",
+            "Machine saghira",
+            "Mage de l'Abîme",
+            "Mage luciole des Fatui",
+            "Maguu Kenki",
+            "Main",
+            "Manifestation du tonnerre",
+            "Marais brumeux",
+            "Marlin à hache de jade",
+            "Marlin à hache de lazurite",
+            "Marmite",
+            "artefact",
+            "Masque de l'ombre",
+            "Masque du mensonge",
+            "Matrice mécanique perpétuelle",
+            "Matsutake",
+            "Maître",
+            "Melon lavande",
+            "Menthe",
+            "Merveilleux festin",
+            "Militaire de Snezhnaya",
+            "Snezhnaya",
+            "F2P",
+            "Mille armées",
+            "Mille nuages pourpre",
+            "Mille-Feuille",
+            "Minerai d'argétoile",
+            "Minerai",
+            "Mini-énigme",
+            "Mirage",
+            "Miroir",
+            "Mithrax",
+            "Moelle cristalline",
+            "Mona",
+            "Monastry",
+            "Mondstadt",
+            "Mont Aocang",
+            "Mont Yougou",
+            "Montagne",
+            "Mora",
+            "Morceau de fer",
+            "Muguet bleu",
+            "Mécanisme",
+            "Médaka",
+            "Nahida",
+            "Natlan",
+            "Nid de la grue",
+            "Nilotpalotus",
+            "Nilou",
+            "Ningguang",
+            "Nirvana",
+            "Nobilis",
+            "Nobushi",
+            "Noix d'ajilenakh",
+            "Nomade",
+            "Hoyoverse",
+            "Noyau cristallin",
+            "Noyau de tempête",
+            "Noëlle",
+            "Obélisques",
+            "Océan",
+            "Océanide",
+            "Oeuf",
+            "Onikabuto",
+            "Suivante Miroir",
+            "Ordalie",
+            "Os",
+            "Ouvrages",
+            "Padisachidée",
+            "Paimon",
+            "Panorama",
+            "Papillon cristallin",
+            "Perle",
+            "Pay to win",
+            "Pigeon",
+            "Gacha",
+            "Mika",
+            "Akasha",
+            "Pilleur de trésors",
+            "Piment de Jueyun",
+            "Pinson",
+            "Pistil de fleur enflammée",
+            "Pêche",
+            "Point de téléportation",
+            "Poisson",
+            "Pomme crépusculaire",
+            "Pomme de pin",
+            "Bambou",
+            "Primo-gemme",
+            "Puissance du vent",
+            "Pyro",
+            "Pépinières sauvages",
+            "Pêche zaytun",
+            "Qingce",
+            "Qingxin",
+            "Qiqi",
+            "Quandong",
+            "Quête du monde",
+            "Radis",
+            "Raiden Shogun",
+            "Raie",
+            "Rapace",
+            "Razor",
+            "Recettes",
+            "Renard",
+            "Brutocollinus",
+            "Roi des sangliers",
+            "Rosalia",
+            "Rose sumérienne",
+            "Rukkhadevata",
+            "Lisa",
+            "Joueur",
+            "Dvalin",
+            "Résine condensée",
+            "Sablier primal",
+            "Sanctuaire",
+            "Sanctuaire des profondeurs",
+            "Sang de dragon",
+            "Sanglier des neiges",
+            "Sangonomiya",
+            "Sayu",
+            "Anémo",
+            "Scalaire chousei",
+            "Scalaire raimei",
+            "Scarabuto",
+            "Scarabée",
+            "Scarabée géant",
+            "Sceau",
+            "Sentinelles des ruines",
+            "Serment du sang",
+            "Serpent des ruines",
+            "Shenhe",
+            "Shikanoin Heizou",
+            "Siccité",
+            "Sigil",
+            "Signora",
+            "Statue des Sept",
+            "Sucrose",
+            "Suivante miroir des Fatui",
+            "Sumeru",
+            "Talent",
+            "Tartaglia",
+            "Tas de pierres",
+            "Tas de sable",
+            "Tempête",
+            "Teyvat",
+            "Thoma",
+            "Théière",
+            "Tige de bambou",
+            "Tighnari",
+            "Tirailleur Fatui",
+            "Tireur Brutocollinus",
+            "Tombaie",
+            "Torches",
+            "Tour",
+            "Ulti",
+            "Usurier Fatui",
+            "Varka",
+            "Vautour",
+            "Vent",
+            "Venti",
+            "Viande",
+            "Victor",
+            "Viparyas",
+            "Vision",
+            "Voeu",
+            "Volaille",
+            "Waifu",
+            "Lore",
+            "Wangsheng",
+            "Wangsheng Funeral Parlor",
+            "Watatsumi",
+            "Wuwang",
+            "Xiangling",
+            "Xiao",
+            "Xingqiu",
+            "Yae Miko",
+            "Yaoyao",
+            "Yelan",
+            "Yoimiya",
+            "Yunjin",
+            "Zhongli",
+            "coffre",
+            "coffre délicat",
+            "coffre luxueux",
+            "coffre ordinaire",
+            "coffre précieux",
+            "coffre étrange",
+            "Éclair",
+            "aptitude",
+            "Éclat de cristal magique",
+            "Éclats de Chaos",
+            "Écureuil",
+            "Électrocristal",
+            "Électroculus",
+            "Électrogranum",
+            "Élémentosaure",
+            "énigme",
+            "Épée d'Harmonie",
+            "Érémites",
+            "Étoile d'or",
+            "Événement",
+            "Molrani",
+            "Événement de baptême de la mer",
+            "Île de Watatsumi",
+            "Île de Seirai",
+            "Île de Yashiori",
+            "Île de Tsurumi",
+            "Île de Narukami",
+            "Gouffre",
+            "Dosdragon",
+        ];
 
 
-				}
-			}
-			if (top == 1) return
-			lettreCourante++;
-			if (lettreCourante >= 10) {
-				console.log("ouiiii");
-				lettreCourante = 0;
-				var nb = document.getElementById("nb");
-				var jsp = + nb.textContent
-				jsp++
-				nb.innerHTML = jsp;
+        var lettreCourante = 0;
+        function changerLettre() {
+            var alphabet = mots.map(function (mot) {
+                return mot.charAt(0)/*.normalize("NFD").replace(/[\u0300-\u036f]/g, ""*/;
+            });
+            var h1 = document.getElementById("lettre");
+            var h1Val = document.getElementById("lettre").textContent;
+            const texte = document.getElementById("txt");
+            const premiereLettre = texte.value[0].toUpperCase();
+            if (h1Val === premiereLettre) {
+                console.log("La première lettre du texte est dans l'alphabet.");
+            } else {
+                console.log("La première lettre du texte n'est pas dans l'alphabet.");
+                texte.style.color = "#e02525"
+                setTimeout(() => {
+                    texte.style.color = "white"
+                }, 700);
+                return
+            }
+            var top;
+            for (let i = 0; i < mots.length; i++) {
+                const texte = document.getElementById("txt");
+                if (mots[i].toUpperCase() === texte.value.toUpperCase()) {
+                    mots.splice(i, 1);
+                    console.log(`Le mot a été trouvé et supprimé du tableau.`);
+                    top = 0;
+                    break
+                } else {
+                    top = 1
+                    texte.style.color = "#e02525"
+                    console.log(`Le mot absent de la liste.`);
+                    setTimeout(() => {
+                        texte.style.color = "white"
+                    }, 700);
 
-			}
-			var lettreRandom;
-			function generateRandomNumber() {
-				let randomNumber;
-				do {
-					randomNumber = Math.floor(Math.random() * mots.length) + 1;
-					lettreRandom = alphabet[randomNumber];
-				} while (randomNumber === 4);
-				return randomNumber
-			}
-			generateRandomNumber()
-			console.log("nooooo");
-			h1.innerHTML = lettreRandom;
-			texte.value = ''
-			var nb2 = document.getElementById("nb2");
-			var jsp2 = + nb2.textContent
-			jsp2++
-			nb2.innerHTML = jsp2;
-		}
-		document.addEventListener('keypress', function (event) {
-			// vérifier si la touche pressée est la touche Entrée
-			if (event.keyCode === 13) {
-				// exécuter le même code que lorsque le bouton est cliqué
-				changerLettre()
-				const texte = document.getElementById("txt");
 
-			}
-		});
-	</script>
+                }
+            }
+            if (top == 1) return
+            lettreCourante++;
+            if (lettreCourante >= 10) {
+                console.log("ouiiii");
+                lettreCourante = 0;
+                var nb = document.getElementById("nb");
+                var jsp = + nb.textContent
+                jsp++
+                nb.innerHTML = jsp;
+
+            }
+            var lettreRandom;
+            function generateRandomNumber() {
+                let randomNumber;
+                do {
+                    randomNumber = Math.floor(Math.random() * mots.length) + 1;
+                    lettreRandom = alphabet[randomNumber];
+                } while (randomNumber === 4);
+                return randomNumber
+            }
+            generateRandomNumber()
+            console.log("nooooo");
+            h1.innerHTML = lettreRandom;
+            texte.value = ''
+            var nb2 = document.getElementById("nb2");
+            var jsp2 = + nb2.textContent
+            jsp2++
+            nb2.innerHTML = jsp2;
+        }
+        document.addEventListener('keypress', function (event) {
+            // vérifier si la touche pressée est la touche Entrée
+            if (event.keyCode === 13) {
+                // exécuter le même code que lorsque le bouton est cliqué
+                changerLettre()
+                const texte = document.getElementById("txt");
+
+            }
+        });
+    </script>
+    <script type="module">
+        // Import the functions you need from the SDKs you need
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/9.17.1/firebase-app.js";
+        import {
+            getDatabase,
+            set,
+            ref,
+            push,
+            child,
+            onValue,
+            onChildAdded,
+            update,
+            get,
+            remove
+        } from "https://www.gstatic.com/firebasejs/9.17.1/firebase-database.js";
+        import {
+            getAuth,
+            createUserWithEmailAndPassword,
+            signInWithEmailAndPassword,
+            signOut
+        } from "https://www.gstatic.com/firebasejs/9.17.1/firebase-auth.js";
+
+
+
+        // TODO: Add SDKs for Firebase products that you want to use
+        // https://firebase.google.com/docs/web/setup#available-libraries
+
+        // Your web app's Firebase configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyCSUQoYmYbmbkKoIbDQcQhOxnada13rBWY",
+            authDomain: "memory-c1192.firebaseapp.com",
+            projectId: "memory-c1192",
+            storageBucket: "memory-c1192.appspot.com",
+            messagingSenderId: "320978503728",
+            appId: "1:320978503728:web:49c1ef1f72cd9a595745f5",
+            measurementId: "G-QP4M89SW8F",
+            databaseURL: "https://memory-c1192-default-rtdb.europe-west1.firebasedatabase.app/",
+        };
+
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth();
+        const database = getDatabase(app);
+        var pseudoG;
+        var verif = document.querySelector('.verif');
+        var formulaire = document.querySelector('.formulaire');
+        var deco = document.querySelector('#deco');
+        var messages = [];
+        var submit = document.querySelector("#submit");
+        var messagesList;
+        var stop = 0;
+        setInterval(() => {
+
+            if (stop == 0) {
+                var user2 = auth.currentUser;
+                if (user2) {
+                    stop = 1;
+                    var email = user2.email;
+                    formulaire.style.display = 'none'
+                    const usersRef = ref(database, 'users');
+                    const dbRef = ref(getDatabase());
+                    var pseudoL = [];
+                    get(child(dbRef, `users/`)).then((snapshot) => {
+                        if (snapshot.exists()) {
+                            // console.log("snapshot exit", pseudoG)
+                            snapshot.forEach((childSnapshot) => {
+                                // Récupération des données du message
+                                var ps = childSnapshot.val();
+                                //console.log("c'est ps.email", ps.email)
+                                // console.log("c'est email", ps.email)
+                                // Ajout du message au tableau
+                                if (ps.email === email) {
+                                    pseudoG = ps.pseudo;
+                                    console.log("c'est son speudo", pseudoG)
+
+                                }
+                                //  console.log("pas de pseudo", pseudoG)
+                                pseudoL.push(ps);
+                                //messages = messages.map(i => Number(i));
+                            });
+                            const li = document.createElement('h2');
+                            li.textContent = "Connecté: " + pseudoG;
+                            verif.appendChild(li);
+                            verif.style.display = "flex"
+                            document.querySelector(".container").style.height = "75vh"
+                            deco.style.display = "unset"
+                            // console.log(pseudoL[1].pseudo);
+                        } else {
+                            console.log("No data available");
+                        }
+                    }).catch((error) => {
+                        console.error(error);
+                    });
+                } else {
+                    verif.style.display = "none"
+                    document.querySelector(".container").style.height = "81vh"
+                    while (verif.firstChild) {
+                        verif.removeChild(verif.firstChild);
+                    }
+                    stop = 0;
+                    formulaire.style.display = 'grid'
+                    formulaire.style.height = '0px%'
+                    deco.style.display = "none"
+                    setTimeout(() => {
+
+                        formulaire.style.opacity = '100%'
+                    }, 10);
+                }
+            }
+
+        }, 100);
+        var truc = 0;
+        setTimeout(() => {
+
+
+            if (truc == 1) return
+
+            var message = document.getElementById('message').value;
+            var user = auth.currentUser;
+            if (user) {
+                console.log("1")
+                var fin = document.querySelector(".end")
+                if (truc == 0) {
+                    console.log("1ddd")
+
+                    console.log("ffefef")
+                    truc = 1;
+                    var userId = user.uid;
+                    var userEmail = user.email;
+
+                    const id = push(child(ref(database), 'users/' + userId + '/messages' + '/anime')).key;
+                    setInterval(() => {
+
+                        var pts = document.querySelector("#nb2").textContent;
+                        const refr = ref(database, '/messages/' + '/anime/');
+                        const dbRef = ref(getDatabase());
+                        get(child(dbRef, `messages/anime/`)).then((snapshot) => {
+                           
+                            if (snapshot.exists()) {
+                              
+                                snapshot.forEach((childSnapshot) => {
+
+                                    // Récupération des données du message
+                                    var point = childSnapshot.val();
+                                    if (point.pseudo !== pseudoG) return
+                                    // Ajout du message au tableau
+                                    if (point.message > pts) {
+                                        console.log("Pts inférieur")
+                                        return
+                                    } else{
+                                        set(ref(database, '/messages/' + '/anime/' + pseudoG), {
+                                        message: pts,
+                                        pseudo: pseudoG
+                                    });
+                                    }
+                                    
+
+                                });
+                            } else {
+                                console.log("No data available");
+                            }
+                        }).catch((error) => {
+                            console.error(error);
+                        });
+
+
+                    }, 3000);
+                    //messages.push(message);
+                    document.getElementById('message').value = "";
+                    //alert('message has sent to ' + userEmail);
+                }
+            }
+
+        }, 3000);
+
+        // Récupération de la référence à la base de données
+        const messagesRefEZ = ref(database, '/messages/' + '/anime/');
+        onValue(messagesRefEZ, (snapshot) => {
+            messages = [];
+            messagesList = document.getElementById("messages-list1");
+
+            while (messagesList.firstChild) {
+                messagesList.removeChild(messagesList.firstChild);
+            }
+
+            snapshot.forEach((childSnapshot) => {
+                messages.push(childSnapshot.val());
+
+            });
+
+            // Tri des messages en ordre décroissant
+            messages.sort((a, b) => b.message - a.message);
+
+            // Génération de la liste des messages
+            messagesList.innerHTML = messages.map((message) => {
+                return `<li><span style="font-size: 26px; font-weight: 400;">${message.pseudo}:</span><br>Mot trouvé: ${message.message}</li>`;
+            }).join("");
+        });
+
+        submitData.addEventListener('click', (e) => {
+
+            var email = document.getElementById('email').value;
+            var password = document.getElementById('psw').value;
+            var pseudo = document.getElementById('psd').value;
+            if (pseudoG == undefined || pseudoG == null) {
+                pseudoG = document.getElementById('psd').value;
+            }
+            if (pseudo !== "") {
+                if (pseudo.length > 10) {
+                    alert("Pseudo limité à 10 caractères")
+                    return
+                }
+                var tuPeux = 1
+                const usersRef = ref(database, 'users');
+                const dbRef = ref(getDatabase());
+                get(child(dbRef, `users/`)).then((snapshot) => {
+                    if (snapshot.exists()) {
+                        snapshot.forEach((childSnapshot) => {
+                            // Récupération des données du message
+                            var ps = childSnapshot.val();
+                            // Ajout du message au tableau
+                            if (ps.pseudo === pseudo) {
+                                alert("Ce pseudo existe déjà")
+                                tuPeux = 0;
+                                return
+                            } else {
+                                if (tuPeux == 1) {
+                                    createUserWithEmailAndPassword(auth, email, password, pseudo)
+
+
+                                        .then((userCredential) => {
+                                            // Signed in
+
+                                            const user = userCredential.user;
+                                            // ... user.uid
+                                            set(ref(database, 'users/' + user.uid), {
+                                                email: email,
+                                                password: password,
+                                                pseudo: pseudo
+                                            })
+                                                .then(() => {
+                                                    // Data saved successfully!
+                                                    alert('user created successfully');
+
+
+                                                })
+                                                .catch((error) => {
+                                                    // The write failed...
+                                                    //alert(error);
+                                                });
+
+                                        })
+                                        .catch((error) => {
+                                            const errorCode = error.code;
+                                            const errorMessage = error.message;
+                                            // ..
+                                            // alert(errorMessage);
+                                        });
+                                }
+
+                            }
+
+                        });
+
+                    } else {
+                        console.log("No data available");
+                    }
+                }).catch((error) => {
+                    console.error(error);
+                });
+                //sign up user
+
+
+
+            } else {
+                alert("Veuillez entrer un pseudo")
+            }
+
+            const usersRef = ref(database, 'users');
+            const dbRef = ref(getDatabase());
+            var pseudoL = [];
+            get(child(dbRef, `users/`)).then((snapshot) => {
+                if (snapshot.exists()) {
+                    snapshot.forEach((childSnapshot) => {
+                        // Récupération des données du message
+                        var ps = childSnapshot.val();
+                        // Ajout du message au tableau
+                        if (ps.email === email) {
+                            pseudoG = ps.pseudo;
+                            console.log("c'est son speudo", pseudoG)
+
+                        }
+
+                        pseudoL.push(ps);
+                        //messages = messages.map(i => Number(i));
+                    });
+
+                    console.log(pseudoL[1].pseudo);
+                } else {
+                    console.log("No data available");
+                }
+            }).catch((error) => {
+                console.error(error);
+            });
+
+        });
+        document.querySelector("#deco").addEventListener('click', (e) => {
+            //sign out user
+            signOut(auth).then(() => {
+                // Sign-out successful.
+                stop = 0;
+                formulaire.style.display = 'unset'
+                var connect = document.querySelector(".truc")
+                connect.remove();
+                deco.style.display = "none"
+                verif.style.display = "none"
+                document.querySelector(".container").style.height = "81vh"
+                while (verif.firstChild) {
+                    verif.removeChild(verif.firstChild);
+                }
+            }).catch((error) => {
+                // An error happened.
+            });
+        })
+
+        document.querySelector("#franchement").addEventListener('click', (e) => {
+
+            var email = document.getElementById('email2').value;
+            var password = document.getElementById('psw2').value;
+            var pseudo = document.getElementById('psd').value;
+            if (pseudoG == undefined || pseudoG == null) {
+                pseudoG = document.getElementById('psd').value;
+            }
+
+
+            // log in user
+            signInWithEmailAndPassword(auth, email, password, pseudo)
+                .then((userCredential) => {
+                    // Signed in
+                    const user = userCredential.user;
+                    // ...
+
+                    // save log in details into real time database
+                    var lgDate = new Date();
+                    update(ref(database, 'users/' + user.uid), {
+                        last_login: lgDate,
+                    })
+                        .then(() => {
+                            // Data saved successfully!
+                            alert('user logged in successfully');
+
+
+                        })
+                        .catch((error) => {
+                            // The write failed...
+                            alert(error);
+                        });
+                })
+                .catch((error) => {
+                    const errorCode = error.code;
+                    const errorMessage = error.message;
+                    alert(errorMessage);
+                });
+            const usersRef = ref(database, 'users');
+            const dbRef = ref(getDatabase());
+            var pseudoL = [];
+            get(child(dbRef, `users/`)).then((snapshot) => {
+                if (snapshot.exists()) {
+                    snapshot.forEach((childSnapshot) => {
+                        // Récupération des données du message
+                        var ps = childSnapshot.val();
+                        // Ajout du message au tableau
+                        if (ps.email === email) {
+                            pseudoG = ps.pseudo;
+                            console.log("c'est son speudo", pseudoG)
+
+                        }
+
+                        pseudoL.push(ps);
+                        //messages = messages.map(i => Number(i));
+                    });
+
+                    console.log(pseudoL[1].pseudo);
+                } else {
+                    console.log("No data available");
+                }
+            }).catch((error) => {
+                console.error(error);
+            });
+        });
+
+
+
+    </script>
 </head>
 
 <body>
-	<h5>Fait avec amour, par Chikage~</h5>
-	<div class="container">
-		<p id="rule">
-		<h3><u>Règles:</u></h3> <br>
-		<h4>Trouver un mot ou groupe de mots en rapport avec Genshin ! </h4> <br>
-		<p id="note">Note: Le premier mot doit commencer par la lettre affiché</p>
-		<p id="note2">Les majuscules ne sont pas prisent en compte</p>
-		</p>
-		<h2 id="tour">
-			<p>Vous êtes à:</p>
-			<p id="nb">0</p>
-			<p>tours</p>
-		</h2>
-		<h2 id="tour2">
-			<p>Vous avez trouvé:</p>
-			<p id="nb2">0</p>
-			<p>mots</p>
-		</h2>
-		<h1 id="lettre">A</h1>
+    <h5>Fait avec amour, par Chikage~</h5>
+    <div class="verif">
 
-		<input type="text" id="txt" class="text-zone" placeholder="Entrez votre texte ici"></input>
-		<button onclick="changerLettre()" class="btn">Suivant</button>
+    </div>
+    <div id="wsh">
+        <button type="button" id="deco" name="deco" class="registerbtn">Déconnection</button>
+    </div>
 
-	</div>
+    <form class="formulaire">
+        <div class="containerBis">
+            <h1>Authentification</h1>
+            <div class="create">
+                <p>Votre pseudo ne pourras pas être modifié après l'inscription.</p>
+                <hr>
+                <label for="email"><b>Email</b></label>
+                <input type="text" placeholder="Enter Email" id="email" required>
+
+                <label><b>Mot-de-passe</b></label>
+                <input type="password" placeholder="Password" id="psw" required>
+
+                <label for="pseudo"><b>Pseudo</b></label>
+                <input type="text" placeholder="Entre un Pseudo" id="psd" required>
+                <hr>
+
+            </div>
+            <div class="co">
+                <hr>
+                <label for="email"><b>Email</b></label>
+                <input type="text" placeholder="Enter Email" id="email2" required>
+
+                <label><b>Mot-de-passe</b></label>
+                <input type="password" placeholder="Password" id="psw2" required>
+                <hr>
+            </div>
+
+            <!--<p>By creating an account you agree to our <a href="#">Terms & Privacy</a>.</p>-->
+            <div class="debut">
+                <button type="button" id="inscription" name="submitData" class="registerbtn"
+                    onclick="inscri()">Inscription</button>
+                <button type="button" id="connexion" name="franchement" class="registerbtn"
+                    onclick="connect()">Connexion</button>
+            </div>
+            <div class="apres1">
+                <button type="button" id="submitData" name="submitData" class="registerbtn">Inscription</button>
+                <button type="button" id="retour1" class="registerbtn" onclick="back()">Retour</button>
+
+            </div>
+            <div class="apres2">
+                <button type="button" id="franchement" name="franchement" class="registerbtn">Connexion</button>
+                <button type="button" id="retour2" class="registerbtn" onclick="back()">Retour</button>
+            </div>
+
+            <textarea id="message" class="form-control type_msg" placeholder="Type your message..."></textarea>
+            <button id="submit" class="input-group-text send_btn"><i class="fas fa-location-arrow"></i>
+            </button>
+        </div>
+
+
+    </form>
+    <div class="project-title animated fadeInUp" id="normal">
+        <h2> <u>Classement:</u>
+        </h2>
+        <br>
+        <ol id="messages-list1">
+        </ol>
+    </div>
+    <div class="container">
+
+        <h4>Règles: Trouver un mot ou groupe de mots en rapport avec Genshin ! </h4> <br>
+        <p id="note">Note: Le premier mot doit commencer par la lettre affiché, les majuscules ne sont pas prisent en
+            compte.</p>
+        <p id="note2">Il a été nécessaire de faire un choix lors de l'écriture et du choix des mots. Par exemple,
+            l'ordre "Kujou Sara" est correct, tandis que "Sara Kujou" ne l'est pas. De même, différents types de coffres
+            fonctionnent, et pas seulement le mot "coffre". Cette règle s'applique également à d'autres éléments.</p>
+        </p>
+        <h2 id="tour">
+            <p>Vous êtes à:</p>
+            <p id="nb">0</p>
+            <p>tours</p>
+        </h2>
+        <h2 id="tour2">
+            <p>Vous avez trouvé:</p>
+            <p id="nb2">0</p>
+            <p>mots</p>
+        </h2>
+        <h1 id="lettre">A</h1>
+
+        <input type="text" id="txt" class="text-zone" placeholder="Entrez votre texte ici"></input>
+        <button onclick="changerLettre()" class="btn">Suivant</button>
+
+    </div>
 </body>
 
 </html>
