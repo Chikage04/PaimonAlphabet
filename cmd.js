@@ -23,7 +23,7 @@ function inscri() {
     document.querySelector(".apres1").style.display = "unset"
     document.querySelector("#retour1").style.display = "unset"
     if (isMobile()){
-        document.querySelector("#normal").style.top = "117%"
+        document.querySelector("#normal").style.top = "116%"
     }
    
 
