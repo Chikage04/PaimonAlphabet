@@ -31,7 +31,7 @@
             display: flex;
             flex-direction: column;
             align-items: center;
-            padding: 20px 10px 50px;
+            padding: 18px 10px 50px;
         }
 
         h1 {
@@ -44,7 +44,7 @@
 
         .subtitle {
             color: var(--muted);
-            margin: 0 0 16px;
+            margin: 0 0 14px;
             text-align: center;
             font-size: clamp(13px, 3.5vw, 16px);
             padding: 0 6px;
@@ -52,8 +52,8 @@
 
         .scoreboard {
             display: flex;
-            gap: 12px;
-            margin-bottom: 14px;
+            gap: 10px;
+            margin-bottom: 12px;
             flex-wrap: wrap;
             justify-content: center;
         }
@@ -62,9 +62,9 @@
             background: var(--panel);
             border: 1px solid #233169;
             border-radius: 12px;
-            padding: 6px 16px;
+            padding: 5px 14px;
             text-align: center;
-            min-width: 90px;
+            min-width: 84px;
         }
 
         .score-card .label {
@@ -74,16 +74,16 @@
             letter-spacing: 1px;
         }
 
-        .score-card .value { font-size: 24px; font-weight: 700; }
+        .score-card .value { font-size: 22px; font-weight: 700; }
 
         /* ---- Zone d'affichage (partition / nom) ---- */
         .display-area {
             width: 100%;
-            max-width: 380px;
+            max-width: 420px;
             display: flex;
             flex-direction: column;
             align-items: center;
-            min-height: 196px;
+            min-height: 180px;
             justify-content: center;
         }
 
@@ -93,41 +93,40 @@
             padding: 8px 10px;
             box-shadow: 0 10px 40px rgba(0, 0, 0, .45);
             width: 100%;
-            max-width: 380px;
+            max-width: 420px;
         }
 
         #staff { display: block; width: 100%; height: auto; }
 
         .chord-name {
             text-align: center;
-            font-size: clamp(28px, 8vw, 44px);
+            font-size: clamp(26px, 7vw, 42px);
             font-weight: 700;
-            color: var(--accent);
             min-height: 40px;
             margin: 10px 0 0;
         }
+
+        .chord-name .cn-active { color: var(--accent); }
+        .chord-name .cn-idle { color: var(--muted); }
+        .chord-name .cn-sep { color: var(--muted); margin: 0 8px; font-size: .7em; }
 
         .hidden-card {
             background: var(--panel);
             border: 1px dashed #3a4a86;
             border-radius: 16px;
-            padding: 28px 20px;
+            padding: 26px 20px;
             text-align: center;
             color: var(--muted);
             width: 100%;
-            max-width: 380px;
+            max-width: 420px;
             font-size: 18px;
         }
 
         .hidden-card .big { font-size: 34px; display: block; margin-bottom: 6px; }
-
         .is-hidden { display: none !important; }
 
         /* ---- Clavier ---- */
-        .piano-scaler {
-            margin: 16px auto 0;
-            position: relative;
-        }
+        .piano-scaler { margin: 14px auto 0; position: relative; }
 
         .piano {
             position: absolute;
@@ -174,13 +173,13 @@
 
         /* ---- Contrôles ---- */
         .controls {
-            margin-top: 22px;
+            margin-top: 20px;
             display: flex;
             flex-direction: column;
-            gap: 14px;
+            gap: 12px;
             align-items: center;
             width: 100%;
-            max-width: 560px;
+            max-width: 580px;
         }
 
         .control-row {
@@ -260,8 +259,22 @@
         }
 
         @media (max-width: 520px) {
-            .seg-label { font-size: 12px; }
             .segmented button { padding: 8px 11px; font-size: 13px; }
+        }
+
+        /* ---- Paysage / écran bas : compacter pour voir portée + clavier ---- */
+        @media (orientation: landscape) and (max-height: 560px) {
+            body { padding: 8px 10px 30px; }
+            h1 { font-size: 20px; margin: 0; }
+            .subtitle, .hint { display: none; }
+            .scoreboard { gap: 8px; margin-bottom: 8px; }
+            .score-card { padding: 3px 12px; min-width: 70px; }
+            .score-card .value { font-size: 18px; }
+            .display-area { min-height: 0; max-width: 300px; }
+            .staff-wrap { max-width: 300px; }
+            .chord-name { font-size: 26px; min-height: 30px; margin-top: 4px; }
+            .piano-scaler { margin-top: 8px; }
+            .controls { margin-top: 12px; gap: 8px; }
         }
     </style>
 </head>
@@ -278,7 +291,7 @@
 
     <div class="display-area">
         <div class="staff-wrap" id="staffWrap">
-            <svg id="staff" viewBox="0 0 360 150"></svg>
+            <svg id="staff" viewBox="0 0 360 160"></svg>
         </div>
         <div class="chord-name" id="chordName"></div>
         <div class="hidden-card is-hidden" id="hiddenCard">
@@ -292,9 +305,7 @@
     </div>
 
     <div class="controls">
-        <div class="control-row">
-            <span class="seg-label">Affichage</span>
-        </div>
+        <div class="control-row"><span class="seg-label">Affichage</span></div>
         <div class="control-row">
             <div class="segmented" id="displayMode">
                 <button data-mode="staff" class="active">Partition</button>
@@ -303,9 +314,15 @@
             </div>
         </div>
 
+        <div class="control-row"><span class="seg-label">Nombre d'accords à enchaîner</span></div>
         <div class="control-row">
-            <span class="seg-label">Cacher après…</span>
+            <div class="segmented" id="countMode">
+                <button data-n="1" class="active">1 accord</button>
+                <button data-n="2">2 accords</button>
+            </div>
         </div>
+
+        <div class="control-row"><span class="seg-label">Cacher après…</span></div>
         <div class="control-row">
             <div class="segmented" id="hideMode">
                 <button data-ms="0" class="active">Jamais</button>
@@ -322,8 +339,8 @@
     </div>
 
     <p class="hint">
-        Clique toutes les notes de l'accord (peu importe l'ordre). Une mauvaise note
-        casse la série et tire un nouvel accord. Avec le mode « cacher », mémorise puis joue !
+        Clique toutes les notes de l'accord (peu importe l'ordre). En mode 2 accords, joue
+        celui de gauche (en surbrillance) puis celui de droite. Une mauvaise note casse la série.
     </p>
 
     <script>
@@ -363,10 +380,13 @@
         };
 
         // ---------- État ----------
-        let chord = [], clicked = new Set(), locked = false;
+        let chordsSeq = [];     // [{ notes:[midi...], name:'D m' }, ...]
+        let step = 0;            // index de l'accord en cours
+        let clicked = new Set();
+        let locked = false;
         let score = 0, streak = 0, mistakes = 0;
-        let currentType = null, currentRoot = 0;
         let displayMode = 'staff';
+        let numChords = 1;
         let hideMs = 0, hideTimer = null;
 
         // ---------- Clavier ----------
@@ -392,8 +412,7 @@
                     el.style.left = (whiteCount * WHITE_W) + 'px';
                     whiteCount++;
                 }
-                const press = (e) => { e.preventDefault(); onKeyPress(m); };
-                el.addEventListener('click', press);
+                el.addEventListener('click', e => { e.preventDefault(); onKeyPress(m); });
                 piano.appendChild(el);
                 keyEls[m] = el;
             }
@@ -406,8 +425,12 @@
 
         function fitKeyboard() {
             const natural = whiteTotal * WHITE_W;
-            const avail = Math.min(window.innerWidth - 20, natural);
-            const scale = avail / natural;
+            const widthAvail = Math.min(window.innerWidth - 20, natural);
+            let scale = widthAvail / natural;
+            // en paysage (peu de hauteur), on borne la hauteur du clavier
+            const landscape = window.innerWidth > window.innerHeight;
+            const maxKbH = landscape ? window.innerHeight * 0.42 : KB_H;
+            if (KB_H * scale > maxKbH) scale = maxKbH / KB_H;
             piano.style.transform = 'scale(' + scale + ')';
             scaler.style.width = (natural * scale) + 'px';
             scaler.style.height = (KB_H * scale) + 'px';
@@ -419,33 +442,53 @@
         }
 
         // ---------- Génération ----------
+        function randomChord(pool) {
+            const type = pool[Math.floor(Math.random() * pool.length)];
+            const span = Math.max(...type.intervals);
+            const root = LOW + Math.floor(Math.random() * (HIGH - span - LOW + 1));
+            const r = noteInfo(root);
+            return {
+                notes: type.intervals.map(i => root + i).sort((a, b) => a - b),
+                name: r.letter + (r.sharp ? '♯' : '') + ' ' + type.label
+            };
+        }
+
         function newChord() {
             clearKeyStates();
             clicked.clear();
+            step = 0;
             locked = false;
 
             const useSevenths = document.getElementById('includeSevenths').checked;
             const pool = useSevenths ? CHORD_TYPES.triads.concat(CHORD_TYPES.sevenths) : CHORD_TYPES.triads;
-            const type = pool[Math.floor(Math.random() * pool.length)];
-            const span = Math.max(...type.intervals);
+            chordsSeq = [];
+            for (let i = 0; i < numChords; i++) chordsSeq.push(randomChord(pool));
 
-            const minRoot = LOW, maxRoot = HIGH - span;
-            const root = minRoot + Math.floor(Math.random() * (maxRoot - minRoot + 1));
-
-            chord = type.intervals.map(i => root + i);
-            currentType = type;
-            currentRoot = root;
-
-            drawStaff();
-            updateChordName();
+            refreshDisplay();
             revealDisplay();
             scheduleHide();
         }
 
+        function refreshDisplay() {
+            drawStaff();
+            updateChordName();
+        }
+
         function updateChordName() {
-            const r = noteInfo(currentRoot);
-            document.getElementById('chordName').textContent =
-                r.letter + (r.sharp ? '♯' : '') + ' ' + currentType.label;
+            const el = document.getElementById('chordName');
+            el.innerHTML = '';
+            chordsSeq.forEach((g, i) => {
+                if (i > 0) {
+                    const sep = document.createElement('span');
+                    sep.className = 'cn-sep';
+                    sep.textContent = '▶';
+                    el.appendChild(sep);
+                }
+                const s = document.createElement('span');
+                s.className = (i === step) ? 'cn-active' : 'cn-idle';
+                s.textContent = g.name;
+                el.appendChild(s);
+            });
         }
 
         // ---------- Portée ----------
@@ -454,6 +497,7 @@
         const STAFF_TOP = 55, LINE_GAP = 14, STEP = 7, E4_Y = 111;
         const E4_DIATONIC = noteInfo(64).diatonic;
         const STAFF_BOTTOM = STAFF_TOP + 4 * LINE_GAP;
+        const ACTIVE_COLOR = '#111', IDLE_COLOR = '#bcc1e0';
 
         const diatonicToY = d => E4_Y - (d - E4_DIATONIC) * STEP;
 
@@ -473,38 +517,52 @@
             clef.textContent = '𝄞';
             staff.appendChild(clef);
 
-            // notes triées + décalage horizontal des secondes (notes adjacentes)
-            const notes = [...chord].map(noteInfo).sort((a, b) => a.diatonic - b.diatonic);
-            const baseX = 175, offset = 17;
+            const positions = chordsSeq.length === 1 ? [185] : [120, 250];
+            chordsSeq.forEach((g, i) => {
+                const color = (i === step) ? ACTIVE_COLOR : IDLE_COLOR;
+                drawGroup(g.notes, positions[i], color);
+                if (chordsSeq.length > 1) {
+                    const num = svgEl('text', {
+                        x: positions[i] - 4, y: 152, 'font-size': 15, fill: color, 'font-weight': 700
+                    });
+                    num.textContent = (i + 1);
+                    staff.appendChild(num);
+                }
+            });
+        }
+
+        function drawGroup(midis, baseX, color) {
+            const notes = [...midis].map(noteInfo).sort((a, b) => a.diatonic - b.diatonic);
+            const offset = 17;
             let prevD = null, prevShifted = false;
             notes.forEach(n => {
                 let shift = 0;
                 if (prevD !== null && n.diatonic - prevD === 1 && !prevShifted) shift = 1;
-                drawNote(n, baseX + shift * offset);
+                drawNote(n, baseX + shift * offset, color);
                 prevShifted = (shift === 1);
                 prevD = n.diatonic;
             });
         }
 
-        function drawNote(info, x) {
+        function drawNote(info, x, color) {
             const y = diatonicToY(info.diatonic);
 
             if (y < STAFF_TOP) {
                 for (let ly = STAFF_TOP - LINE_GAP; ly >= y - 1; ly -= LINE_GAP)
-                    staff.appendChild(svgEl('line', { x1: x - 13, y1: ly, x2: x + 13, y2: ly, stroke: '#222', 'stroke-width': 1.2 }));
+                    staff.appendChild(svgEl('line', { x1: x - 13, y1: ly, x2: x + 13, y2: ly, stroke: color, 'stroke-width': 1.2 }));
             }
             if (y > STAFF_BOTTOM) {
                 for (let ly = STAFF_BOTTOM + LINE_GAP; ly <= y + 1; ly += LINE_GAP)
-                    staff.appendChild(svgEl('line', { x1: x - 13, y1: ly, x2: x + 13, y2: ly, stroke: '#222', 'stroke-width': 1.2 }));
+                    staff.appendChild(svgEl('line', { x1: x - 13, y1: ly, x2: x + 13, y2: ly, stroke: color, 'stroke-width': 1.2 }));
             }
 
             staff.appendChild(svgEl('ellipse', {
-                cx: x, cy: y, rx: 7.5, ry: 5.5, fill: '#111',
+                cx: x, cy: y, rx: 7.5, ry: 5.5, fill: color,
                 transform: `rotate(-18 ${x} ${y})`
             }));
 
             if (info.sharp) {
-                const sh = svgEl('text', { x: x - 24, y: y + 6, 'font-size': 20, fill: '#111' });
+                const sh = svgEl('text', { x: x - 24, y: y + 6, 'font-size': 20, fill: color });
                 sh.textContent = '♯';
                 staff.appendChild(sh);
             }
@@ -512,10 +570,8 @@
 
         // ---------- Affichage / cachette ----------
         function applyDisplayMode() {
-            const wrap = document.getElementById('staffWrap');
-            const name = document.getElementById('chordName');
-            wrap.classList.toggle('is-hidden', displayMode === 'name');
-            name.classList.toggle('is-hidden', displayMode === 'staff');
+            document.getElementById('staffWrap').classList.toggle('is-hidden', displayMode === 'name');
+            document.getElementById('chordName').classList.toggle('is-hidden', displayMode === 'staff');
         }
 
         function revealDisplay() {
@@ -540,24 +596,41 @@
             el.classList.add('active');
             setTimeout(() => el.classList.remove('active'), 100);
 
-            if (chord.includes(midi)) {
+            const group = chordsSeq[step];
+
+            if (group.notes.includes(midi)) {
                 if (clicked.has(midi)) return;
                 clicked.add(midi);
                 el.classList.add('correct');
-                if (clicked.size === chord.length) {
-                    locked = true;
-                    if (hideTimer) clearTimeout(hideTimer);
-                    score++; streak++; updateScore();
-                    setTimeout(newChord, 600);
+
+                if (clicked.size === group.notes.length) {
+                    // accord en cours terminé
+                    if (step + 1 < chordsSeq.length) {
+                        // passe à l'accord suivant
+                        locked = true;
+                        step++;
+                        clicked.clear();
+                        setTimeout(() => {
+                            clearKeyStates();
+                            refreshDisplay();   // met en surbrillance l'accord suivant
+                            locked = false;
+                        }, 450);
+                    } else {
+                        // séquence complète
+                        locked = true;
+                        if (hideTimer) clearTimeout(hideTimer);
+                        score++; streak++; updateScore();
+                        setTimeout(newChord, 600);
+                    }
                 }
             } else {
+                // mauvaise note
                 locked = true;
                 if (hideTimer) clearTimeout(hideTimer);
                 el.classList.add('wrong');
                 mistakes++; streak = 0; updateScore();
-                // révèle et montre les bonnes notes
                 revealDisplay();
-                chord.forEach(m => keyEls[m].classList.add('correct'));
+                group.notes.forEach(m => keyEls[m].classList.add('correct'));
                 setTimeout(newChord, 950);
             }
         }
@@ -577,25 +650,19 @@
         document.getElementById('showKeyNames').addEventListener('change', refreshKeyNames);
         document.getElementById('includeSevenths').addEventListener('change', () => { if (!locked) newChord(); });
 
-        document.querySelectorAll('#displayMode button').forEach(b => {
-            b.addEventListener('click', () => {
-                document.querySelectorAll('#displayMode button').forEach(x => x.classList.remove('active'));
-                b.classList.add('active');
-                displayMode = b.dataset.mode;
-                revealDisplay();
-                scheduleHide();
+        function wireSegment(id, fn) {
+            document.querySelectorAll('#' + id + ' button').forEach(b => {
+                b.addEventListener('click', () => {
+                    document.querySelectorAll('#' + id + ' button').forEach(x => x.classList.remove('active'));
+                    b.classList.add('active');
+                    fn(b);
+                });
             });
-        });
+        }
 
-        document.querySelectorAll('#hideMode button').forEach(b => {
-            b.addEventListener('click', () => {
-                document.querySelectorAll('#hideMode button').forEach(x => x.classList.remove('active'));
-                b.classList.add('active');
-                hideMs = +b.dataset.ms;
-                revealDisplay();
-                scheduleHide();
-            });
-        });
+        wireSegment('displayMode', b => { displayMode = b.dataset.mode; revealDisplay(); scheduleHide(); });
+        wireSegment('hideMode', b => { hideMs = +b.dataset.ms; revealDisplay(); scheduleHide(); });
+        wireSegment('countMode', b => { numChords = +b.dataset.n; newChord(); });
 
         // clavier physique (1ère octave) : A W S E D F T G Y H U J K
         const KEYMAP = { a: 60, w: 61, s: 62, e: 63, d: 64, f: 65, t: 66, g: 67, y: 68, h: 69, u: 70, j: 71, k: 72 };
@@ -605,6 +672,7 @@
         });
 
         window.addEventListener('resize', fitKeyboard);
+        window.addEventListener('orientationchange', fitKeyboard);
 
         // ---------- Démarrage ----------
         buildKeyboard();
