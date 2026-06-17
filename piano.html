@@ -3,7 +3,7 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Piano Chord Trainer</title>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Baloo+2:wght@400;500;700&display=swap');
@@ -18,7 +18,9 @@
             --muted: #8c97c9;
         }
 
-        * { box-sizing: border-box; }
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+        html, body { overflow-x: hidden; }
 
         body {
             margin: 0;
@@ -29,25 +31,28 @@
             display: flex;
             flex-direction: column;
             align-items: center;
-            padding: 24px 12px 60px;
+            padding: 20px 10px 50px;
         }
 
         h1 {
-            margin: 6px 0 2px;
+            margin: 4px 0 2px;
             font-weight: 700;
-            font-size: clamp(26px, 4vw, 40px);
+            font-size: clamp(22px, 6vw, 38px);
             letter-spacing: .5px;
+            text-align: center;
         }
 
         .subtitle {
             color: var(--muted);
-            margin: 0 0 18px;
+            margin: 0 0 16px;
             text-align: center;
+            font-size: clamp(13px, 3.5vw, 16px);
+            padding: 0 6px;
         }
 
         .scoreboard {
             display: flex;
-            gap: 22px;
+            gap: 12px;
             margin-bottom: 14px;
             flex-wrap: wrap;
             justify-content: center;
@@ -57,48 +62,78 @@
             background: var(--panel);
             border: 1px solid #233169;
             border-radius: 12px;
-            padding: 8px 18px;
+            padding: 6px 16px;
             text-align: center;
-            min-width: 110px;
+            min-width: 90px;
         }
 
         .score-card .label {
-            font-size: 12px;
+            font-size: 11px;
             color: var(--muted);
             text-transform: uppercase;
             letter-spacing: 1px;
         }
 
-        .score-card .value {
-            font-size: 26px;
-            font-weight: 700;
+        .score-card .value { font-size: 24px; font-weight: 700; }
+
+        /* ---- Zone d'affichage (partition / nom) ---- */
+        .display-area {
+            width: 100%;
+            max-width: 380px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 196px;
+            justify-content: center;
         }
 
-        /* ---- Staff / partition ---- */
         .staff-wrap {
             background: #fbfbff;
             border-radius: 16px;
-            padding: 10px 18px;
+            padding: 8px 10px;
             box-shadow: 0 10px 40px rgba(0, 0, 0, .45);
-            margin-bottom: 6px;
+            width: 100%;
+            max-width: 380px;
         }
 
-        #staff { display: block; }
+        #staff { display: block; width: 100%; height: auto; }
 
         .chord-name {
             text-align: center;
-            font-size: 22px;
-            font-weight: 600;
-            height: 30px;
-            margin: 8px 0 4px;
-            transition: color .2s;
+            font-size: clamp(28px, 8vw, 44px);
+            font-weight: 700;
+            color: var(--accent);
+            min-height: 40px;
+            margin: 10px 0 0;
         }
 
-        /* ---- Keyboard ---- */
-        .piano {
+        .hidden-card {
+            background: var(--panel);
+            border: 1px dashed #3a4a86;
+            border-radius: 16px;
+            padding: 28px 20px;
+            text-align: center;
+            color: var(--muted);
+            width: 100%;
+            max-width: 380px;
+            font-size: 18px;
+        }
+
+        .hidden-card .big { font-size: 34px; display: block; margin-bottom: 6px; }
+
+        .is-hidden { display: none !important; }
+
+        /* ---- Clavier ---- */
+        .piano-scaler {
+            margin: 16px auto 0;
             position: relative;
-            height: 200px;
-            margin: 10px auto 0;
+        }
+
+        .piano {
+            position: absolute;
+            top: 0;
+            left: 0;
+            transform-origin: top left;
             user-select: none;
             touch-action: manipulation;
         }
@@ -112,9 +147,8 @@
             align-items: flex-end;
             justify-content: center;
             padding-bottom: 8px;
-            font-size: 11px;
+            font-size: 12px;
             font-weight: 600;
-            transition: background .08s, transform .05s;
         }
 
         .key.white {
@@ -133,126 +167,182 @@
             z-index: 2;
         }
 
-        .key.white:active { background: linear-gradient(#e4e7fb, #d3d8f5); }
-        .key.black:active { background: linear-gradient(#3a4066, #1b1f3a); }
-
+        .key.white.active { background: linear-gradient(#e4e7fb, #d3d8f5); }
+        .key.black.active { background: linear-gradient(#3a4066, #1b1f3a); }
         .key.correct { background: linear-gradient(var(--good), #1e9b61) !important; color: #fff; }
         .key.wrong { background: linear-gradient(var(--bad), #c92f3e) !important; color: #fff; }
 
+        /* ---- Contrôles ---- */
         .controls {
-            margin-top: 24px;
+            margin-top: 22px;
             display: flex;
-            gap: 12px;
+            flex-direction: column;
+            gap: 14px;
+            align-items: center;
+            width: 100%;
+            max-width: 560px;
+        }
+
+        .control-row {
+            display: flex;
+            gap: 8px;
             flex-wrap: wrap;
             justify-content: center;
             align-items: center;
         }
+
+        .seg-label {
+            color: var(--muted);
+            font-size: 13px;
+            width: 100%;
+            text-align: center;
+            margin-bottom: -4px;
+        }
+
+        .segmented {
+            display: inline-flex;
+            background: var(--panel);
+            border: 1px solid #233169;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+
+        .segmented button {
+            background: transparent;
+            border: none;
+            color: var(--muted);
+            font-family: inherit;
+            font-size: 14px;
+            font-weight: 600;
+            padding: 9px 14px;
+            cursor: pointer;
+            transition: background .12s, color .12s;
+        }
+
+        .segmented button.active { background: var(--accent); color: #fff; }
 
         button.btn {
             background: var(--accent);
             color: #fff;
             border: none;
             border-radius: 10px;
-            padding: 10px 18px;
+            padding: 11px 20px;
             font-family: inherit;
             font-size: 15px;
-            font-weight: 600;
+            font-weight: 700;
             cursor: pointer;
-            transition: filter .1s, transform .05s;
         }
 
-        button.btn:hover { filter: brightness(1.1); }
         button.btn:active { transform: translateY(1px); }
 
-        button.btn.ghost {
-            background: transparent;
-            border: 1px solid #2e3c72;
-            color: var(--muted);
-        }
-
         .toggle {
-            display: flex;
+            display: inline-flex;
             align-items: center;
             gap: 6px;
             color: var(--muted);
             font-size: 14px;
             cursor: pointer;
+            background: var(--panel);
+            border: 1px solid #233169;
+            border-radius: 10px;
+            padding: 8px 12px;
         }
 
+        .toggle input { width: 16px; height: 16px; }
+
         .hint {
-            margin-top: 16px;
+            margin-top: 14px;
             color: var(--muted);
-            font-size: 14px;
+            font-size: 13px;
             text-align: center;
             max-width: 520px;
+            padding: 0 10px;
+        }
+
+        @media (max-width: 520px) {
+            .seg-label { font-size: 12px; }
+            .segmented button { padding: 8px 11px; font-size: 13px; }
         }
     </style>
 </head>
 
 <body>
     <h1>🎹 Piano Chord Trainer</h1>
-    <p class="subtitle">Un accord apparaît sur la portée — joue les bonnes notes sur le clavier.</p>
+    <p class="subtitle">Un accord apparaît — joue les bonnes notes sur le clavier.</p>
 
     <div class="scoreboard">
-        <div class="score-card">
-            <div class="label">Réussis</div>
-            <div class="value" id="score">0</div>
+        <div class="score-card"><div class="label">Réussis</div><div class="value" id="score">0</div></div>
+        <div class="score-card"><div class="label">Série</div><div class="value" id="streak">0</div></div>
+        <div class="score-card"><div class="label">Erreurs</div><div class="value" id="mistakes">0</div></div>
+    </div>
+
+    <div class="display-area">
+        <div class="staff-wrap" id="staffWrap">
+            <svg id="staff" viewBox="0 0 360 150"></svg>
         </div>
-        <div class="score-card">
-            <div class="label">Série</div>
-            <div class="value" id="streak">0</div>
-        </div>
-        <div class="score-card">
-            <div class="label">Erreurs</div>
-            <div class="value" id="mistakes">0</div>
+        <div class="chord-name" id="chordName"></div>
+        <div class="hidden-card is-hidden" id="hiddenCard">
+            <span class="big">🙈</span>
+            Joue de mémoire !
         </div>
     </div>
 
-    <div class="staff-wrap">
-        <svg id="staff" width="360" height="190" viewBox="0 0 360 190"></svg>
+    <div class="piano-scaler" id="pianoScaler">
+        <div class="piano" id="piano"></div>
     </div>
-    <div class="chord-name" id="chordName">&nbsp;</div>
-
-    <div class="piano" id="piano"></div>
 
     <div class="controls">
-        <button class="btn" id="newChord">Nouvel accord</button>
-        <label class="toggle"><input type="checkbox" id="showName"> Afficher le nom de l'accord</label>
-        <label class="toggle"><input type="checkbox" id="showKeyNames"> Noms des touches</label>
-        <label class="toggle"><input type="checkbox" id="includeSevenths"> Inclure les accords de 7e</label>
+        <div class="control-row">
+            <span class="seg-label">Affichage</span>
+        </div>
+        <div class="control-row">
+            <div class="segmented" id="displayMode">
+                <button data-mode="staff" class="active">Partition</button>
+                <button data-mode="name">Nom de l'accord</button>
+                <button data-mode="both">Les deux</button>
+            </div>
+        </div>
+
+        <div class="control-row">
+            <span class="seg-label">Cacher après…</span>
+        </div>
+        <div class="control-row">
+            <div class="segmented" id="hideMode">
+                <button data-ms="0" class="active">Jamais</button>
+                <button data-ms="5000">5 sec</button>
+                <button data-ms="2000">2 sec</button>
+            </div>
+        </div>
+
+        <div class="control-row">
+            <button class="btn" id="newChord">Nouvel accord</button>
+            <label class="toggle"><input type="checkbox" id="showKeyNames"> Noms des touches</label>
+            <label class="toggle"><input type="checkbox" id="includeSevenths"> Accords de 7e</label>
+        </div>
     </div>
 
     <p class="hint">
-        Clique sur toutes les notes de l'accord (peu importe l'ordre). Une mauvaise note
-        remet le compteur de série à zéro et tire un nouvel accord.
+        Clique toutes les notes de l'accord (peu importe l'ordre). Une mauvaise note
+        casse la série et tire un nouvel accord. Avec le mode « cacher », mémorise puis joue !
     </p>
 
     <script>
         // ---------- Théorie musicale ----------
         const LETTER_INDEX = { C: 0, D: 1, E: 2, F: 3, G: 4, A: 5, B: 6 };
-        // pitch class -> { letter, sharp }
         const PC = [
-            { l: 'C', s: false }, { l: 'C', s: true },
-            { l: 'D', s: false }, { l: 'D', s: true },
-            { l: 'E', s: false }, { l: 'F', s: false },
-            { l: 'F', s: true }, { l: 'G', s: false },
-            { l: 'G', s: true }, { l: 'A', s: false },
-            { l: 'A', s: true }, { l: 'B', s: false }
+            { l: 'C', s: false }, { l: 'C', s: true }, { l: 'D', s: false }, { l: 'D', s: true },
+            { l: 'E', s: false }, { l: 'F', s: false }, { l: 'F', s: true }, { l: 'G', s: false },
+            { l: 'G', s: true }, { l: 'A', s: false }, { l: 'A', s: true }, { l: 'B', s: false }
         ];
 
-        // C4 = 60 ... B5 = 83 (2 octaves)
-        const LOW = 60, HIGH = 83;
+        const LOW = 60, HIGH = 83; // C4 .. B5 (2 octaves)
 
         function noteInfo(midi) {
             const pc = PC[midi % 12];
             const octave = Math.floor(midi / 12) - 1;
-            const diatonic = octave * 7 + LETTER_INDEX[pc.l];
             return {
-                midi,
-                letter: pc.l,
-                sharp: pc.s,
-                octave,
-                diatonic,
+                midi, letter: pc.l, sharp: pc.s, octave,
+                diatonic: octave * 7 + LETTER_INDEX[pc.l],
                 name: pc.l + (pc.s ? '♯' : '') + octave,
                 isBlack: pc.s
             };
@@ -260,28 +350,31 @@
 
         const CHORD_TYPES = {
             triads: [
-                { name: 'maj', label: 'M', intervals: [0, 4, 7] },
-                { name: 'min', label: 'm', intervals: [0, 3, 7] },
-                { name: 'dim', label: 'dim', intervals: [0, 3, 6] },
-                { name: 'aug', label: 'aug', intervals: [0, 4, 8] }
+                { label: 'M', intervals: [0, 4, 7] },
+                { label: 'm', intervals: [0, 3, 7] },
+                { label: 'dim', intervals: [0, 3, 6] },
+                { label: 'aug', intervals: [0, 4, 8] }
             ],
             sevenths: [
-                { name: 'maj7', label: 'maj7', intervals: [0, 4, 7, 11] },
-                { name: '7', label: '7', intervals: [0, 4, 7, 10] },
-                { name: 'min7', label: 'm7', intervals: [0, 3, 7, 10] }
+                { label: 'maj7', intervals: [0, 4, 7, 11] },
+                { label: '7', intervals: [0, 4, 7, 10] },
+                { label: 'm7', intervals: [0, 3, 7, 10] }
             ]
         };
 
-        // ---------- État du jeu ----------
-        let chord = [];          // tableau de midi attendus
-        let clicked = new Set();  // midi déjà joués correctement
-        let locked = false;       // empêche les clics pendant l'animation
+        // ---------- État ----------
+        let chord = [], clicked = new Set(), locked = false;
         let score = 0, streak = 0, mistakes = 0;
+        let currentType = null, currentRoot = 0;
+        let displayMode = 'staff';
+        let hideMs = 0, hideTimer = null;
 
-        // ---------- Construction du clavier ----------
-        const WHITE_W = 46, BLACK_W = 30;
+        // ---------- Clavier ----------
+        const WHITE_W = 46, BLACK_W = 28, KB_H = 200;
         const piano = document.getElementById('piano');
-        const keyEls = {}; // midi -> element
+        const scaler = document.getElementById('pianoScaler');
+        const keyEls = {};
+        let whiteTotal = 0;
 
         function buildKeyboard() {
             piano.innerHTML = '';
@@ -299,36 +392,43 @@
                     el.style.left = (whiteCount * WHITE_W) + 'px';
                     whiteCount++;
                 }
-                el.addEventListener('click', () => onKeyPress(m));
+                const press = (e) => { e.preventDefault(); onKeyPress(m); };
+                el.addEventListener('click', press);
                 piano.appendChild(el);
                 keyEls[m] = el;
             }
+            whiteTotal = whiteCount;
             piano.style.width = (whiteCount * WHITE_W) + 'px';
+            piano.style.height = KB_H + 'px';
             refreshKeyNames();
+            fitKeyboard();
+        }
+
+        function fitKeyboard() {
+            const natural = whiteTotal * WHITE_W;
+            const avail = Math.min(window.innerWidth - 20, natural);
+            const scale = avail / natural;
+            piano.style.transform = 'scale(' + scale + ')';
+            scaler.style.width = (natural * scale) + 'px';
+            scaler.style.height = (KB_H * scale) + 'px';
         }
 
         function refreshKeyNames() {
             const show = document.getElementById('showKeyNames').checked;
-            for (const m in keyEls) {
-                keyEls[m].textContent = show ? noteInfo(+m).name : '';
-            }
+            for (const m in keyEls) keyEls[m].textContent = show ? noteInfo(+m).name : '';
         }
 
-        // ---------- Génération d'un accord ----------
+        // ---------- Génération ----------
         function newChord() {
-            // réinitialise visuel
             clearKeyStates();
             clicked.clear();
             locked = false;
 
             const useSevenths = document.getElementById('includeSevenths').checked;
-            const pool = useSevenths
-                ? CHORD_TYPES.triads.concat(CHORD_TYPES.sevenths)
-                : CHORD_TYPES.triads;
+            const pool = useSevenths ? CHORD_TYPES.triads.concat(CHORD_TYPES.sevenths) : CHORD_TYPES.triads;
             const type = pool[Math.floor(Math.random() * pool.length)];
             const span = Math.max(...type.intervals);
 
-            // racine telle que toutes les notes tiennent dans le clavier
             const minRoot = LOW, maxRoot = HIGH - span;
             const root = minRoot + Math.floor(Math.random() * (maxRoot - minRoot + 1));
 
@@ -338,32 +438,24 @@
 
             drawStaff();
             updateChordName();
+            revealDisplay();
+            scheduleHide();
         }
-
-        let currentType = null, currentRoot = 0;
 
         function updateChordName() {
-            const el = document.getElementById('chordName');
-            if (document.getElementById('showName').checked) {
-                const r = noteInfo(currentRoot);
-                el.textContent = r.letter + (r.sharp ? '♯' : '') + ' ' + currentType.label;
-                el.style.color = '#3c6dff';
-            } else {
-                el.innerHTML = '&nbsp;';
-            }
+            const r = noteInfo(currentRoot);
+            document.getElementById('chordName').textContent =
+                r.letter + (r.sharp ? '♯' : '') + ' ' + currentType.label;
         }
 
-        // ---------- Dessin de la portée ----------
+        // ---------- Portée ----------
         const SVG_NS = 'http://www.w3.org/2000/svg';
         const staff = document.getElementById('staff');
-        // Lignes (clé de sol) : F5(haut)=60 ... E4(bas)=108, écart = 12px
-        const STAFF_TOP = 60, LINE_GAP = 12, STEP = 6;
-        const E4_DIATONIC = noteInfo(64).diatonic; // E4
-        const E4_Y = 108;
+        const STAFF_TOP = 55, LINE_GAP = 14, STEP = 7, E4_Y = 111;
+        const E4_DIATONIC = noteInfo(64).diatonic;
+        const STAFF_BOTTOM = STAFF_TOP + 4 * LINE_GAP;
 
-        function diatonicToY(d) {
-            return E4_Y - (d - E4_DIATONIC) * STEP;
-        }
+        const diatonicToY = d => E4_Y - (d - E4_DIATONIC) * STEP;
 
         function svgEl(tag, attrs) {
             const e = document.createElementNS(SVG_NS, tag);
@@ -373,86 +465,105 @@
 
         function drawStaff() {
             staff.innerHTML = '';
-            // 5 lignes
             for (let i = 0; i < 5; i++) {
                 const y = STAFF_TOP + i * LINE_GAP;
-                staff.appendChild(svgEl('line', {
-                    x1: 14, y1: y, x2: 346, y2: y, stroke: '#222', 'stroke-width': 1.2
-                }));
+                staff.appendChild(svgEl('line', { x1: 14, y1: y, x2: 346, y2: y, stroke: '#222', 'stroke-width': 1.2 }));
             }
-            // Clé de sol (𝄞)
-            const clef = svgEl('text', { x: 16, y: 110, 'font-size': 78, fill: '#111' });
+            const clef = svgEl('text', { x: 16, y: 116, 'font-size': 86, fill: '#111' });
             clef.textContent = '𝄞';
             staff.appendChild(clef);
 
-            // notes de l'accord empilées (même position x)
-            const x = 150;
-            const sorted = [...chord].sort((a, b) => a - b);
-            sorted.forEach(m => drawNote(m, x));
+            // notes triées + décalage horizontal des secondes (notes adjacentes)
+            const notes = [...chord].map(noteInfo).sort((a, b) => a.diatonic - b.diatonic);
+            const baseX = 175, offset = 17;
+            let prevD = null, prevShifted = false;
+            notes.forEach(n => {
+                let shift = 0;
+                if (prevD !== null && n.diatonic - prevD === 1 && !prevShifted) shift = 1;
+                drawNote(n, baseX + shift * offset);
+                prevShifted = (shift === 1);
+                prevD = n.diatonic;
+            });
         }
 
-        function drawNote(midi, x) {
-            const info = noteInfo(midi);
+        function drawNote(info, x) {
             const y = diatonicToY(info.diatonic);
 
-            // lignes supplémentaires (ledger lines)
             if (y < STAFF_TOP) {
-                for (let ly = STAFF_TOP - LINE_GAP; ly >= y; ly -= LINE_GAP) {
+                for (let ly = STAFF_TOP - LINE_GAP; ly >= y - 1; ly -= LINE_GAP)
                     staff.appendChild(svgEl('line', { x1: x - 13, y1: ly, x2: x + 13, y2: ly, stroke: '#222', 'stroke-width': 1.2 }));
-                }
             }
-            const bottom = STAFF_TOP + 4 * LINE_GAP;
-            if (y > bottom) {
-                for (let ly = bottom + LINE_GAP; ly <= y; ly += LINE_GAP) {
+            if (y > STAFF_BOTTOM) {
+                for (let ly = STAFF_BOTTOM + LINE_GAP; ly <= y + 1; ly += LINE_GAP)
                     staff.appendChild(svgEl('line', { x1: x - 13, y1: ly, x2: x + 13, y2: ly, stroke: '#222', 'stroke-width': 1.2 }));
-                }
             }
 
-            // tête de note (ellipse légèrement inclinée)
-            const head = svgEl('ellipse', {
-                cx: x, cy: y, rx: 8.5, ry: 6,
-                fill: '#111', transform: `rotate(-18 ${x} ${y})`
-            });
-            staff.appendChild(head);
+            staff.appendChild(svgEl('ellipse', {
+                cx: x, cy: y, rx: 7.5, ry: 5.5, fill: '#111',
+                transform: `rotate(-18 ${x} ${y})`
+            }));
 
-            // altération (dièse)
             if (info.sharp) {
-                const sh = svgEl('text', { x: x - 26, y: y + 6, 'font-size': 22, fill: '#111' });
+                const sh = svgEl('text', { x: x - 24, y: y + 6, 'font-size': 20, fill: '#111' });
                 sh.textContent = '♯';
                 staff.appendChild(sh);
             }
+        }
+
+        // ---------- Affichage / cachette ----------
+        function applyDisplayMode() {
+            const wrap = document.getElementById('staffWrap');
+            const name = document.getElementById('chordName');
+            wrap.classList.toggle('is-hidden', displayMode === 'name');
+            name.classList.toggle('is-hidden', displayMode === 'staff');
+        }
+
+        function revealDisplay() {
+            document.getElementById('hiddenCard').classList.add('is-hidden');
+            applyDisplayMode();
+        }
+
+        function scheduleHide() {
+            if (hideTimer) clearTimeout(hideTimer);
+            if (!hideMs) return;
+            hideTimer = setTimeout(() => {
+                document.getElementById('staffWrap').classList.add('is-hidden');
+                document.getElementById('chordName').classList.add('is-hidden');
+                document.getElementById('hiddenCard').classList.remove('is-hidden');
+            }, hideMs);
         }
 
         // ---------- Interaction ----------
         function onKeyPress(midi) {
             if (locked) return;
             const el = keyEls[midi];
+            el.classList.add('active');
+            setTimeout(() => el.classList.remove('active'), 100);
 
             if (chord.includes(midi)) {
-                if (clicked.has(midi)) return; // déjà validée
+                if (clicked.has(midi)) return;
                 clicked.add(midi);
                 el.classList.add('correct');
                 if (clicked.size === chord.length) {
-                    // accord complet réussi
                     locked = true;
-                    score++; streak++;
-                    updateScore();
-                    setTimeout(newChord, 650);
+                    if (hideTimer) clearTimeout(hideTimer);
+                    score++; streak++; updateScore();
+                    setTimeout(newChord, 600);
                 }
             } else {
-                // mauvaise note
                 locked = true;
+                if (hideTimer) clearTimeout(hideTimer);
                 el.classList.add('wrong');
-                mistakes++; streak = 0;
-                updateScore();
-                // montre les bonnes notes brièvement
+                mistakes++; streak = 0; updateScore();
+                // révèle et montre les bonnes notes
+                revealDisplay();
                 chord.forEach(m => keyEls[m].classList.add('correct'));
-                setTimeout(newChord, 900);
+                setTimeout(newChord, 950);
             }
         }
 
         function clearKeyStates() {
-            for (const m in keyEls) keyEls[m].classList.remove('correct', 'wrong');
+            for (const m in keyEls) keyEls[m].classList.remove('correct', 'wrong', 'active');
         }
 
         function updateScore() {
@@ -463,16 +574,37 @@
 
         // ---------- Contrôles ----------
         document.getElementById('newChord').addEventListener('click', () => { if (!locked) newChord(); });
-        document.getElementById('showName').addEventListener('change', updateChordName);
         document.getElementById('showKeyNames').addEventListener('change', refreshKeyNames);
         document.getElementById('includeSevenths').addEventListener('change', () => { if (!locked) newChord(); });
 
-        // clavier physique : A W S E D F T G Y H U J  -> C C# D D# E F F# G G# A A# B (1ère octave)
+        document.querySelectorAll('#displayMode button').forEach(b => {
+            b.addEventListener('click', () => {
+                document.querySelectorAll('#displayMode button').forEach(x => x.classList.remove('active'));
+                b.classList.add('active');
+                displayMode = b.dataset.mode;
+                revealDisplay();
+                scheduleHide();
+            });
+        });
+
+        document.querySelectorAll('#hideMode button').forEach(b => {
+            b.addEventListener('click', () => {
+                document.querySelectorAll('#hideMode button').forEach(x => x.classList.remove('active'));
+                b.classList.add('active');
+                hideMs = +b.dataset.ms;
+                revealDisplay();
+                scheduleHide();
+            });
+        });
+
+        // clavier physique (1ère octave) : A W S E D F T G Y H U J K
         const KEYMAP = { a: 60, w: 61, s: 62, e: 63, d: 64, f: 65, t: 66, g: 67, y: 68, h: 69, u: 70, j: 71, k: 72 };
-        document.addEventListener('keydown', (ev) => {
+        document.addEventListener('keydown', ev => {
             const m = KEYMAP[ev.key.toLowerCase()];
             if (m !== undefined) onKeyPress(m);
         });
+
+        window.addEventListener('resize', fitKeyboard);
 
         // ---------- Démarrage ----------
         buildKeyboard();
