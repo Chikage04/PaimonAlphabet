@@ -355,6 +355,7 @@
 
         <div class="control-row">
             <button class="btn" id="newChord">Nouvel accord</button>
+            <label class="toggle"><input type="checkbox" id="soundOn" checked> 🔊 Son</label>
             <label class="toggle"><input type="checkbox" id="showKeyNames"> Noms des touches</label>
             <label class="toggle"><input type="checkbox" id="includeSevenths"> Accords de 7e</label>
         </div>
@@ -642,9 +643,40 @@
             }, hideMs);
         }
 
+        // ---------- Son (Web Audio API) ----------
+        let audioCtx = null;
+        function ensureAudio() {
+            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+        }
+        function playNote(midi) {
+            if (!document.getElementById('soundOn').checked) return;
+            ensureAudio();
+            const freq = 440 * Math.pow(2, (midi - 69) / 12);
+            const now = audioCtx.currentTime;
+            const gain = audioCtx.createGain();
+            gain.gain.setValueAtTime(0.0001, now);
+            gain.gain.exponentialRampToValueAtTime(0.22, now + 0.008);
+            gain.gain.exponentialRampToValueAtTime(0.0001, now + 1.1);
+            gain.connect(audioCtx.destination);
+            // deux oscillateurs (fondamentale + octave) pour un timbre plus chaud
+            [[freq, 'triangle', 1], [freq * 2, 'sine', 0.35]].forEach(([f, type, mul]) => {
+                const osc = audioCtx.createOscillator();
+                osc.type = type;
+                osc.frequency.value = f;
+                const g = audioCtx.createGain();
+                g.gain.value = mul;
+                osc.connect(g).connect(gain);
+                osc.start(now);
+                osc.stop(now + 1.2);
+            });
+        }
+
         // ---------- Interaction ----------
         function onKeyPress(midi) {
-            if (locked || !keyEls[midi]) return;
+            if (!keyEls[midi]) return;
+            playNote(midi);
+            if (locked) return;
             const el = keyEls[midi];
             el.classList.add('active');
             setTimeout(() => el.classList.remove('active'), 100);
