@@ -50,6 +50,19 @@
             padding: 0 6px;
         }
 
+        .midi-status {
+            font-size: 12px;
+            border-radius: 20px;
+            padding: 4px 12px;
+            margin-bottom: 12px;
+            border: 1px solid #233169;
+            background: var(--panel);
+            transition: color .2s, border-color .2s, background .2s;
+        }
+        .midi-status.idle { color: var(--muted); }
+        .midi-status.off { color: #ffb14d; border-color: #5a431f; }
+        .midi-status.on { color: var(--good); border-color: #1e6b48; background: #0c2b1f; }
+
         .scoreboard {
             display: flex;
             gap: 10px;
@@ -282,6 +295,7 @@
 <body>
     <h1>🎹 Piano Chord Trainer</h1>
     <p class="subtitle">Un accord apparaît — joue les bonnes notes sur le clavier.</p>
+    <div class="midi-status idle" id="midiStatus">🎛️ MIDI : recherche…</div>
 
     <div class="scoreboard">
         <div class="score-card"><div class="label">Réussis</div><div class="value" id="score">0</div></div>
@@ -714,6 +728,46 @@
 
         window.addEventListener('resize', fitKeyboard);
         window.addEventListener('orientationchange', fitKeyboard);
+
+        // ---------- Clavier MIDI (Web MIDI API) ----------
+        const midiStatusEl = document.getElementById('midiStatus');
+
+        function setMidiStatus(cls, text) {
+            midiStatusEl.className = 'midi-status ' + cls;
+            midiStatusEl.textContent = text;
+        }
+
+        function onMIDIMessage(e) {
+            const [status, note, velocity] = e.data;
+            const cmd = status & 0xf0;
+            // note-on avec vélocité > 0 (un note-on à vélocité 0 = note-off)
+            if (cmd === 0x90 && velocity > 0) onKeyPress(note);
+        }
+
+        function refreshMidiInputs(access) {
+            const inputs = [...access.inputs.values()];
+            inputs.forEach(input => { input.onmidimessage = onMIDIMessage; });
+            if (inputs.length) {
+                const names = inputs.map(i => i.name || 'appareil MIDI').join(', ');
+                setMidiStatus('on', '🎹 MIDI connecté : ' + names);
+            } else {
+                setMidiStatus('off', '🎛️ MIDI : aucun clavier détecté (branche-le puis joue)');
+            }
+        }
+
+        function initMIDI() {
+            if (!navigator.requestMIDIAccess) {
+                setMidiStatus('idle', '🎛️ MIDI non supporté par ce navigateur');
+                return;
+            }
+            navigator.requestMIDIAccess().then(access => {
+                refreshMidiInputs(access);
+                access.onstatechange = () => refreshMidiInputs(access);
+            }).catch(() => {
+                setMidiStatus('idle', '🎛️ MIDI : accès refusé');
+            });
+        }
+        initMIDI();
 
         // ---------- Démarrage ----------
         buildKeyboard();
