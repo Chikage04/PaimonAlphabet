@@ -305,6 +305,14 @@
     </div>
 
     <div class="controls">
+        <div class="control-row"><span class="seg-label">Clé</span></div>
+        <div class="control-row">
+            <div class="segmented" id="clefMode">
+                <button data-clef="treble" class="active">Clé de Sol</button>
+                <button data-clef="bass">Clé de Fa (main gauche)</button>
+            </div>
+        </div>
+
         <div class="control-row"><span class="seg-label">Affichage</span></div>
         <div class="control-row">
             <div class="segmented" id="displayMode">
@@ -340,7 +348,7 @@
 
     <p class="hint">
         Clique toutes les notes de l'accord (peu importe l'ordre). En mode 2 accords, joue
-        celui de gauche (en surbrillance) puis celui de droite. Une mauvaise note casse la série.
+        celui en surbrillance puis le suivant. La clé de Fa propose des voicings de main gauche.
     </p>
 
     <script>
@@ -352,10 +360,8 @@
             { l: 'G', s: true }, { l: 'A', s: false }, { l: 'A', s: true }, { l: 'B', s: false }
         ];
 
-        const LOW = 60, HIGH = 83; // C4 .. B5 (2 octaves)
-
         function noteInfo(midi) {
-            const pc = PC[midi % 12];
+            const pc = PC[((midi % 12) + 12) % 12];
             const octave = Math.floor(midi / 12) - 1;
             return {
                 midi, letter: pc.l, sharp: pc.s, octave,
@@ -364,24 +370,44 @@
                 isBlack: pc.s
             };
         }
+        const rootName = midi => { const r = noteInfo(midi); return r.letter + (r.sharp ? '♯' : ''); };
+        const rand = n => Math.floor(Math.random() * n);
 
-        const CHORD_TYPES = {
-            triads: [
-                { label: 'M', intervals: [0, 4, 7] },
-                { label: 'm', intervals: [0, 3, 7] },
-                { label: 'dim', intervals: [0, 3, 6] },
-                { label: 'aug', intervals: [0, 4, 8] }
-            ],
-            sevenths: [
-                { label: 'maj7', intervals: [0, 4, 7, 11] },
-                { label: '7', intervals: [0, 4, 7, 10] },
-                { label: 'm7', intervals: [0, 3, 7, 10] }
-            ]
+        // accords main droite (clé de Sol)
+        const TREBLE_TRIADS = [
+            { label: 'M', intervals: [0, 4, 7] },
+            { label: 'm', intervals: [0, 3, 7] },
+            { label: 'dim', intervals: [0, 3, 6] },
+            { label: 'aug', intervals: [0, 4, 8] }
+        ];
+        const TREBLE_SEVENTHS = [
+            { label: 'maj7', intervals: [0, 4, 7, 11] },
+            { label: '7', intervals: [0, 4, 7, 10] },
+            { label: 'm7', intervals: [0, 3, 7, 10] }
+        ];
+
+        // voicings main gauche (clé de Fa) : quintes, octaves, dixièmes, triades en registre médium
+        const BASS_SHAPES = [
+            { off: [0, 7], suf: '5' },          // quinte ouverte
+            { off: [0, 12], suf: '8' },         // octave
+            { off: [0, 7, 12], suf: '5' },      // quinte + octave
+            { off: [0, 7, 16], suf: 'M' },      // racine - quinte - dixième Majeure
+            { off: [0, 7, 15], suf: 'm' },      // racine - quinte - dixième mineure
+            { off: [0, 4, 7], suf: 'M', floor: 48 }, // triade Majeure (médium)
+            { off: [0, 3, 7], suf: 'm', floor: 48 }  // triade mineure (médium)
+        ];
+
+        // Clés : ref = diatonique de la ligne du bas de la portée
+        const CLEFS = {
+            treble: { symbol: '𝄞', symX: 16, symY: 116, symSize: 86, ref: noteInfo(64).diatonic, low: 60, high: 83 },
+            bass:   { symbol: '𝄢', symX: 18, symY: 100, symSize: 60, ref: noteInfo(43).diatonic, low: 36, high: 59 }
         };
 
         // ---------- État ----------
+        let clef = 'treble';
+        let LOW = CLEFS.treble.low, HIGH = CLEFS.treble.high;
         let chordsSeq = [];     // [{ notes:[midi...], name:'D m' }, ...]
-        let step = 0;            // index de l'accord en cours
+        let step = 0;
         let clicked = new Set();
         let locked = false;
         let score = 0, streak = 0, mistakes = 0;
@@ -393,11 +419,12 @@
         const WHITE_W = 46, BLACK_W = 28, KB_H = 200;
         const piano = document.getElementById('piano');
         const scaler = document.getElementById('pianoScaler');
-        const keyEls = {};
+        let keyEls = {};
         let whiteTotal = 0;
 
         function buildKeyboard() {
             piano.innerHTML = '';
+            keyEls = {};
             let whiteCount = 0;
             for (let m = LOW; m <= HIGH; m++) {
                 const info = noteInfo(m);
@@ -427,7 +454,6 @@
             const natural = whiteTotal * WHITE_W;
             const widthAvail = Math.min(window.innerWidth - 20, natural);
             let scale = widthAvail / natural;
-            // en paysage (peu de hauteur), on borne la hauteur du clavier
             const landscape = window.innerWidth > window.innerHeight;
             const maxKbH = landscape ? window.innerHeight * 0.42 : KB_H;
             if (KB_H * scale > maxKbH) scale = maxKbH / KB_H;
@@ -442,15 +468,35 @@
         }
 
         // ---------- Génération ----------
-        function randomChord(pool) {
-            const type = pool[Math.floor(Math.random() * pool.length)];
+        function randomTrebleChord() {
+            const useSevenths = document.getElementById('includeSevenths').checked;
+            const pool = useSevenths ? TREBLE_TRIADS.concat(TREBLE_SEVENTHS) : TREBLE_TRIADS;
+            const type = pool[rand(pool.length)];
             const span = Math.max(...type.intervals);
-            const root = LOW + Math.floor(Math.random() * (HIGH - span - LOW + 1));
-            const r = noteInfo(root);
+            const root = LOW + rand(HIGH - span - LOW + 1);
             return {
                 notes: type.intervals.map(i => root + i).sort((a, b) => a - b),
-                name: r.letter + (r.sharp ? '♯' : '') + ' ' + type.label
+                name: rootName(root) + ' ' + type.label
             };
+        }
+
+        function randomBassVoicing() {
+            let shape, rootMin, rootMax;
+            do {
+                shape = BASS_SHAPES[rand(BASS_SHAPES.length)];
+                const span = Math.max(...shape.off);
+                rootMin = Math.max(LOW, shape.floor || LOW);
+                rootMax = HIGH - span;
+            } while (rootMax < rootMin);
+            const root = rootMin + rand(rootMax - rootMin + 1);
+            return {
+                notes: shape.off.map(i => root + i).sort((a, b) => a - b),
+                name: rootName(root) + ' ' + shape.suf
+            };
+        }
+
+        function makeChord() {
+            return clef === 'bass' ? randomBassVoicing() : randomTrebleChord();
         }
 
         function newChord() {
@@ -459,10 +505,8 @@
             step = 0;
             locked = false;
 
-            const useSevenths = document.getElementById('includeSevenths').checked;
-            const pool = useSevenths ? CHORD_TYPES.triads.concat(CHORD_TYPES.sevenths) : CHORD_TYPES.triads;
             chordsSeq = [];
-            for (let i = 0; i < numChords; i++) chordsSeq.push(randomChord(pool));
+            for (let i = 0; i < numChords; i++) chordsSeq.push(makeChord());
 
             refreshDisplay();
             revealDisplay();
@@ -494,12 +538,11 @@
         // ---------- Portée ----------
         const SVG_NS = 'http://www.w3.org/2000/svg';
         const staff = document.getElementById('staff');
-        const STAFF_TOP = 55, LINE_GAP = 14, STEP = 7, E4_Y = 111;
-        const E4_DIATONIC = noteInfo(64).diatonic;
+        const STAFF_TOP = 55, LINE_GAP = 14, STEP = 7, BOTTOM_Y = 111;
         const STAFF_BOTTOM = STAFF_TOP + 4 * LINE_GAP;
         const ACTIVE_COLOR = '#111', IDLE_COLOR = '#bcc1e0';
 
-        const diatonicToY = d => E4_Y - (d - E4_DIATONIC) * STEP;
+        const diatonicToY = d => BOTTOM_Y - (d - CLEFS[clef].ref) * STEP;
 
         function svgEl(tag, attrs) {
             const e = document.createElementNS(SVG_NS, tag);
@@ -513,18 +556,17 @@
                 const y = STAFF_TOP + i * LINE_GAP;
                 staff.appendChild(svgEl('line', { x1: 14, y1: y, x2: 346, y2: y, stroke: '#222', 'stroke-width': 1.2 }));
             }
-            const clef = svgEl('text', { x: 16, y: 116, 'font-size': 86, fill: '#111' });
-            clef.textContent = '𝄞';
-            staff.appendChild(clef);
+            const c = CLEFS[clef];
+            const clefEl = svgEl('text', { x: c.symX, y: c.symY, 'font-size': c.symSize, fill: '#111' });
+            clefEl.textContent = c.symbol;
+            staff.appendChild(clefEl);
 
             const positions = chordsSeq.length === 1 ? [185] : [120, 250];
             chordsSeq.forEach((g, i) => {
                 const color = (i === step) ? ACTIVE_COLOR : IDLE_COLOR;
                 drawGroup(g.notes, positions[i], color);
                 if (chordsSeq.length > 1) {
-                    const num = svgEl('text', {
-                        x: positions[i] - 4, y: 152, 'font-size': 15, fill: color, 'font-weight': 700
-                    });
+                    const num = svgEl('text', { x: positions[i] - 4, y: 152, 'font-size': 15, fill: color, 'font-weight': 700 });
                     num.textContent = (i + 1);
                     staff.appendChild(num);
                 }
@@ -557,8 +599,7 @@
             }
 
             staff.appendChild(svgEl('ellipse', {
-                cx: x, cy: y, rx: 7.5, ry: 5.5, fill: color,
-                transform: `rotate(-18 ${x} ${y})`
+                cx: x, cy: y, rx: 7.5, ry: 5.5, fill: color, transform: `rotate(-18 ${x} ${y})`
             }));
 
             if (info.sharp) {
@@ -573,12 +614,10 @@
             document.getElementById('staffWrap').classList.toggle('is-hidden', displayMode === 'name');
             document.getElementById('chordName').classList.toggle('is-hidden', displayMode === 'staff');
         }
-
         function revealDisplay() {
             document.getElementById('hiddenCard').classList.add('is-hidden');
             applyDisplayMode();
         }
-
         function scheduleHide() {
             if (hideTimer) clearTimeout(hideTimer);
             if (!hideMs) return;
@@ -591,7 +630,7 @@
 
         // ---------- Interaction ----------
         function onKeyPress(midi) {
-            if (locked) return;
+            if (locked || !keyEls[midi]) return;
             const el = keyEls[midi];
             el.classList.add('active');
             setTimeout(() => el.classList.remove('active'), 100);
@@ -604,19 +643,16 @@
                 el.classList.add('correct');
 
                 if (clicked.size === group.notes.length) {
-                    // accord en cours terminé
                     if (step + 1 < chordsSeq.length) {
-                        // passe à l'accord suivant
                         locked = true;
                         step++;
                         clicked.clear();
                         setTimeout(() => {
                             clearKeyStates();
-                            refreshDisplay();   // met en surbrillance l'accord suivant
+                            refreshDisplay();
                             locked = false;
                         }, 450);
                     } else {
-                        // séquence complète
                         locked = true;
                         if (hideTimer) clearTimeout(hideTimer);
                         score++; streak++; updateScore();
@@ -624,13 +660,12 @@
                     }
                 }
             } else {
-                // mauvaise note
                 locked = true;
                 if (hideTimer) clearTimeout(hideTimer);
                 el.classList.add('wrong');
                 mistakes++; streak = 0; updateScore();
                 revealDisplay();
-                group.notes.forEach(m => keyEls[m].classList.add('correct'));
+                group.notes.forEach(m => keyEls[m] && keyEls[m].classList.add('correct'));
                 setTimeout(newChord, 950);
             }
         }
@@ -638,7 +673,6 @@
         function clearKeyStates() {
             for (const m in keyEls) keyEls[m].classList.remove('correct', 'wrong', 'active');
         }
-
         function updateScore() {
             document.getElementById('score').textContent = score;
             document.getElementById('streak').textContent = streak;
@@ -663,12 +697,19 @@
         wireSegment('displayMode', b => { displayMode = b.dataset.mode; revealDisplay(); scheduleHide(); });
         wireSegment('hideMode', b => { hideMs = +b.dataset.ms; revealDisplay(); scheduleHide(); });
         wireSegment('countMode', b => { numChords = +b.dataset.n; newChord(); });
+        wireSegment('clefMode', b => {
+            clef = b.dataset.clef;
+            LOW = CLEFS[clef].low;
+            HIGH = CLEFS[clef].high;
+            buildKeyboard();
+            newChord();
+        });
 
-        // clavier physique (1ère octave) : A W S E D F T G Y H U J K
-        const KEYMAP = { a: 60, w: 61, s: 62, e: 63, d: 64, f: 65, t: 66, g: 67, y: 68, h: 69, u: 70, j: 71, k: 72 };
+        // clavier physique : offsets depuis la note la plus basse affichée
+        const KEY_OFFSETS = { a: 0, w: 1, s: 2, e: 3, d: 4, f: 5, t: 6, g: 7, y: 8, h: 9, u: 10, j: 11, k: 12 };
         document.addEventListener('keydown', ev => {
-            const m = KEYMAP[ev.key.toLowerCase()];
-            if (m !== undefined) onKeyPress(m);
+            const off = KEY_OFFSETS[ev.key.toLowerCase()];
+            if (off !== undefined) onKeyPress(LOW + off);
         });
 
         window.addEventListener('resize', fitKeyboard);
