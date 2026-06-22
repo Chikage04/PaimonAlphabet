@@ -385,31 +385,75 @@
                 isBlack: pc.s
             };
         }
-        const rootName = midi => { const r = noteInfo(midi); return r.letter + (r.sharp ? '♯' : ''); };
         const rand = n => Math.floor(Math.random() * n);
 
-        // accords main droite (clé de Sol)
+        // ---- Orthographe enharmonique (dièses / bémols selon le contexte) ----
+        const LETTERS = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
+        const LETTER_PC = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
+        // pour chaque classe de hauteur, orthographes possibles de la fondamentale {lettre, altération}
+        const ROOT_SPELLINGS = {
+            0: [{ l: 'C', a: 0 }], 1: [{ l: 'C', a: 1 }, { l: 'D', a: -1 }],
+            2: [{ l: 'D', a: 0 }], 3: [{ l: 'D', a: 1 }, { l: 'E', a: -1 }],
+            4: [{ l: 'E', a: 0 }], 5: [{ l: 'F', a: 0 }],
+            6: [{ l: 'F', a: 1 }, { l: 'G', a: -1 }], 7: [{ l: 'G', a: 0 }],
+            8: [{ l: 'G', a: 1 }, { l: 'A', a: -1 }], 9: [{ l: 'A', a: 0 }],
+            10: [{ l: 'A', a: 1 }, { l: 'B', a: -1 }], 11: [{ l: 'B', a: 0 }]
+        };
+        function accSymbol(a) {
+            return a === 0 ? '' : a === 1 ? '♯' : a === -1 ? '♭' : a === 2 ? '𝄪' : a === -2 ? '𝄫' : '';
+        }
+
+        // Construit l'orthographe d'un accord : place chaque note sur la bonne lettre
+        // (degré diatonique) et calcule dièse/bémol. Choisit l'orthographe de
+        // fondamentale qui évite les altérations doubles, en variant dièses/bémols.
+        function spellChord(rootMidi, degrees, midis) {
+            const pc = ((rootMidi % 12) + 12) % 12;
+            const opts = ROOT_SPELLINGS[pc];
+            const order = opts.map((_, i) => i).sort(() => Math.random() - 0.5);
+            let best = null;
+            for (const oi of order) {
+                const rs = opts[oi];
+                const rootOct = Math.floor((rootMidi - rs.a) / 12) - 1;
+                const rootDiat = rootOct * 7 + LETTER_INDEX[rs.l];
+                let doubles = 0;
+                const spelled = midis.map((m, idx) => {
+                    const nd = rootDiat + degrees[idx];
+                    const li = ((nd % 7) + 7) % 7;
+                    const oct = Math.floor(nd / 7);
+                    const acc = m - ((oct + 1) * 12 + LETTER_PC[LETTERS[li]]);
+                    if (Math.abs(acc) >= 2) doubles++;
+                    return { midi: m, diatonic: nd, acc };
+                });
+                if (!best || doubles < best.doubles) {
+                    best = { spelled, doubles, label: rs.l + accSymbol(rs.a) };
+                }
+                if (best.doubles === 0) break;
+            }
+            return best;
+        }
+
+        // accords main droite (clé de Sol) — degrees = pas de lettre depuis la fondamentale
         const TREBLE_TRIADS = [
-            { label: 'M', intervals: [0, 4, 7] },
-            { label: 'm', intervals: [0, 3, 7] },
-            { label: 'dim', intervals: [0, 3, 6] },
-            { label: 'aug', intervals: [0, 4, 8] }
+            { label: 'M', intervals: [0, 4, 7], degrees: [0, 2, 4] },
+            { label: 'm', intervals: [0, 3, 7], degrees: [0, 2, 4] },
+            { label: 'dim', intervals: [0, 3, 6], degrees: [0, 2, 4] },
+            { label: 'aug', intervals: [0, 4, 8], degrees: [0, 2, 4] }
         ];
         const TREBLE_SEVENTHS = [
-            { label: 'maj7', intervals: [0, 4, 7, 11] },
-            { label: '7', intervals: [0, 4, 7, 10] },
-            { label: 'm7', intervals: [0, 3, 7, 10] }
+            { label: 'maj7', intervals: [0, 4, 7, 11], degrees: [0, 2, 4, 6] },
+            { label: '7', intervals: [0, 4, 7, 10], degrees: [0, 2, 4, 6] },
+            { label: 'm7', intervals: [0, 3, 7, 10], degrees: [0, 2, 4, 6] }
         ];
 
-        // voicings main gauche (clé de Fa) : quintes, octaves, dixièmes, triades en registre médium
+        // voicings main gauche (clé de Fa) : quintes, octaves, dixièmes, triades médium
         const BASS_SHAPES = [
-            { off: [0, 7], suf: '5' },          // quinte ouverte
-            { off: [0, 12], suf: '8' },         // octave
-            { off: [0, 7, 12], suf: '5' },      // quinte + octave
-            { off: [0, 7, 16], suf: 'M' },      // racine - quinte - dixième Majeure
-            { off: [0, 7, 15], suf: 'm' },      // racine - quinte - dixième mineure
-            { off: [0, 4, 7], suf: 'M', floor: 48 }, // triade Majeure (médium)
-            { off: [0, 3, 7], suf: 'm', floor: 48 }  // triade mineure (médium)
+            { off: [0, 7], suf: '5', degrees: [0, 4] },
+            { off: [0, 12], suf: '8', degrees: [0, 7] },
+            { off: [0, 7, 12], suf: '5', degrees: [0, 4, 7] },
+            { off: [0, 7, 16], suf: 'M', degrees: [0, 4, 9] },
+            { off: [0, 7, 15], suf: 'm', degrees: [0, 4, 9] },
+            { off: [0, 4, 7], suf: 'M', degrees: [0, 2, 4], floor: 48 },
+            { off: [0, 3, 7], suf: 'm', degrees: [0, 2, 4], floor: 48 }
         ];
 
         // Clés : ref = diatonique de la ligne du bas de la portée
@@ -489,10 +533,9 @@
             const type = pool[rand(pool.length)];
             const span = Math.max(...type.intervals);
             const root = LOW + rand(HIGH - span - LOW + 1);
-            return {
-                notes: type.intervals.map(i => root + i).sort((a, b) => a - b),
-                name: rootName(root) + ' ' + type.label
-            };
+            const midis = type.intervals.map(i => root + i);
+            const sp = spellChord(root, type.degrees, midis);
+            return { notes: midis.slice().sort((a, b) => a - b), spelled: sp.spelled, name: sp.label + ' ' + type.label };
         }
 
         function randomBassVoicing() {
@@ -504,10 +547,9 @@
                 rootMax = HIGH - span;
             } while (rootMax < rootMin);
             const root = rootMin + rand(rootMax - rootMin + 1);
-            return {
-                notes: shape.off.map(i => root + i).sort((a, b) => a - b),
-                name: rootName(root) + ' ' + shape.suf
-            };
+            const midis = shape.off.map(i => root + i);
+            const sp = spellChord(root, shape.degrees, midis);
+            return { notes: midis.slice().sort((a, b) => a - b), spelled: sp.spelled, name: sp.label + ' ' + shape.suf };
         }
 
         function makeChord() {
@@ -579,7 +621,7 @@
             const positions = chordsSeq.length === 1 ? [185] : [120, 250];
             chordsSeq.forEach((g, i) => {
                 const color = (i === step) ? ACTIVE_COLOR : IDLE_COLOR;
-                drawGroup(g.notes, positions[i], color);
+                drawGroup(g.spelled, positions[i], color);
                 if (chordsSeq.length > 1) {
                     const num = svgEl('text', { x: positions[i] - 4, y: 152, 'font-size': 15, fill: color, 'font-weight': 700 });
                     num.textContent = (i + 1);
@@ -588,9 +630,9 @@
             });
         }
 
-        function drawGroup(midis, baseX, color) {
-            const notes = [...midis].map(noteInfo).sort((a, b) => a.diatonic - b.diatonic);
-            const offset = 17;
+        function drawGroup(spelled, baseX, color) {
+            const notes = [...spelled].sort((a, b) => a.diatonic - b.diatonic);
+            const offset = 12;
             let prevD = null, prevShifted = false;
             notes.forEach(n => {
                 let shift = 0;
@@ -601,8 +643,8 @@
             });
         }
 
-        function drawNote(info, x, color) {
-            const y = diatonicToY(info.diatonic);
+        function drawNote(note, x, color) {
+            const y = diatonicToY(note.diatonic);
 
             if (y < STAFF_TOP) {
                 for (let ly = STAFF_TOP - LINE_GAP; ly >= y - 1; ly -= LINE_GAP)
@@ -617,9 +659,10 @@
                 cx: x, cy: y, rx: 7.5, ry: 5.5, fill: color, transform: `rotate(-18 ${x} ${y})`
             }));
 
-            if (info.sharp) {
+            const sym = accSymbol(note.acc);
+            if (sym) {
                 const sh = svgEl('text', { x: x - 24, y: y + 6, 'font-size': 20, fill: color });
-                sh.textContent = '♯';
+                sh.textContent = sym;
                 staff.appendChild(sh);
             }
         }
