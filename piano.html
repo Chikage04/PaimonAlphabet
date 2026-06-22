@@ -857,13 +857,18 @@
             setTimeout(() => el.classList.remove('active'), 100);
 
             const group = chordsSeq[step];
+            // En mode "Nom de l'accord" seul, l'octave n'est pas indiquée :
+            // on valide par classe de hauteur (n'importe quelle octave).
+            const byName = (displayMode === 'name');
+            const targets = byName ? [...new Set(group.notes.map(n => ((n % 12) + 12) % 12))] : group.notes;
+            const unit = byName ? ((midi % 12) + 12) % 12 : midi;
 
-            if (group.notes.includes(midi)) {
-                if (clicked.has(midi)) return;
-                clicked.add(midi);
+            if (targets.includes(unit)) {
+                if (clicked.has(unit)) return;
+                clicked.add(unit);
                 el.classList.add('correct');
 
-                if (clicked.size === group.notes.length) {
+                if (clicked.size === targets.length) {
                     if (step + 1 < chordsSeq.length) {
                         locked = true;
                         step++;
@@ -915,7 +920,11 @@
             });
         }
 
-        wireSegment('displayMode', b => { displayMode = b.dataset.mode; revealDisplay(); scheduleHide(); });
+        wireSegment('displayMode', b => {
+            displayMode = b.dataset.mode;
+            clicked.clear(); clearKeyStates();
+            revealDisplay(); scheduleHide();
+        });
         wireSegment('hideMode', b => { hideMs = +b.dataset.ms; revealDisplay(); scheduleHide(); });
         wireSegment('countMode', b => { numChords = +b.dataset.n; newChord(); });
         function updateKeyLabel() { document.getElementById('keyLabel').textContent = keyName(); }
