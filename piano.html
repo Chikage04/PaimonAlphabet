@@ -388,6 +388,7 @@
             <label class="toggle"><input type="checkbox" id="soundOn" checked> 🔊 Son</label>
             <label class="toggle"><input type="checkbox" id="showKeyNames"> Noms des touches</label>
             <label class="toggle"><input type="checkbox" id="includeSevenths"> Accords de 7e</label>
+            <label class="toggle"><input type="checkbox" id="inversions"> Renversements aléatoires</label>
         </div>
     </div>
 
@@ -480,7 +481,10 @@
             { label: 'mMaj7', intervals: [0, 3, 7, 11], degrees: [0, 2, 4, 6] },
             { label: '6', intervals: [0, 4, 7, 9], degrees: [0, 2, 4, 5] },
             { label: 'm6', intervals: [0, 3, 7, 9], degrees: [0, 2, 4, 5] },
-            { label: '7sus4', intervals: [0, 5, 7, 10], degrees: [0, 3, 4, 6] }
+            { label: '7sus4', intervals: [0, 5, 7, 10], degrees: [0, 3, 4, 6] },
+            // triades avec fondamentale doublée à l'octave (sans 7e)
+            { label: 'M', intervals: [0, 4, 7, 12], degrees: [0, 2, 4, 7] },
+            { label: 'm', intervals: [0, 3, 7, 12], degrees: [0, 2, 4, 7] }
         ];
 
         // voicings main gauche (clé de Fa) : quintes, octaves, dixièmes, triades médium
@@ -677,9 +681,28 @@
 
         const chordName = g => letterToName(g.root.letter) + accSymbol(g.root.acc) + ' ' + g.suffix;
 
+        // renversement aléatoire : monte les notes graves d'une octave
+        function invertChord(chord) {
+            let sp = [...chord.spelled].sort((a, b) => a.midi - b.midi);
+            const inv = rand(sp.length); // 0 = position fondamentale
+            for (let i = 0; i < inv; i++) {
+                const low = sp.shift();
+                sp.push({ midi: low.midi + 12, diatonic: low.diatonic + 7, acc: low.acc });
+                sp.sort((a, b) => a.midi - b.midi);
+            }
+            // ramène l'accord dans l'étendue du clavier
+            const hi = () => Math.max(...sp.map(n => n.midi));
+            const lo = () => Math.min(...sp.map(n => n.midi));
+            while (hi() > HIGH) sp = sp.map(n => ({ midi: n.midi - 12, diatonic: n.diatonic - 7, acc: n.acc }));
+            while (lo() < LOW) sp = sp.map(n => ({ midi: n.midi + 12, diatonic: n.diatonic + 7, acc: n.acc }));
+            if (hi() > HIGH || lo() < LOW) return chord; // ne tient pas : on garde l'original
+            return { ...chord, spelled: sp, notes: sp.map(n => n.midi).sort((a, b) => a - b) };
+        }
+
         function makeChord() {
-            if (keySigOn) return makeKeyChord();
-            return clef === 'bass' ? randomBassVoicing() : randomTrebleChord();
+            let c = keySigOn ? makeKeyChord() : (clef === 'bass' ? randomBassVoicing() : randomTrebleChord());
+            if (document.getElementById('inversions').checked) c = invertChord(c);
+            return c;
         }
 
         // autorise les répétitions, mais pas plus de 2 fois le même accord d'affilée
@@ -933,6 +956,7 @@
         document.getElementById('newChord').addEventListener('click', () => { if (!locked) newChord(); });
         document.getElementById('showKeyNames').addEventListener('change', () => { refreshKeyNames(); saveState(); });
         document.getElementById('includeSevenths').addEventListener('change', () => { saveState(); if (!locked) newChord(); });
+        document.getElementById('inversions').addEventListener('change', () => { saveState(); if (!locked) newChord(); });
         document.getElementById('soundOn').addEventListener('change', saveState);
 
         function wireSegment(id, fn) {
@@ -953,6 +977,7 @@
                     clef, displayMode, numChords, hideMs, naming, keySigOn, keyIdx,
                     showKeyNames: document.getElementById('showKeyNames').checked,
                     includeSevenths: document.getElementById('includeSevenths').checked,
+                    inversions: document.getElementById('inversions').checked,
                     soundOn: document.getElementById('soundOn').checked,
                     score, streak, mistakes
                 }));
@@ -978,6 +1003,7 @@
             if (typeof s.keyIdx === 'number' && s.keyIdx >= 0 && s.keyIdx < KEY_SFS.length) { keyIdx = s.keyIdx; keySf = KEY_SFS[keyIdx]; }
             document.getElementById('showKeyNames').checked = !!s.showKeyNames;
             document.getElementById('includeSevenths').checked = !!s.includeSevenths;
+            document.getElementById('inversions').checked = !!s.inversions;
             if (typeof s.soundOn === 'boolean') document.getElementById('soundOn').checked = s.soundOn;
             score = s.score || 0; streak = s.streak || 0; mistakes = s.mistakes || 0;
         }
