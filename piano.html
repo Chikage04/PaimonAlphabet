@@ -498,6 +498,10 @@
             bass:   { sharp: [24, 21, 25, 22, 19, 23, 20], flat: [20, 23, 19, 22, 18, 21, 17] }
         };
         const KEY_SFS = [-6, -5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5, 6];
+        // poids du tirage aléatoire : on favorise les tonalités typiques
+        // fantasy orchestral (Ré, Fa, Mi♭, Si♭, Sol), folk traditionnel (Sol, Ré, La, Do)
+        // et jpop (Do, Sol, Ré, La, Mi, Fa) — proches du centre du cycle des quintes.
+        const KEY_WEIGHTS = { '-6': 1, '-5': 2, '-4': 3, '-3': 5, '-2': 6, '-1': 6, '0': 5, '1': 7, '2': 8, '3': 6, '4': 4, '5': 2, '6': 1 };
 
         function buildKey(sf) {
             const acc = {};
@@ -754,7 +758,7 @@
             const sharp = keySf > 0;
             const positions = SIG_POS[clef][sharp ? 'sharp' : 'flat'];
             const sym = sharp ? '♯' : '♭';
-            const startX = sharp ? 38 : 48; // les bémols sont décalés vers la droite
+            const startX = 48; // dièses et bémols décalés vers la droite
             for (let i = 0; i < Math.abs(keySf); i++) {
                 const t = svgEl('text', {
                     x: startX + i * 9, y: diatonicToY(positions[i]) + (sharp ? 6 : 5),
@@ -935,10 +939,18 @@
 
         wireSegment('nameMode', b => { naming = b.dataset.naming; refreshKeyNames(); updateKeyLabel(); refreshDisplay(); });
         wireSegment('keySigMode', b => { keySigOn = b.dataset.on === '1'; if (!locked) newChord(); });
+        function pickKeyIdx() {
+            const total = KEY_SFS.reduce((s, sf, idx) => idx === keyIdx ? s : s + (KEY_WEIGHTS[sf] || 1), 0);
+            let r = Math.random() * total;
+            for (let idx = 0; idx < KEY_SFS.length; idx++) {
+                if (idx === keyIdx) continue;
+                r -= (KEY_WEIGHTS[KEY_SFS[idx]] || 1);
+                if (r <= 0) return idx;
+            }
+            return keyIdx;
+        }
         document.getElementById('changeKey').addEventListener('click', () => {
-            let i;
-            do { i = rand(KEY_SFS.length); } while (KEY_SFS.length > 1 && i === keyIdx);
-            keyIdx = i;
+            keyIdx = pickKeyIdx();
             keySf = KEY_SFS[keyIdx];
             updateKeyLabel();
             if (keySigOn && !locked) newChord();
