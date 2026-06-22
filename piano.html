@@ -327,6 +327,14 @@
             </div>
         </div>
 
+        <div class="control-row"><span class="seg-label">Notation des notes</span></div>
+        <div class="control-row">
+            <div class="segmented" id="nameMode">
+                <button data-naming="abc" class="active">A B C</button>
+                <button data-naming="solfege">Do Ré Mi</button>
+            </div>
+        </div>
+
         <div class="control-row"><span class="seg-label">Affichage</span></div>
         <div class="control-row">
             <div class="segmented" id="displayMode">
@@ -402,6 +410,9 @@
         function accSymbol(a) {
             return a === 0 ? '' : a === 1 ? '♯' : a === -1 ? '♭' : a === 2 ? '𝄪' : a === -2 ? '𝄫' : '';
         }
+        const SOLFEGE = { C: 'Do', D: 'Ré', E: 'Mi', F: 'Fa', G: 'Sol', A: 'La', B: 'Si' };
+        let naming = 'abc';
+        const letterToName = l => naming === 'solfege' ? SOLFEGE[l] : l;
 
         // Construit l'orthographe d'un accord : place chaque note sur la bonne lettre
         // (degré diatonique) et calcule dièse/bémol. Choisit l'orthographe de
@@ -425,7 +436,7 @@
                     return { midi: m, diatonic: nd, acc };
                 });
                 if (!best || doubles < best.doubles) {
-                    best = { spelled, doubles, label: rs.l + accSymbol(rs.a) };
+                    best = { spelled, doubles, rootLetter: rs.l, rootAcc: rs.a };
                 }
                 if (best.doubles === 0) break;
             }
@@ -523,7 +534,10 @@
 
         function refreshKeyNames() {
             const show = document.getElementById('showKeyNames').checked;
-            for (const m in keyEls) keyEls[m].textContent = show ? noteInfo(+m).name : '';
+            for (const m in keyEls) {
+                const info = noteInfo(+m);
+                keyEls[m].textContent = show ? letterToName(info.letter) + (info.sharp ? '♯' : '') + info.octave : '';
+            }
         }
 
         // ---------- Génération ----------
@@ -535,7 +549,7 @@
             const root = LOW + rand(HIGH - span - LOW + 1);
             const midis = type.intervals.map(i => root + i);
             const sp = spellChord(root, type.degrees, midis);
-            return { notes: midis.slice().sort((a, b) => a - b), spelled: sp.spelled, name: sp.label + ' ' + type.label };
+            return { notes: midis.slice().sort((a, b) => a - b), spelled: sp.spelled, root: { letter: sp.rootLetter, acc: sp.rootAcc }, suffix: type.label };
         }
 
         function randomBassVoicing() {
@@ -549,8 +563,10 @@
             const root = rootMin + rand(rootMax - rootMin + 1);
             const midis = shape.off.map(i => root + i);
             const sp = spellChord(root, shape.degrees, midis);
-            return { notes: midis.slice().sort((a, b) => a - b), spelled: sp.spelled, name: sp.label + ' ' + shape.suf };
+            return { notes: midis.slice().sort((a, b) => a - b), spelled: sp.spelled, root: { letter: sp.rootLetter, acc: sp.rootAcc }, suffix: shape.suf };
         }
+
+        const chordName = g => letterToName(g.root.letter) + accSymbol(g.root.acc) + ' ' + g.suffix;
 
         function makeChord() {
             return clef === 'bass' ? randomBassVoicing() : randomTrebleChord();
@@ -587,7 +603,7 @@
                 }
                 const s = document.createElement('span');
                 s.className = (i === step) ? 'cn-active' : 'cn-idle';
-                s.textContent = g.name;
+                s.textContent = chordName(g);
                 el.appendChild(s);
             });
         }
@@ -786,6 +802,7 @@
         wireSegment('displayMode', b => { displayMode = b.dataset.mode; revealDisplay(); scheduleHide(); });
         wireSegment('hideMode', b => { hideMs = +b.dataset.ms; revealDisplay(); scheduleHide(); });
         wireSegment('countMode', b => { numChords = +b.dataset.n; newChord(); });
+        wireSegment('nameMode', b => { naming = b.dataset.naming; refreshKeyNames(); refreshDisplay(); });
         wireSegment('clefMode', b => {
             clef = b.dataset.clef;
             LOW = CLEFS[clef].low;
