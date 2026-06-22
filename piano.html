@@ -926,12 +926,14 @@
             document.getElementById('score').textContent = score;
             document.getElementById('streak').textContent = streak;
             document.getElementById('mistakes').textContent = mistakes;
+            saveState();
         }
 
         // ---------- Contrôles ----------
         document.getElementById('newChord').addEventListener('click', () => { if (!locked) newChord(); });
-        document.getElementById('showKeyNames').addEventListener('change', refreshKeyNames);
-        document.getElementById('includeSevenths').addEventListener('change', () => { if (!locked) newChord(); });
+        document.getElementById('showKeyNames').addEventListener('change', () => { refreshKeyNames(); saveState(); });
+        document.getElementById('includeSevenths').addEventListener('change', () => { saveState(); if (!locked) newChord(); });
+        document.getElementById('soundOn').addEventListener('change', saveState);
 
         function wireSegment(id, fn) {
             document.querySelectorAll('#' + id + ' button').forEach(b => {
@@ -939,8 +941,45 @@
                     document.querySelectorAll('#' + id + ' button').forEach(x => x.classList.remove('active'));
                     b.classList.add('active');
                     fn(b);
+                    saveState();
                 });
             });
+        }
+
+        // ---------- Sauvegarde des réglages et scores ----------
+        function saveState() {
+            try {
+                localStorage.setItem('pianoTrainer', JSON.stringify({
+                    clef, displayMode, numChords, hideMs, naming, keySigOn, keyIdx,
+                    showKeyNames: document.getElementById('showKeyNames').checked,
+                    includeSevenths: document.getElementById('includeSevenths').checked,
+                    soundOn: document.getElementById('soundOn').checked,
+                    score, streak, mistakes
+                }));
+            } catch (e) { /* localStorage indisponible */ }
+        }
+
+        function activateSeg(id, attr, value) {
+            document.querySelectorAll('#' + id + ' button').forEach(b => {
+                b.classList.toggle('active', b.dataset[attr] === String(value));
+            });
+        }
+
+        function loadState() {
+            let s;
+            try { s = JSON.parse(localStorage.getItem('pianoTrainer')); } catch (e) { return; }
+            if (!s) return;
+            if (s.clef && CLEFS[s.clef]) { clef = s.clef; LOW = CLEFS[clef].low; HIGH = CLEFS[clef].high; activateSeg('clefMode', 'clef', clef); }
+            if (s.displayMode) { displayMode = s.displayMode; activateSeg('displayMode', 'mode', displayMode); }
+            if (s.numChords) { numChords = s.numChords; activateSeg('countMode', 'n', numChords); }
+            if (typeof s.hideMs === 'number') { hideMs = s.hideMs; activateSeg('hideMode', 'ms', hideMs); }
+            if (s.naming) { naming = s.naming; activateSeg('nameMode', 'naming', naming); }
+            if (typeof s.keySigOn === 'boolean') { keySigOn = s.keySigOn; activateSeg('keySigMode', 'on', keySigOn ? '1' : '0'); }
+            if (typeof s.keyIdx === 'number' && s.keyIdx >= 0 && s.keyIdx < KEY_SFS.length) { keyIdx = s.keyIdx; keySf = KEY_SFS[keyIdx]; }
+            document.getElementById('showKeyNames').checked = !!s.showKeyNames;
+            document.getElementById('includeSevenths').checked = !!s.includeSevenths;
+            if (typeof s.soundOn === 'boolean') document.getElementById('soundOn').checked = s.soundOn;
+            score = s.score || 0; streak = s.streak || 0; mistakes = s.mistakes || 0;
         }
 
         wireSegment('displayMode', b => {
@@ -1029,6 +1068,8 @@
         initMIDI();
 
         // ---------- Démarrage ----------
+        loadState();
+        updateScore();
         updateKeyLabel();
         buildKeyboard();
         newChord();
