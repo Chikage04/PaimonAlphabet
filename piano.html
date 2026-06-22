@@ -758,7 +758,7 @@
             const sharp = keySf > 0;
             const positions = SIG_POS[clef][sharp ? 'sharp' : 'flat'];
             const sym = sharp ? '♯' : '♭';
-            const startX = 48; // dièses et bémols décalés vers la droite
+            const startX = sharp ? 68 : 56; // décalage des altérations à la clé
             for (let i = 0; i < Math.abs(keySf); i++) {
                 const t = svgEl('text', {
                     x: startX + i * 9, y: diatonicToY(positions[i]) + (sharp ? 6 : 5),
