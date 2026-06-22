@@ -371,6 +371,7 @@
             <div class="segmented" id="countMode">
                 <button data-n="1" class="active">1 accord</button>
                 <button data-n="2">2 accords</button>
+                <button data-n="3">3 accords</button>
             </div>
         </div>
 
@@ -779,7 +780,7 @@
 
             drawKeySignature();
 
-            const positions = chordsSeq.length === 1 ? [185] : [120, 250];
+            const positions = ({ 1: [185], 2: [140, 230], 3: [120, 200, 280] })[chordsSeq.length] || [185];
             chordsSeq.forEach((g, i) => {
                 const color = (i === step) ? ACTIVE_COLOR : IDLE_COLOR;
                 drawGroup(g.spelled, positions[i], color);
