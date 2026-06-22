@@ -262,6 +262,18 @@
 
         .toggle input { width: 16px; height: 16px; }
 
+        .key-label {
+            display: inline-flex;
+            align-items: center;
+            font-weight: 700;
+            font-size: 16px;
+            color: var(--accent);
+            background: var(--panel);
+            border: 1px solid #233169;
+            border-radius: 10px;
+            padding: 8px 14px;
+        }
+
         .hint {
             margin-top: 14px;
             color: var(--muted);
@@ -325,6 +337,16 @@
                 <button data-clef="treble" class="active">Clé de Sol</button>
                 <button data-clef="bass">Clé de Fa (main gauche)</button>
             </div>
+        </div>
+
+        <div class="control-row"><span class="seg-label">Armature (tonalité)</span></div>
+        <div class="control-row">
+            <div class="segmented" id="keySigMode">
+                <button data-on="0" class="active">Sans</button>
+                <button data-on="1">Avec armature</button>
+            </div>
+            <button class="btn" id="changeKey">⟳ Changer</button>
+            <span class="key-label" id="keyLabel">Do Majeur</span>
         </div>
 
         <div class="control-row"><span class="seg-label">Notation des notes</span></div>
@@ -467,6 +489,82 @@
             { off: [0, 3, 7], suf: 'm', degrees: [0, 2, 4], floor: 48 }
         ];
 
+        // ---- Armatures (tonalités majeures) ----
+        const SHARP_ORDER = ['F', 'C', 'G', 'D', 'A', 'E', 'B'];
+        const FLAT_ORDER = ['B', 'E', 'A', 'D', 'G', 'C', 'F'];
+        // positions diatoniques des altérations à la clé (ordre F C G D A E B / B E A D G C F)
+        const SIG_POS = {
+            treble: { sharp: [38, 35, 39, 36, 33, 37, 34], flat: [34, 37, 33, 36, 32, 35, 31] },
+            bass:   { sharp: [24, 21, 25, 22, 19, 23, 20], flat: [20, 23, 19, 22, 18, 21, 17] }
+        };
+        const KEY_SFS = [-6, -5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5, 6];
+
+        function buildKey(sf) {
+            const acc = {};
+            LETTERS.forEach(l => acc[l] = 0);
+            if (sf > 0) SHARP_ORDER.slice(0, sf).forEach(l => acc[l] = 1);
+            else if (sf < 0) FLAT_ORDER.slice(0, -sf).forEach(l => acc[l] = -1);
+            const tli = ((4 * sf) % 7 + 7) % 7;
+            const pcToSpelling = {};
+            for (let d = 0; d < 7; d++) {
+                const letter = LETTERS[(tli + d) % 7];
+                const a = acc[letter];
+                pcToSpelling[((LETTER_PC[letter] + a) % 12 + 12) % 12] = { letter, acc: a };
+            }
+            return { acc, tonicLetter: LETTERS[tli], tonicAcc: acc[LETTERS[tli]], pcToSpelling };
+        }
+
+        // notes de la gamme dans l'étendue du clavier (avec orthographe de la tonalité)
+        function keyScaleNotes() {
+            const k = buildKey(keySf);
+            const out = [];
+            for (let m = LOW; m <= HIGH; m++) {
+                const e = k.pcToSpelling[((m % 12) + 12) % 12];
+                if (!e) continue;
+                const oct = Math.round((m - LETTER_PC[e.letter] - e.acc) / 12) - 1;
+                out.push({ midi: m, diatonic: oct * 7 + LETTER_INDEX[e.letter], acc: e.acc, letter: e.letter });
+            }
+            return out;
+        }
+
+        function classifyChord(midis, sevenths) {
+            const a = midis[0], i1 = midis[1] - a, i2 = midis[2] - a;
+            const base = (i1 === 4 && i2 === 7) ? 'M' : (i1 === 3 && i2 === 7) ? 'm'
+                : (i1 === 3 && i2 === 6) ? 'dim' : (i1 === 4 && i2 === 8) ? 'aug' : '';
+            if (!sevenths) return base;
+            const s = midis[3] - a;
+            if (base === 'M' && s === 11) return 'maj7';
+            if (base === 'M' && s === 10) return '7';
+            if (base === 'm' && s === 10) return 'm7';
+            if (base === 'm' && s === 11) return 'mMaj7';
+            if (base === 'dim' && s === 9) return 'dim7';
+            if (base === 'dim' && s === 10) return 'm7♭5';
+            return base + '7';
+        }
+
+        // accord diatonique : empile des tierces dans la gamme (aucune altération accidentelle)
+        function makeKeyChord() {
+            const sevenths = document.getElementById('includeSevenths').checked;
+            const arr = keyScaleNotes();
+            const span = sevenths ? 6 : 4;
+            if (arr.length < span + 1) return randomTrebleChord();
+            const k = rand(arr.length - span);
+            const idxs = sevenths ? [k, k + 2, k + 4, k + 6] : [k, k + 2, k + 4];
+            const grp = idxs.map(i => arr[i]);
+            const midis = grp.map(n => n.midi);
+            const spelled = grp.map(n => ({ midi: n.midi, diatonic: n.diatonic, acc: n.acc }));
+            return {
+                notes: midis.slice().sort((a, b) => a - b), spelled,
+                root: { letter: grp[0].letter, acc: grp[0].acc },
+                suffix: classifyChord(midis, sevenths)
+            };
+        }
+
+        function keyName() {
+            const k = buildKey(keySf);
+            return letterToName(k.tonicLetter) + accSymbol(k.tonicAcc) + ' Majeur';
+        }
+
         // Clés : ref = diatonique de la ligne du bas de la portée
         const CLEFS = {
             treble: { symbol: '𝄞', symX: 16, symY: 116, symSize: 86, ref: noteInfo(64).diatonic, low: 60, high: 83 },
@@ -484,6 +582,8 @@
         let displayMode = 'staff';
         let numChords = 1;
         let hideMs = 0, hideTimer = null;
+        let keySigOn = false;
+        let keyIdx = KEY_SFS.indexOf(0), keySf = 0;
 
         // ---------- Clavier ----------
         const WHITE_W = 46, BLACK_W = 28, KB_H = 200;
@@ -569,6 +669,7 @@
         const chordName = g => letterToName(g.root.letter) + accSymbol(g.root.acc) + ' ' + g.suffix;
 
         function makeChord() {
+            if (keySigOn) return makeKeyChord();
             return clef === 'bass' ? randomBassVoicing() : randomTrebleChord();
         }
 
@@ -634,6 +735,8 @@
             clefEl.textContent = c.symbol;
             staff.appendChild(clefEl);
 
+            drawKeySignature();
+
             const positions = chordsSeq.length === 1 ? [185] : [120, 250];
             chordsSeq.forEach((g, i) => {
                 const color = (i === step) ? ACTIVE_COLOR : IDLE_COLOR;
@@ -644,6 +747,18 @@
                     staff.appendChild(num);
                 }
             });
+        }
+
+        function drawKeySignature() {
+            if (!keySigOn || keySf === 0) return;
+            const type = keySf > 0 ? 'sharp' : 'flat';
+            const positions = SIG_POS[clef][type];
+            const sym = keySf > 0 ? '♯' : '♭';
+            for (let i = 0; i < Math.abs(keySf); i++) {
+                const t = svgEl('text', { x: 36 + i * 9, y: diatonicToY(positions[i]) + 6, 'font-size': 22, fill: '#111' });
+                t.textContent = sym;
+                staff.appendChild(t);
+            }
         }
 
         function drawGroup(spelled, baseX, color) {
@@ -675,7 +790,8 @@
                 cx: x, cy: y, rx: 7.5, ry: 5.5, fill: color, transform: `rotate(-18 ${x} ${y})`
             }));
 
-            const sym = accSymbol(note.acc);
+            // en mode armature, les altérations sont à la clé → pas d'altération sur la note
+            const sym = keySigOn ? '' : accSymbol(note.acc);
             if (sym) {
                 const sh = svgEl('text', { x: x - 24, y: y + 6, 'font-size': 20, fill: color });
                 sh.textContent = sym;
@@ -802,7 +918,16 @@
         wireSegment('displayMode', b => { displayMode = b.dataset.mode; revealDisplay(); scheduleHide(); });
         wireSegment('hideMode', b => { hideMs = +b.dataset.ms; revealDisplay(); scheduleHide(); });
         wireSegment('countMode', b => { numChords = +b.dataset.n; newChord(); });
-        wireSegment('nameMode', b => { naming = b.dataset.naming; refreshKeyNames(); refreshDisplay(); });
+        function updateKeyLabel() { document.getElementById('keyLabel').textContent = keyName(); }
+
+        wireSegment('nameMode', b => { naming = b.dataset.naming; refreshKeyNames(); updateKeyLabel(); refreshDisplay(); });
+        wireSegment('keySigMode', b => { keySigOn = b.dataset.on === '1'; if (!locked) newChord(); });
+        document.getElementById('changeKey').addEventListener('click', () => {
+            keyIdx = (keyIdx + 1) % KEY_SFS.length;
+            keySf = KEY_SFS[keyIdx];
+            updateKeyLabel();
+            if (keySigOn && !locked) newChord();
+        });
         wireSegment('clefMode', b => {
             clef = b.dataset.clef;
             LOW = CLEFS[clef].low;
@@ -862,6 +987,7 @@
         initMIDI();
 
         // ---------- Démarrage ----------
+        updateKeyLabel();
         buildKeyboard();
         newChord();
     </script>
