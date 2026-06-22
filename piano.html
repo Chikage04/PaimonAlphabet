@@ -682,14 +682,13 @@
             return clef === 'bass' ? randomBassVoicing() : randomTrebleChord();
         }
 
-        // évite de retomber sur un accord identique à l'un des derniers tirés
-        let recentChords = [];
+        // autorise les répétitions, mais pas plus de 2 fois le même accord d'affilée
+        let lastSig = null, lastCount = 0;
         function makeUniqueChord() {
             let c, sig, tries = 0;
             do { c = makeChord(); sig = c.notes.join(','); tries++; }
-            while (recentChords.includes(sig) && tries < 25);
-            recentChords.push(sig);
-            if (recentChords.length > 4) recentChords.shift();
+            while (sig === lastSig && lastCount >= 2 && tries < 25);
+            if (sig === lastSig) lastCount++; else { lastSig = sig; lastCount = 1; }
             return c;
         }
 
