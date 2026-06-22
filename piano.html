@@ -475,7 +475,12 @@
         const TREBLE_SEVENTHS = [
             { label: 'maj7', intervals: [0, 4, 7, 11], degrees: [0, 2, 4, 6] },
             { label: '7', intervals: [0, 4, 7, 10], degrees: [0, 2, 4, 6] },
-            { label: 'm7', intervals: [0, 3, 7, 10], degrees: [0, 2, 4, 6] }
+            { label: 'm7', intervals: [0, 3, 7, 10], degrees: [0, 2, 4, 6] },
+            { label: 'm7♭5', intervals: [0, 3, 6, 10], degrees: [0, 2, 4, 6] },
+            { label: 'mMaj7', intervals: [0, 3, 7, 11], degrees: [0, 2, 4, 6] },
+            { label: '6', intervals: [0, 4, 7, 9], degrees: [0, 2, 4, 5] },
+            { label: 'm6', intervals: [0, 3, 7, 9], degrees: [0, 2, 4, 5] },
+            { label: '7sus4', intervals: [0, 5, 7, 10], degrees: [0, 3, 4, 6] }
         ];
 
         // voicings main gauche (clé de Fa) : quintes, octaves, dixièmes, triades médium
@@ -677,6 +682,17 @@
             return clef === 'bass' ? randomBassVoicing() : randomTrebleChord();
         }
 
+        // évite de retomber sur un accord identique à l'un des derniers tirés
+        let recentChords = [];
+        function makeUniqueChord() {
+            let c, sig, tries = 0;
+            do { c = makeChord(); sig = c.notes.join(','); tries++; }
+            while (recentChords.includes(sig) && tries < 25);
+            recentChords.push(sig);
+            if (recentChords.length > 4) recentChords.shift();
+            return c;
+        }
+
         function newChord() {
             clearKeyStates();
             clicked.clear();
@@ -684,7 +700,7 @@
             locked = false;
 
             chordsSeq = [];
-            for (let i = 0; i < numChords; i++) chordsSeq.push(makeChord());
+            for (let i = 0; i < numChords; i++) chordsSeq.push(makeUniqueChord());
 
             refreshDisplay();
             revealDisplay();
