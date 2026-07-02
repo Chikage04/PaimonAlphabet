@@ -179,6 +179,8 @@
             z-index: 2;
         }
 
+        .key.ghost { opacity: .5; }
+
         .key.white.active { background: linear-gradient(#e4e7fb, #d3d8f5); }
         .key.black.active { background: linear-gradient(#3a4066, #1b1f3a); }
         .key.correct { background: linear-gradient(var(--good), #1e9b61) !important; color: #fff; }
@@ -602,19 +604,23 @@
 
         // ---------- Clavier ----------
         const WHITE_W = 46, BLACK_W = 28, KB_H = 200;
+        const EXT_LEFT = 5, EXT_RIGHT = 6; // touches décoratives (aucun accord n'y apparaît)
         const piano = document.getElementById('piano');
         const scaler = document.getElementById('pianoScaler');
         let keyEls = {};
+        let ghostKeys = new Set();
         let whiteTotal = 0;
 
         function buildKeyboard() {
             piano.innerHTML = '';
             keyEls = {};
+            ghostKeys = new Set();
             let whiteCount = 0;
-            for (let m = LOW; m <= HIGH; m++) {
+            for (let m = LOW - EXT_LEFT; m <= HIGH + EXT_RIGHT; m++) {
                 const info = noteInfo(m);
+                const ghost = (m < LOW || m > HIGH);
                 const el = document.createElement('div');
-                el.className = 'key ' + (info.isBlack ? 'black' : 'white');
+                el.className = 'key ' + (info.isBlack ? 'black' : 'white') + (ghost ? ' ghost' : '');
                 el.dataset.midi = m;
                 if (info.isBlack) {
                     el.style.width = BLACK_W + 'px';
@@ -627,6 +633,7 @@
                 el.addEventListener('click', e => { e.preventDefault(); onKeyPress(m); });
                 piano.appendChild(el);
                 keyEls[m] = el;
+                if (ghost) ghostKeys.add(m);
             }
             whiteTotal = whiteCount;
             piano.style.width = (whiteCount * WHITE_W) + 'px';
@@ -899,8 +906,14 @@
         function onKeyPress(midi) {
             if (!keyEls[midi]) return;
             playNote(midi);
-            if (locked) return;
             const el = keyEls[midi];
+            // touches décoratives : son + petit flash, mais aucun effet sur le jeu
+            if (ghostKeys.has(midi)) {
+                el.classList.add('active');
+                setTimeout(() => el.classList.remove('active'), 100);
+                return;
+            }
+            if (locked) return;
             el.classList.add('active');
             setTimeout(() => el.classList.remove('active'), 100);
 
