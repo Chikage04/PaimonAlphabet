@@ -391,7 +391,7 @@
             <button class="btn" id="newChord">Nouvel accord</button>
             <label class="toggle"><input type="checkbox" id="soundOn" checked> 🔊 Son</label>
             <label class="toggle"><input type="checkbox" id="showKeyNames"> Noms des touches</label>
-            <label class="toggle"><input type="checkbox" id="includeSevenths"> Accords de 7e</label>
+            <label class="toggle"><input type="checkbox" id="includeSevenths"> 4 notes</label>
             <label class="toggle"><input type="checkbox" id="inversions"> Renversements aléatoires</label>
         </div>
     </div>
@@ -477,7 +477,8 @@
             { label: 'dim', intervals: [0, 3, 6], degrees: [0, 2, 4] },
             { label: 'aug', intervals: [0, 4, 8], degrees: [0, 2, 4] }
         ];
-        const TREBLE_SEVENTHS = [
+        // mode "4 notes" : soit un accord de 7e, soit une triade (quinte) à fondamentale doublée
+        const TREBLE_FOURNOTE = [
             { label: 'maj7', intervals: [0, 4, 7, 11], degrees: [0, 2, 4, 6] },
             { label: '7', intervals: [0, 4, 7, 10], degrees: [0, 2, 4, 6] },
             { label: 'm7', intervals: [0, 3, 7, 10], degrees: [0, 2, 4, 6] },
@@ -486,9 +487,11 @@
             { label: '6', intervals: [0, 4, 7, 9], degrees: [0, 2, 4, 5] },
             { label: 'm6', intervals: [0, 3, 7, 9], degrees: [0, 2, 4, 5] },
             { label: '7sus4', intervals: [0, 5, 7, 10], degrees: [0, 3, 4, 6] },
-            // triades avec fondamentale doublée à l'octave (sans 7e)
+            // triades avec fondamentale doublée à l'octave
             { label: 'M', intervals: [0, 4, 7, 12], degrees: [0, 2, 4, 7] },
-            { label: 'm', intervals: [0, 3, 7, 12], degrees: [0, 2, 4, 7] }
+            { label: 'm', intervals: [0, 3, 7, 12], degrees: [0, 2, 4, 7] },
+            { label: 'dim', intervals: [0, 3, 6, 12], degrees: [0, 2, 4, 7] },
+            { label: 'aug', intervals: [0, 4, 8, 12], degrees: [0, 2, 4, 7] }
         ];
 
         // voicings main gauche (clé de Fa) : quintes, octaves, dixièmes, triades médium
@@ -664,8 +667,8 @@
 
         // ---------- Génération ----------
         function randomTrebleChord() {
-            const useSevenths = document.getElementById('includeSevenths').checked;
-            const pool = useSevenths ? TREBLE_TRIADS.concat(TREBLE_SEVENTHS) : TREBLE_TRIADS;
+            const fourNotes = document.getElementById('includeSevenths').checked;
+            const pool = fourNotes ? TREBLE_FOURNOTE : TREBLE_TRIADS;
             const type = pool[rand(pool.length)];
             const span = Math.max(...type.intervals);
             const root = LOW + rand(HIGH - span - LOW + 1);
