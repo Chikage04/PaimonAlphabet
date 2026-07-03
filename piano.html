@@ -560,22 +560,44 @@
             return base + '7';
         }
 
+        function keyChordFrom(grp, triForName, sevenths) {
+            const midis = grp.map(n => n.midi);
+            return {
+                notes: midis.slice().sort((a, b) => a - b),
+                spelled: grp.map(n => ({ midi: n.midi, diatonic: n.diatonic, acc: n.acc })),
+                root: { letter: grp[0].letter, acc: grp[0].acc },
+                suffix: classifyChord(triForName, sevenths)
+            };
+        }
+
         // accord diatonique : empile des tierces dans la gamme (aucune altération accidentelle)
         function makeKeyChord() {
-            const sevenths = document.getElementById('includeSevenths').checked;
+            const fourNotes = document.getElementById('includeSevenths').checked;
             const arr = keyScaleNotes();
-            const span = sevenths ? 6 : 4;
-            if (arr.length < span + 1) return randomTrebleChord();
-            const k = rand(arr.length - span);
-            const idxs = sevenths ? [k, k + 2, k + 4, k + 6] : [k, k + 2, k + 4];
-            const grp = idxs.map(i => arr[i]);
-            const midis = grp.map(n => n.midi);
-            const spelled = grp.map(n => ({ midi: n.midi, diatonic: n.diatonic, acc: n.acc }));
-            return {
-                notes: midis.slice().sort((a, b) => a - b), spelled,
-                root: { letter: grp[0].letter, acc: grp[0].acc },
-                suffix: classifyChord(midis, sevenths)
-            };
+            if (fourNotes) {
+                // ~45% triade diatonique à fondamentale doublée, sinon accord de 7e diatonique
+                if (Math.random() < 0.45) {
+                    const cands = [];
+                    for (let k = 0; k + 4 < arr.length; k++) if (arr[k].midi + 12 <= HIGH) cands.push(k);
+                    if (cands.length) {
+                        const k = cands[rand(cands.length)];
+                        const grp = [arr[k], arr[k + 2], arr[k + 4],
+                            { midi: arr[k].midi + 12, diatonic: arr[k].diatonic + 7, acc: arr[k].acc }];
+                        const tri = [arr[k].midi, arr[k + 2].midi, arr[k + 4].midi];
+                        return keyChordFrom(grp, tri, false);
+                    }
+                }
+                if (arr.length >= 7) {
+                    const k = rand(arr.length - 6);
+                    const grp = [k, k + 2, k + 4, k + 6].map(i => arr[i]);
+                    return keyChordFrom(grp, grp.map(n => n.midi), true);
+                }
+            }
+            // triade diatonique (3 notes)
+            if (arr.length < 5) return randomTrebleChord();
+            const k = rand(arr.length - 4);
+            const grp = [k, k + 2, k + 4].map(i => arr[i]);
+            return keyChordFrom(grp, grp.map(n => n.midi), false);
         }
 
         function keyName() {
