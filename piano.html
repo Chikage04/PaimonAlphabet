@@ -179,8 +179,6 @@
             z-index: 2;
         }
 
-        .key.ghost { opacity: .5; }
-
         .key.white.active { background: linear-gradient(#e4e7fb, #d3d8f5); }
         .key.black.active { background: linear-gradient(#3a4066, #1b1f3a); }
         .key.correct { background: linear-gradient(var(--good), #1e9b61) !important; color: #fff; }
@@ -909,14 +907,8 @@
         function onKeyPress(midi) {
             if (!keyEls[midi]) return;
             playNote(midi);
-            const el = keyEls[midi];
-            // touches décoratives : son + petit flash, mais aucun effet sur le jeu
-            if (ghostKeys.has(midi)) {
-                el.classList.add('active');
-                setTimeout(() => el.classList.remove('active'), 100);
-                return;
-            }
             if (locked) return;
+            const el = keyEls[midi];
             el.classList.add('active');
             setTimeout(() => el.classList.remove('active'), 100);
 
