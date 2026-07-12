@@ -157,96 +157,45 @@
         // ---------- Notes ----------
         const LETTER_INDEX = { C: 0, D: 1, E: 2, F: 3, G: 4, A: 5, B: 6 };
         const LETTER_PC = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
-        function parseNote(str) {
-            const m = str.match(/^([A-G])(#|b)?(-?\d+)$/);
+        // token: "C4" | "F2h." | "D5w" | "Ab3" — hauteur + tête (h/w) + point (.)
+        function parseTok(tok) {
+            const m = tok.match(/^([A-G])(#|b)?(\d+)([hw])?(\.)?$/);
             const letter = m[1], acc = m[2] === '#' ? 1 : m[2] === 'b' ? -1 : 0, octave = parseInt(m[3], 10);
-            return { midi: (octave + 1) * 12 + LETTER_PC[letter] + acc, letter, octave, acc, diatonic: octave * 7 + LETTER_INDEX[letter] };
+            return {
+                midi: (octave + 1) * 12 + LETTER_PC[letter] + acc,
+                diatonic: octave * 7 + LETTER_INDEX[letter],
+                acc, head: m[4] || 'q', dot: !!m[5]
+            };
         }
         function accSymbol(a) { return a === 1 ? '♯' : a === -1 ? '♭' : ''; }
 
-        // ---------- Morceaux (transcription best-effort) ----------
-        function buildPiece(measuresRaw, confidentFn) {
-            return measuresRaw.map((measure, mi) => ({
+        // ---------- Morceaux (transcriptions extraites des PDF) ----------
+        const MK = [{"e":[{"t":["C4","G3"],"b":["F2h."]},{"t":["G4"],"b":[]},{"t":["D4"],"b":[]},{"t":["C4"],"b":["F2"],"gb":0},{"t":[],"b":["C3"],"gb":0}],"c":[[0,3,"b","F2",0]]},{"e":[{"t":["C4","G3"],"b":["E2h."]},{"t":["G4"],"b":[]},{"t":["D4"],"b":[]},{"t":["C4"],"b":["E2"],"gb":0},{"t":[],"b":["C3"],"gb":0}],"c":[[0,3,"b","E2",0]]},{"e":[{"t":["C4","G3"],"b":["F2h."]},{"t":["G4"],"b":[]},{"t":["D4"],"b":[]},{"t":["C4"],"b":["F2"],"gb":0},{"t":[],"b":["C3"],"gb":0}],"c":[[0,3,"b","F2",0]]},{"e":[{"t":["B4","E4","C4"],"b":["A2h"]},{"t":["C5"],"b":[]},{"t":["A4","C4"],"b":["G2"]},{"t":["D4"],"b":[]},{"t":["G4"],"b":["G2"],"gb":0},{"t":[],"b":["D3"],"gb":0}],"c":[[2,4,"b","G2",0]]},{"e":[{"t":["C5","G4","C4"],"b":["F2h."]},{"t":["G4"],"b":[]},{"t":["D4"],"b":[]},{"t":["E5","C5"],"b":["C4"],"gb":0},{"t":[],"b":["C3"],"gb":0}]},{"e":[{"t":["B4","G4","C4"],"b":["E2h."]},{"t":["G4"],"b":[]},{"t":["D4"],"b":[]},{"t":["E5","C5"],"b":["C4"],"gb":0},{"t":[],"b":["C3"],"gb":0}]},{"e":[{"t":["G4","E4","C4"],"b":["F2h."]},{"t":["G4"],"b":[]},{"t":["D4"],"b":[]},{"t":["C4"],"b":["G3"],"gb":0},{"t":[],"b":["C3"],"gb":0}]},{"e":[{"t":["B4","E4","C4"],"b":["A2h"],"gb":0},{"t":["C5","G4"],"b":[]},{"t":["A4","C4"],"b":["G2"],"gb":0},{"t":["D4"],"b":[]},{"t":["E5","G4"],"b":["G2"],"gb":1},{"t":[],"b":["D3"],"gb":1}],"c":[[2,4,"b","G2",0]]},{"e":[{"t":["C6","G5","C5"],"b":["F2"],"gb":0},{"t":[],"b":["G3"],"gb":0},{"t":["B4","G3"],"b":[]},{"t":[],"b":["G3"],"gb":1},{"t":[],"b":["G3"],"gb":1},{"t":["C5"],"b":["D4"],"gb":2},{"t":[],"b":["G3"],"gb":2},{"t":[],"b":["G3"],"gb":2},{"t":["E6","C6","G3"],"b":["C4"],"gb":3},{"t":[],"b":["G3"],"gb":3}],"bn":{"0":1,"1":2,"2":2,"3":1}},{"e":[{"t":["B5","G5","C5"],"b":["E2"],"gb":0},{"t":[],"b":["G3"],"gb":0},{"t":["C5","G3"],"b":[]},{"t":[],"b":["G3"],"gb":1},{"t":[],"b":["G3"],"gb":1},{"t":["D5"],"b":["D4"],"gb":2},{"t":[],"b":["G3"],"gb":2},{"t":[],"b":["G3"],"gb":2},{"t":["E6","C6"],"b":["C4"],"gb":3},{"t":[],"b":["G3"],"gb":3}],"bn":{"0":1,"1":2,"2":2,"3":1}},{"e":[{"t":["G5","E5","C5"],"b":["F2"],"gb":0},{"t":[],"b":["G3"],"gb":0},{"t":["B4","G3"],"b":[]},{"t":[],"b":["G3"],"gb":1},{"t":[],"b":["G3"],"gb":1},{"t":["C5"],"b":["D4"],"gb":2},{"t":[],"b":["G3"],"gb":2},{"t":[],"b":["G3"],"gb":2},{"t":["C5","G4","E4"],"b":["C4"],"gb":3},{"t":[],"b":["G3"],"gb":3}],"bn":{"0":1,"1":2,"2":2,"3":1}},{"e":[{"t":["B4","G4","E4"],"b":["A2."],"gt":0},{"t":["E4"],"b":[],"gt":0},{"t":["G4"],"b":[],"gt":0},{"t":["B4"],"b":[],"gt":0},{"t":["C5","G4","D4"],"b":[],"gt":1},{"t":["D5"],"b":[],"gt":1},{"t":["G5"],"b":["B3"],"gt":1,"gb":2},{"t":["B5"],"b":[],"gt":1},{"t":["C6","A5","E5"],"b":["G2"],"gb":3},{"t":[],"b":["C4"],"gb":3},{"t":[],"b":["E4"],"gb":3},{"t":[],"b":["C4"],"gb":3},{"t":["D6","B5","B3","G3"],"b":[]},{"t":[],"b":["G3"],"gb":4}],"bn":{"0":2,"1":1,"2":1,"3":2,"4":1}},{"e":[{"t":["C5","C4"],"b":["F2"],"gb":0},{"t":[],"b":["G3"],"gb":0},{"t":["G5"],"b":[]},{"t":[],"b":["G3"],"gb":0},{"t":["C5","G3"],"b":[]},{"t":[],"b":["G3"],"gb":1},{"t":["G5"],"b":[]},{"t":[],"b":["G3"],"gb":1},{"t":["C6"],"b":["D4"],"gb":2},{"t":[],"b":["G3"],"gb":2},{"t":["G5"],"b":[]},{"t":[],"b":["G3"],"gb":2},{"t":["C5"],"b":["C4"],"gb":3},{"t":[],"b":["G3"],"gb":3},{"t":["G5"],"b":["B3"],"gb":3},{"t":[],"b":["G3"],"gb":3}],"bn":{"0":2,"1":2,"2":2,"3":2}},{"e":[{"t":["C5","C4"],"b":["E2"],"gb":0},{"t":[],"b":["G3"],"gb":0},{"t":["G5"],"b":[]},{"t":[],"b":["G3"],"gb":0},{"t":["C5","G3"],"b":[]},{"t":[],"b":["G3"],"gb":1},{"t":["G5"],"b":[]},{"t":[],"b":["G3"],"gb":1},{"t":["C6"],"b":["D4"],"gb":2},{"t":[],"b":["G3"],"gb":2},{"t":["G5"],"b":[]},{"t":[],"b":["G3"],"gb":2},{"t":["C5"],"b":["C4"],"gb":3},{"t":[],"b":["G3"],"gb":3},{"t":["G5"],"b":["B3"],"gb":3},{"t":[],"b":["G3"],"gb":3}],"bn":{"0":2,"1":2,"2":2,"3":2}},{"e":[{"t":["C5","C4"],"b":["F2"],"gb":0},{"t":[],"b":["G3"],"gb":0},{"t":["G5"],"b":[]},{"t":[],"b":["G3"],"gb":0},{"t":["C5"],"b":["G4"],"gb":1},{"t":[],"b":["G3"],"gb":1},{"t":["G5"],"b":[]},{"t":[],"b":["G3"],"gb":1},{"t":["C6"],"b":["D4"],"gb":2},{"t":[],"b":["G3"],"gb":2},{"t":["G5"],"b":[]},{"t":[],"b":["G3"],"gb":2},{"t":["C5"],"b":["C4"]},{"t":[],"b":["G3"]},{"t":["G5"],"b":["F4"]},{"t":[],"b":["G3"]}],"bn":{"0":2,"1":2,"2":2}},{"e":[{"t":["C5","G4","E4"],"b":["A2"],"gt":0,"gb":1},{"t":[],"b":["G3"],"gb":1},{"t":["G5"],"b":[],"gt":0},{"t":[],"b":["G3"],"gb":1},{"t":["B4"],"b":["C4"],"gt":0,"gb":2},{"t":[],"b":["G3"],"gb":2},{"t":["G5"],"b":[],"gt":0},{"t":[],"b":["G3"],"gb":2},{"t":["C5"],"b":[]},{"t":["C6","D5"],"b":["G2"],"gb":3},{"t":[],"b":["G3"],"gb":3},{"t":["G5"],"b":[]},{"t":[],"b":["G3"],"gb":3},{"t":["E5","B4","G4"],"b":["C4"],"gb":4},{"t":[],"b":["G3"],"gb":4},{"t":["G5"],"b":[]},{"t":[],"b":["G3"],"gb":4}],"bn":{"0":1,"1":2,"2":2,"3":2,"4":2}},{"e":[{"t":["C5","G4","D4"],"b":["F2"],"gt":0,"gb":1},{"t":[],"b":["G3"],"gb":1},{"t":["G4"],"b":[],"gt":0},{"t":[],"b":["D4"],"fb":2},{"t":["G5","E5"],"b":["C4"]},{"t":[],"b":["G3"]},{"t":[],"b":["D4"]},{"t":[],"b":["G3"]},{"t":["D5","G4","D4"],"b":["F2"],"gt":2,"gb":3},{"t":[],"b":["G3"],"gb":3},{"t":["G4"],"b":[],"gt":2},{"t":[],"b":["D4"],"fb":2},{"t":["C5.","G4."],"b":["C4"],"gt":4},{"t":[],"b":["G3"]},{"t":[],"b":["D4"]},{"t":["B4"],"b":["G3"],"gt":4}],"bn":{"0":1,"1":2,"2":1,"3":2,"4":2}},{"e":[{"t":["C5","G4","E4"],"b":["E2"],"gt":0,"gb":1},{"t":[],"b":["G3"],"gb":1},{"t":["G4"],"b":[],"gt":0},{"t":[],"b":["E4"],"fb":2},{"t":["G5","E5"],"b":["C4"]},{"t":[],"b":["G3"]},{"t":[],"b":["E3"]},{"t":[],"b":["G3"]},{"t":["D5","G4","E4"],"b":["E2"],"gt":2,"gb":3},{"t":[],"b":["G3"],"gb":3},{"t":["G4"],"b":[],"gt":2},{"t":["E4"],"b":[],"gt":2},{"t":["C5","G4"],"b":["C4"],"gt":4,"gb":5},{"t":[],"b":["G3"],"gb":5},{"t":["E4"],"b":[],"gt":4},{"t":["B4"],"b":["G3"],"gt":4,"fb":2}],"bn":{"0":1,"1":2,"2":2,"3":2,"4":2,"5":2}},{"e":[{"t":["C5","G4","D4"],"b":["F2"],"gt":0,"gb":1},{"t":[],"b":["G3"],"gb":1},{"t":["G4"],"b":[],"gt":0},{"t":[],"b":["D4"],"fb":2},{"t":["G5","E5"],"b":["C4"]},{"t":[],"b":["G3"]},{"t":[],"b":["D4"]},{"t":[],"b":["G3"]},{"t":["D5","B4","G4"],"b":["F2"],"gt":2,"gb":3},{"t":[],"b":["G3"],"gb":3},{"t":["G4"],"b":[],"gt":2},{"t":[],"b":["D4"],"fb":2},{"t":["E5","C5","G4"],"b":["C4"]},{"t":[],"b":["G3"]},{"t":[],"b":["D4"]},{"t":[],"b":["G3"]}],"bn":{"0":1,"1":2,"2":1,"3":2}},{"e":[{"t":["B5","G5","C5"],"b":["A2"],"gb":0},{"t":[],"b":["G3"],"gb":0},{"t":["G4"],"b":[]},{"t":[],"b":["E4"],"fb":2},{"t":["C6","A5"],"b":["C4"],"gb":1},{"t":[],"b":["D4"],"gb":1},{"t":["G4"],"b":[]},{"t":[],"b":["G3"],"fb":2},{"t":["B5","G5","C5"],"b":["G2"],"gt":2,"gb":3},{"t":[],"b":["G3"],"gb":3},{"t":["G4"],"b":[],"gt":2},{"t":[],"b":["D4"],"fb":2},{"t":["G5","E5"],"b":["C4"],"gt":4,"gb":5},{"t":[],"b":["G3"],"gb":5},{"t":["G4"],"b":[],"gt":4},{"t":["B4","C4"],"b":[],"gt":4}],"bn":{"0":2,"1":2,"2":1,"3":2,"4":2,"5":2}},{"e":[{"t":["C5","G4"],"b":["F2"],"gt":0,"fb":1},{"t":["C4"],"b":[],"gt":0},{"t":["G4"],"b":[],"gt":0},{"t":[],"b":["D4"],"fb":2},{"t":["G5","E5"],"b":["C4"],"gt":1,"gb":2},{"t":["F3"],"b":[],"gt":1},{"t":["C5"],"b":[],"gt":1},{"t":["G4"],"b":[],"gt":1},{"t":["D5","D4"],"b":["F2."],"gb":3},{"t":["C4"],"b":[]},{"t":["G4"],"b":[]},{"t":["E5"],"b":["D4"],"gt":4,"gb":3},{"t":["D5"],"b":[],"gt":4},{"t":["C5","G4"],"b":[],"gt":5},{"t":[],"b":["G3"],"gb":6},{"t":["D4"],"b":[],"gt":5},{"t":["B4"],"b":["G3"],"gt":5,"gb":6}],"bn":{"0":2,"1":2,"2":2,"3":2,"4":1,"5":2,"6":2}},{"e":[{"t":["C5","G4","E4"],"b":["E2"],"gt":0,"fb":1},{"t":["C4"],"b":[],"gt":0,"at":1},{"t":["G4"],"b":[],"gt":0},{"t":[],"b":["E4"],"fb":2},{"t":["G5"],"b":[],"gt":1},{"t":["A5.","E5."],"b":["C4"],"gt":1,"gb":2},{"t":["F3"],"b":[],"gt":1},{"t":[],"b":["E4"],"gb":2},{"t":["G5"],"b":[],"gt":1},{"t":["C5","E4"],"b":["E2"],"gb":3},{"t":["D5"],"b":[]},{"t":[],"b":["C4"],"gb":3},{"t":["G4"],"b":[],"gt":4},{"t":["E5"],"b":["E4"],"gt":4,"fb":2},{"t":["D5"],"b":[],"gt":4},{"t":["C5"],"b":["C4."],"gt":5,"gb":6},{"t":["G4"],"b":[],"gt":5},{"t":["E4"],"b":[],"gt":5},{"t":["B4"],"b":["G3"],"gt":5,"gb":6}],"bn":{"0":2,"1":2,"2":2,"3":2,"4":2,"5":2,"6":2}},{"e":[{"t":["C5","G4"],"b":["F2"],"gt":0},{"t":["C4"],"b":[],"gt":0},{"t":["G4"],"b":[],"gt":0},{"t":["C5"],"b":[],"gt":0},{"t":["G5.","E5."],"b":["D4"],"gt":1,"gb":2},{"t":[],"b":["C4"],"gb":2},{"t":[],"b":["G4"],"gb":2},{"t":["A5"],"b":[],"gt":1},{"t":["D5","B4"],"b":["F2"],"gt":3,"fb":2},{"t":["G4"],"b":[]},{"t":[],"b":["D4"],"gb":4},{"t":["E5"],"b":["G4"],"gt":5,"gb":4},{"t":["D5"],"b":[],"gt":5},{"t":["E5","C5"],"b":["C4"],"gt":6,"gb":7},{"t":[],"b":["G3"],"gb":7},{"t":["G5","C5"],"b":["D4"],"gt":6,"gb":7},{"t":[],"b":["G3"],"gb":7}],"bn":{"0":2,"1":2,"2":2,"3":1,"4":2,"5":2,"6":1,"7":2}},{"e":[{"t":["B5","E5","C5"],"b":["A2"],"gb":0},{"t":["E3"],"b":[]},{"t":[],"b":["G4"],"gb":0},{"t":["E3"],"b":[]},{"t":["C6","A5","D5"],"b":["C4"],"gb":1},{"t":[],"b":["G4"],"gb":1},{"t":[],"b":["E4"],"gb":1},{"t":[],"b":["G4"],"gb":1},{"t":["B5","G5","C5"],"b":["G2"],"gb":2},{"t":["G4"],"b":[],"gt":3},{"t":["G5"],"b":[],"gt":3},{"t":["G5"],"b":["D4"],"gb":2},{"t":["D5"],"b":["G4"],"gb":2},{"t":["E5"],"b":["C4"],"gt":4,"gb":5},{"t":[],"b":["G4"],"gb":5},{"t":["G5"],"b":[],"gt":4}],"bn":{"0":2,"1":2,"2":2,"3":1,"4":1,"5":2},"c":[[10,11,"t","G5",1]]},{"e":[{"t":["C4","G3"],"b":["F2h."]},{"t":["G4"],"b":[]},{"t":["D4"],"b":[]},{"t":["C4"],"b":["F2"],"gb":0},{"t":[],"b":["C3"],"gb":0}],"c":[[0,3,"b","F2",0]]},{"e":[{"t":["C4","G3"],"b":["E2h."]},{"t":["G4"],"b":[]},{"t":["D4"],"b":[]},{"t":["C4","G3"],"b":["E2"],"gb":0},{"t":[],"b":["C3"],"gb":0}],"c":[[0,3,"b","E2",0]]},{"e":[{"t":["C4","G3"],"b":["F2h."]},{"t":["G4"],"b":[]},{"t":["D4"],"b":[]},{"t":["E4","G3"],"b":["F2"],"gb":0},{"t":[],"b":["C3"],"gb":0}],"c":[[0,3,"b","F2",0]]},{"e":[{"t":["B4","E4","C4"],"b":["A2h"]},{"t":["C5"],"b":[]},{"t":["A4","C4"],"b":["G2h"]},{"t":["D4"],"b":[]},{"t":["G4"],"b":[]}],"c":[[4,-1,"t","G4",0]]},{"e":[{"t":["G4w","D4w","C4w","G3w"],"b":["F2w"]}]}];
+        const MV = [{"e":[{"t":["C5"],"b":[]},{"t":["D5"],"b":[],"at":1}]},{"e":[{"t":["E5h","G4h"],"b":["C4w"]},{"t":["F5."],"b":[]},{"t":["E5"],"b":[],"ft":1}]},{"e":[{"t":["E5","B4"],"b":["D4w","G3w"],"gt":0},{"t":["D5"],"b":[]},{"t":["D5h."],"b":[]}],"c":[[1,2,"t","D5",1],[1,2,"t","D5",1]]},{"e":[{"t":["Ab4h","F4h"],"b":["C4w","F3w"]},{"t":["F5."],"b":[],"gt":0},{"t":["G5."],"b":[],"gt":0,"at":1},{"t":["F5"],"b":[]}]},{"e":[{"t":["E5h","C5h","G3h"],"b":["C4h"],"at":1,"ab":1},{"t":["D5h","B4h","G3h"],"b":["B3h"],"at":1,"ab":1}]},{"e":[{"t":["C5h","A4h"],"b":["E4w","A3w"],"at":1},{"t":["G5.","C5.","A4."],"b":[],"gt":0},{"t":["F5."],"b":[],"gt":0},{"t":["E5"],"b":[]}]},{"e":[{"t":["B4h","G4h","E4h"],"b":["B3w","E3w"]},{"t":["G5."],"b":[],"gt":0},{"t":["F5."],"b":[],"gt":0,"at":1},{"t":["E5"],"b":[]}]},{"e":[{"t":["A4h.","F4h.","D4h."],"b":["A3w","D3w"]},{"t":["C5"],"b":[]}]},{"e":[{"t":["B4w"],"b":["G3w"]}]},{"e":[{"t":["E5h","G4h","E4h"],"b":["D4w","G3w","C3w"]},{"t":["F5."],"b":[]},{"t":["E5"],"b":[],"ft":1}]},{"e":[{"t":["E5","G4","D4"],"b":["G3w","G2w"],"gt":0},{"t":["D5"],"b":[],"gt":0},{"t":["D5"],"b":[]},{"t":["G4"],"b":[],"ft":1},{"t":["D4"],"b":[],"gt":1,"at":1},{"t":["B3"],"b":[],"gt":1}],"c":[[1,2,"t","D5",0]]},{"e":[{"t":["Ab4h","C4h","Ab3h"],"b":["F3w","F2w"]},{"t":["F5."],"b":[],"gt":0},{"t":["G5."],"b":[],"gt":0},{"t":["F5"],"b":[]}]},{"e":[{"t":["E5h","G4h","E4h"],"b":["C4h","G3h","C3h"]},{"t":["D5.","B4.","G4."],"b":["B3h","B2h"],"gt":0},{"t":["C5."],"b":[],"gt":0,"at":1},{"t":["B4"],"b":[]}]},{"e":[{"t":["C5h","A4h","E4h"],"b":["A2"],"gb":0},{"t":[],"b":["E3"],"gb":0},{"t":[],"b":["B3"],"gb":0},{"t":[],"b":["C4"]},{"t":["G5.","C5.","A4."],"b":["C4h"],"gt":1},{"t":["F5."],"b":[],"gt":1,"at":1},{"t":["E5"],"b":[]}],"c":[[3,4,"b","C4",1],[3,4,"b","C4",1]]},{"e":[{"t":["B4h","G4h","E4h"],"b":["E2"],"gb":0},{"t":[],"b":["B2"],"gb":0},{"t":[],"b":["G3"],"gb":0},{"t":[],"b":["D4"]},{"t":["G5.","C5.","G4."],"b":["D4h"],"gt":1},{"t":["F5."],"b":[],"gt":1,"at":1},{"t":["E5"],"b":[]}],"c":[[3,4,"b","D4",1]]},{"e":[{"t":["C5h","A4h","C4h"],"b":["F2"],"gb":0},{"t":[],"b":["C3"],"gb":0},{"t":[],"b":["A3"]},{"t":["D4","B3","G3"],"b":["G2"],"gb":1},{"t":[],"b":["D3"],"gb":1},{"t":["D5","G4","D4"],"b":["D3"],"gt":2,"at":1},{"t":["C5"],"b":[],"gt":2}],"c":[[4,5,"b","D3",0]]},{"e":[{"t":["D5","G4","E4"],"b":["C3"],"gt":0,"gb":1},{"t":["C5"],"b":["G3"],"gt":0,"gb":1},{"t":["C5h."],"b":["D4"],"gb":1},{"t":[],"b":["E4"]},{"t":[],"b":["E4"],"gb":2},{"t":[],"b":["D4"],"gb":2},{"t":[],"b":["C4"],"gb":2},{"t":[],"b":["G3"]}],"c":[[1,2,"t","C5",0],[3,4,"t","E4",1],[3,4,"t","E4",1]]},{"e":[{"t":[],"b":["C3"],"gb":0},{"t":[],"b":["G3"],"gb":0},{"t":[],"b":["D4"],"gb":0},{"t":[],"b":["E4"]},{"t":[],"b":["E4"],"gb":1},{"t":[],"b":["D4"]},{"t":["G5"],"b":["C4"]}],"c":[[3,4,"t","E4",1],[3,4,"t","E4",1]]},{"e":[{"t":["A5h"],"b":["F3"],"gb":0},{"t":[],"b":["C4"],"gb":0},{"t":[],"b":["F4"],"gb":0},{"t":[],"b":["A4"]},{"t":[],"b":["A4h"]},{"t":["C5"],"b":[],"ft":1},{"t":["A5"],"b":[],"gt":1},{"t":["G5"],"b":[]}],"c":[[7,-1,"t","G5",1],[7,-1,"t","G5",1],[3,4,"b","A4",1],[3,4,"b","A4",1]]},{"e":[{"t":["G5h."],"b":["C3"],"gb":0},{"t":[],"b":["G3"],"gb":0},{"t":[],"b":["D4"],"gb":0},{"t":[],"b":["E4"]},{"t":[],"b":["E4"],"gb":1},{"t":[],"b":["D4"]},{"t":[],"b":["C4"]},{"t":["D5"],"b":[],"ft":1}],"c":[[3,4,"t","E4",1],[3,4,"t","E4",1]]},{"e":[{"t":["C5h"],"b":["F3"],"gb":0},{"t":[],"b":["C4"],"gb":0},{"t":[],"b":["F4"],"gb":0},{"t":[],"b":["Ab4"]},{"t":[],"b":["Ab4h"]},{"t":["Ab4"],"b":[],"ft":1},{"t":["F5"],"b":[],"gt":1},{"t":["E5"],"b":[]}],"c":[[7,-1,"t","E5",1],[3,4,"b","Ab4",1],[3,4,"b","Ab4",1]]},{"e":[{"t":["E5h"],"b":["C3"],"gb":0},{"t":[],"b":["G3"]},{"t":[],"b":["E4"]},{"t":["D5."],"b":["B2"],"gt":1,"gb":2},{"t":[],"b":["G3"]},{"t":["C5."],"b":[],"gt":1},{"t":[],"b":["D4"]},{"t":["B4"],"b":[]}]},{"e":[{"t":["C5h"],"b":["A3"],"gb":0},{"t":[],"b":["E4"],"gb":0},{"t":[],"b":["A4"],"gb":0},{"t":[],"b":["B4"]},{"t":["G5."],"b":["B4h"],"gt":1},{"t":["F5."],"b":[],"gt":1},{"t":["E5"],"b":[]}],"c":[[3,4,"b","B4",1],[3,4,"b","B4",1]]},{"e":[{"t":["B4h"],"b":["E3"],"gb":0},{"t":[],"b":["B3"],"gb":0},{"t":[],"b":["E4"],"gb":0},{"t":[],"b":["G4"],"gb":0},{"t":["G5."],"b":["G4h"],"gt":1},{"t":["F5."],"b":[],"gt":1},{"t":["E5"],"b":[]}],"c":[[3,4,"b","G4",0]]},{"e":[{"t":["C5h."],"b":["F3"],"gb":0},{"t":[],"b":["C4"],"gb":0},{"t":[],"b":["F4"]},{"t":[],"b":["G3"],"gb":1},{"t":[],"b":["D4"],"gb":1},{"t":["D5."],"b":["G4"],"gt":2},{"t":["C5"],"b":[]}],"bn":{"0":1,"1":1,"2":2}},{"e":[{"t":["D5."],"b":["C3"],"gt":0,"gb":1},{"t":["C5"],"b":[],"gt":0},{"t":["C5"],"b":["G3"],"gb":1},{"t":["C5h"],"b":["D4"],"gb":1},{"t":[],"b":["E4"]},{"t":[],"b":["E4h"]},{"t":["B5"],"b":[]}],"bn":{"0":2,"1":1},"c":[[1,2,"t","C5",1],[1,2,"t","C5",1],[2,3,"t","C5",1],[2,3,"t","C5",1],[4,5,"t","E4",1],[4,5,"t","E4",1]]},{"e":[{"t":["C6h","E5w","A4w"],"b":[]},{"t":["G6."],"b":[],"gt":0},{"t":["F6."],"b":[],"gt":0,"at":1},{"t":["E6"],"b":[]}]},{"e":[{"t":["B5h","G5h","E5h","E4w"],"b":[]},{"t":["G6."],"b":[],"gt":0},{"t":["F6."],"b":[],"gt":0},{"t":["E6"],"b":[]}]},{"e":[{"t":["C6h.","F4h"],"b":[]},{"t":["G4h"],"b":[]},{"t":["D6."],"b":[],"gt":0},{"t":["C6"],"b":[]}],"bn":{"0":2}},{"e":[{"t":["D6.","C4w"],"b":[]},{"t":["C6"],"b":[],"gt":0},{"t":["C6"],"b":[]},{"t":["C6h."],"b":[]}],"bn":{"0":2},"c":[[1,2,"t","C6",1],[1,2,"t","C6",1],[2,3,"t","C6",1],[2,3,"t","C6",1]]}];
+
+        function buildPiece(raw) {
+            return raw.map((m, mi) => ({
                 index: mi + 1,
-                confident: confidentFn ? confidentFn(mi) : true,
-                events: measure.map(ev => ev.map(parseNote))
+                confident: true,
+                events: m.e.map(e => ({
+                    t: (e.t || []).map(parseTok),
+                    b: (e.b || []).map(parseTok),
+                    gt: 'gt' in e ? e.gt : -1,
+                    gb: 'gb' in e ? e.gb : -1,
+                    ft: e.ft || 0, fb: e.fb || 0,
+                    at: !!e.at, ab: !!e.ab
+                })),
+                beamCounts: m.bn || {},
+                curves: m.c || []
             }));
         }
-
-        // --- Krumkake Craftshop : transcription extraite du PDF (glyphes + coordonnées) ---
-        const MK = [
-            [['C4', 'F2', 'G3'], ['G4'], ['D4'], ['C4', 'F2'], ['C3']],
-            [['C4', 'E2', 'G3'], ['G4'], ['D4'], ['C4', 'E2'], ['C3']],
-            [['C4', 'F2', 'G3'], ['G4'], ['D4'], ['C4', 'F2'], ['C3']],
-            [['A2', 'B4', 'C4', 'E4'], ['C5'], ['A4', 'C4', 'G2'], ['D4'], ['G2', 'G4'], ['D3']],
-            [['C4', 'C5', 'F2', 'G4'], ['G4'], ['D4'], ['C4', 'C5', 'E5'], ['C3']],
-            [['B4', 'C4', 'E2', 'G4'], ['G4'], ['D4'], ['C4', 'C5', 'E5'], ['C3']],
-            [['C4', 'E4', 'F2', 'G4'], ['G4'], ['D4'], ['C4', 'G3'], ['C3']],
-            [['A2', 'B4', 'C4', 'E4'], ['C5', 'G4'], ['A4', 'C4', 'G2'], ['D4'], ['E5', 'G2', 'G4'], ['D3']],
-            [['C5', 'C6', 'F2', 'G5'], ['G3'], ['B4', 'G3'], ['G3'], ['G3'], ['C5', 'D4'], ['G3'], ['G3'], ['C4', 'C6', 'E6', 'G3'], ['G3']],
-            [['B5', 'C5', 'E2', 'G5'], ['G3'], ['C5', 'G3'], ['G3'], ['G3'], ['D4', 'D5'], ['G3'], ['G3'], ['C4', 'C6', 'E6'], ['G3']],
-            [['C5', 'E5', 'F2', 'G5'], ['G3'], ['B4', 'G3'], ['G3'], ['G3'], ['C5', 'D4'], ['G3'], ['G3'], ['C4', 'C5', 'E4', 'G4'], ['G3']],
-            [['A2', 'B4', 'E4', 'G4'], ['E4'], ['G4'], ['B4'], ['C5', 'D4', 'G4'], ['D5'], ['B3', 'G5'], ['B5'], ['A5', 'C6', 'E5', 'G2'], ['C4'], ['E4'], ['C4'], ['B3', 'B5', 'D6', 'G3'], ['G3']],
-            [['C4', 'C5', 'F2'], ['G3'], ['G5'], ['G3'], ['C5', 'G3'], ['G3'], ['G5'], ['G3'], ['C6', 'D4'], ['G3'], ['G5'], ['G3'], ['C4', 'C5'], ['G3'], ['B3', 'G5'], ['G3']],
-            [['C4', 'C5', 'E2'], ['G3'], ['G5'], ['G3'], ['C5', 'G3'], ['G3'], ['G5'], ['G3'], ['C6', 'D4'], ['G3'], ['G5'], ['G3'], ['C4', 'C5'], ['G3'], ['B3', 'G5'], ['G3']],
-            [['C4', 'C5', 'F2'], ['G3'], ['G5'], ['G3'], ['C5', 'G4'], ['G3'], ['G5'], ['G3'], ['C6', 'D4'], ['G3'], ['G5'], ['G3'], ['C4', 'C5'], ['G3'], ['F4', 'G5'], ['G3']],
-            [['A2', 'C5', 'E4', 'G4'], ['G3'], ['G5'], ['G3'], ['B4', 'C4'], ['G3'], ['G5'], ['G3'], ['C5'], ['C6', 'D5', 'G2'], ['G3'], ['G5'], ['G3'], ['B4', 'C4', 'E5', 'G4'], ['G3'], ['G5'], ['G3']],
-            [['C5', 'D4', 'F2', 'G4'], ['G3'], ['G4'], ['D4'], ['C4', 'E5', 'G5'], ['G3'], ['D4'], ['G3'], ['D4', 'D5', 'F2', 'G4'], ['G3'], ['G4'], ['D4'], ['C4', 'C5', 'G4'], ['G3'], ['D4'], ['B4', 'G3']],
-            [['C5', 'E2', 'E4', 'G4'], ['G3'], ['G4'], ['E4'], ['C4', 'E5', 'G5'], ['G3'], ['E3'], ['G3'], ['D5', 'E2', 'E4', 'G4'], ['G3'], ['G4'], ['E4'], ['C4', 'C5', 'G4'], ['G3'], ['E4'], ['B4', 'G3']],
-            [['C5', 'D4', 'F2', 'G4'], ['G3'], ['G4'], ['D4'], ['C4', 'E5', 'G5'], ['G3'], ['D4'], ['G3'], ['B4', 'D5', 'F2', 'G4'], ['G3'], ['G4'], ['D4'], ['C4', 'C5', 'E5', 'G4'], ['G3'], ['D4'], ['G3']],
-            [['A2', 'B5', 'C5', 'G5'], ['G3'], ['G4'], ['E4'], ['A5', 'C4', 'C6'], ['D4'], ['G4'], ['G3'], ['B5', 'C5', 'G2', 'G5'], ['G3'], ['G4'], ['D4'], ['C4', 'E5', 'G5'], ['G3'], ['G4'], ['B4', 'C4']],
-            [['C5', 'F2', 'G4'], ['C4'], ['G4'], ['D4'], ['C4', 'E5', 'G5'], ['F3'], ['C5'], ['G4'], ['D4', 'D5', 'F2'], ['C4'], ['G4'], ['D4', 'E5'], ['D5'], ['C5', 'G4'], ['G3'], ['D4'], ['B4', 'G3']],
-            [['C5', 'E2', 'E4', 'G4'], ['C4'], ['G4'], ['E4'], ['G5'], ['A5', 'C4', 'E5'], ['F3'], ['E4'], ['G5'], ['C5', 'E2', 'E4'], ['D5'], ['C4'], ['G4'], ['E4', 'E5'], ['D5'], ['C4', 'C5'], ['G4'], ['E4'], ['B4', 'G3']],
-            [['C5', 'F2', 'G4'], ['C4'], ['G4'], ['C5'], ['D4', 'E5', 'G5'], ['C4'], ['G4'], ['A5'], ['B4', 'D5', 'F2'], ['G4'], ['D4'], ['E5', 'G4'], ['D5'], ['C4', 'C5', 'E5'], ['G3'], ['C5', 'D4', 'G5'], ['G3']],
-            [['A2', 'B5', 'C5', 'E5'], ['E3'], ['G4'], ['E3'], ['A5', 'C4', 'C6', 'D5'], ['G4'], ['E4'], ['G4'], ['B5', 'C5', 'G2', 'G5'], ['G4'], ['G5'], ['D4', 'G5'], ['D5', 'G4'], ['C4', 'E5'], ['G4'], ['G5']],
-            [['C4', 'F2', 'G3'], ['G4'], ['D4'], ['C4', 'F2'], ['C3']],
-            [['C4', 'E2', 'G3'], ['G4'], ['D4'], ['C4', 'E2', 'G3'], ['C3']],
-            [['C4', 'F2', 'G3'], ['G4'], ['D4'], ['E4', 'F2', 'G3'], ['C3']],
-            [['A2', 'B4', 'C4', 'E4'], ['C5'], ['A4', 'C4', 'G2'], ['D4'], ['G4']],
-            [['C4', 'D4', 'F2', 'G3', 'G4']]
-        ];
-
-        // --- Vourukasha Oasis : transcription extraite du PDF (glyphes + coordonnées).
-        //     La première « mesure » est l'anacrouse (2 notes). ---
-        const MV = [
-            [['C5'], ['D5']],
-            [['C4', 'E5', 'G4'], ['F5'], ['E5']],
-            [['B4', 'D4', 'E5', 'G3'], ['D5'], ['D5']],
-            [['Ab4', 'C4', 'F3', 'F4'], ['F5'], ['G5'], ['F5']],
-            [['C4', 'C5', 'E5', 'G3'], ['B3', 'B4', 'D5', 'G3']],
-            [['A3', 'A4', 'C5', 'E4'], ['A4', 'C5', 'G5'], ['F5'], ['E5']],
-            [['B3', 'B4', 'E3', 'E4', 'G4'], ['G5'], ['F5'], ['E5']],
-            [['A3', 'A4', 'D3', 'D4', 'F4'], ['C5']],
-            [['B4', 'G3']],
-            [['C3', 'D4', 'E4', 'E5', 'G3', 'G4'], ['F5'], ['E5']],
-            [['D4', 'E5', 'G2', 'G3', 'G4'], ['D5'], ['D5'], ['G4'], ['D4'], ['B3']],
-            [['Ab3', 'Ab4', 'C4', 'F2', 'F3'], ['F5'], ['G5'], ['F5']],
-            [['C3', 'C4', 'E4', 'E5', 'G3', 'G4'], ['B2', 'B3', 'B4', 'D5', 'G4'], ['C5'], ['B4']],
-            [['A2', 'A4', 'C5', 'E4'], ['E3'], ['B3'], ['C4'], ['A4', 'C4', 'C5', 'G5'], ['F5'], ['E5']],
-            [['B4', 'E2', 'E4', 'G4'], ['B2'], ['G3'], ['D4'], ['C5', 'D4', 'G4', 'G5'], ['F5'], ['E5']],
-            [['A4', 'C4', 'C5', 'F2'], ['C3'], ['A3'], ['B3', 'D4', 'G2', 'G3'], ['D3'], ['D3', 'D4', 'D5', 'G4'], ['C5']],
-            [['C3', 'D5', 'E4', 'G4'], ['C5', 'G3'], ['C5', 'D4'], ['E4'], ['E4'], ['D4'], ['C4'], ['G3']],
-            [['C3'], ['G3'], ['D4'], ['E4'], ['E4'], ['D4'], ['C4', 'G5']],
-            [['A5', 'F3'], ['C4'], ['F4'], ['A4'], ['A4'], ['C5'], ['A5'], ['G5']],
-            [['C3', 'G5'], ['G3'], ['D4'], ['E4'], ['E4'], ['D4'], ['C4'], ['D5']],
-            [['C5', 'F3'], ['C4'], ['F4'], ['Ab4'], ['Ab4'], ['Ab4'], ['F5'], ['E5']],
-            [['C3', 'E5'], ['G3'], ['E4'], ['B2', 'D5'], ['G3'], ['C5'], ['D4'], ['B4']],
-            [['A3', 'C5'], ['E4'], ['A4'], ['B4'], ['B4', 'G5'], ['F5'], ['E5']],
-            [['B4', 'E3'], ['B3'], ['E4'], ['G4'], ['G4', 'G5'], ['F5'], ['E5']],
-            [['C5', 'F3'], ['C4'], ['F4'], ['G3'], ['D4'], ['D5', 'G4'], ['C5']],
-            [['C3', 'D5'], ['C5'], ['C5', 'G3'], ['C5', 'D4'], ['E4'], ['E4'], ['B5']],
-            [['A4', 'C6', 'E5'], ['G6'], ['F6'], ['E6']],
-            [['B5', 'E4', 'E5', 'G5'], ['G6'], ['F6'], ['E6']],
-            [['C6', 'F4'], ['G4'], ['D6'], ['C6']],
-            [['C4', 'D6'], ['C6'], ['C6'], ['C6']]
-        ];
 
         const PIECES = {
             krumkake: {
                 title: 'Clink-Clank Krumkake Craftshop (Night) 2',
                 credit: 'Composition: HOYO-MiX, Arrangement: Animuz',
                 piece: buildPiece(MK),
-                hint: 'Transcription extraite automatiquement du fichier de la partition (positions exactes des notes).'
+                hint: 'Transcription extraite automatiquement du fichier de la partition (notes, rythmes, liaisons).'
             },
             vourukasha: {
                 title: 'Vourukasha Oasis 2',
@@ -266,9 +215,11 @@
         let score = 0, streak = 0, mistakes = 0;
         const rand = n => Math.floor(Math.random() * n);
 
+        function allNotes(ev) { return ev.t.concat(ev.b); }
+
         function computeRange(piece) {
             let low = Infinity, high = -Infinity;
-            piece.forEach(m => m.events.forEach(ev => ev.forEach(n => {
+            piece.forEach(m => m.events.forEach(ev => allNotes(ev).forEach(n => {
                 if (n.midi < low) low = n.midi;
                 if (n.midi > high) high = n.midi;
             })));
@@ -342,20 +293,21 @@
             }
         }
 
-        // ---------- Portée (grand staff) ----------
+        // ---------- Portée (grand staff, gravure) ----------
         const SVG_NS = 'http://www.w3.org/2000/svg';
         const staff = document.getElementById('staff');
-        const T_TOP = 40, T_BOTTOM = 96, T_REF = 30; // treble : E4 = ligne du bas
+        const T_TOP = 40, T_BOTTOM = 96, T_REF = 30;   // treble : E4 = ligne du bas
         const B_TOP = 150, B_BOTTOM = 206, B_REF = 18; // basse : G2 = ligne du bas
         const LINE_GAP = 14, STEP = 7;
+        const INK = '#111';
 
         function svgEl(tag, attrs) {
             const e = document.createElementNS(SVG_NS, tag);
             for (const k in attrs) e.setAttribute(k, attrs[k]);
             return e;
         }
-        function yFor(note) {
-            return note.midi >= 60
+        function yForSide(note, side) {
+            return side === 't'
                 ? T_BOTTOM - (note.diatonic - T_REF) * STEP
                 : B_BOTTOM - (note.diatonic - B_REF) * STEP;
         }
@@ -365,44 +317,175 @@
             [[T_TOP, T_BOTTOM], [B_TOP, B_BOTTOM]].forEach(([top]) => {
                 for (let i = 0; i < 5; i++) {
                     const y = top + i * LINE_GAP;
-                    staff.appendChild(svgEl('line', { x1: 14, y1: y, x2: 346, y2: y, stroke: '#222', 'stroke-width': 1.2 }));
+                    staff.appendChild(svgEl('line', { x1: 14, y1: y, x2: 346, y2: y, stroke: INK, 'stroke-width': 1.2 }));
                 }
             });
-            staff.appendChild(svgEl('line', { x1: 14, y1: T_TOP, x2: 14, y2: B_BOTTOM, stroke: '#222', 'stroke-width': 2 }));
-            const clefT = svgEl('text', { x: 16, y: 96, 'font-size': 70, fill: '#111' }); clefT.textContent = '𝄞';
+            staff.appendChild(svgEl('line', { x1: 14, y1: T_TOP, x2: 14, y2: B_BOTTOM, stroke: INK, 'stroke-width': 2 }));
+            const clefT = svgEl('text', { x: 16, y: 96, 'font-size': 70, fill: INK }); clefT.textContent = '𝄞';
             staff.appendChild(clefT);
-            const clefB = svgEl('text', { x: 18, y: 190, 'font-size': 50, fill: '#111' }); clefB.textContent = '𝄢';
+            const clefB = svgEl('text', { x: 18, y: 190, 'font-size': 50, fill: INK }); clefB.textContent = '𝄢';
             staff.appendChild(clefB);
 
             const nMeasures = excerpt.length;
-            const measureW = Math.max(60, (346 - 40) / nMeasures);
-            let x = 40;
+            const measureW = (346 - 44) / nMeasures;
+            let x = 44;
             excerpt.forEach((measure, mi) => {
-                if (mi > 0) staff.appendChild(svgEl('line', { x1: x, y1: T_TOP, x2: x, y2: B_BOTTOM, stroke: '#222', 'stroke-width': 1.2 }));
-                const step = measureW / measure.events.length;
-                measure.events.forEach((ev, ei) => {
-                    const evx = x + step * (ei + 0.5);
-                    ev.forEach(note => drawNote(note, evx));
-                });
+                if (mi > 0) staff.appendChild(svgEl('line', { x1: x, y1: T_TOP, x2: x, y2: B_BOTTOM, stroke: INK, 'stroke-width': 1.2 }));
+                drawMeasure(measure, x, measureW);
                 x += measureW;
             });
-            staff.appendChild(svgEl('line', { x1: x, y1: T_TOP, x2: x, y2: B_BOTTOM, stroke: '#222', 'stroke-width': 2 }));
+            staff.appendChild(svgEl('line', { x1: x, y1: T_TOP, x2: x, y2: B_BOTTOM, stroke: INK, 'stroke-width': 2 }));
         }
 
-        function drawNote(note, x) {
-            const y = yFor(note);
-            const top = note.midi >= 60 ? T_TOP : B_TOP;
-            const bottom = note.midi >= 60 ? T_BOTTOM : B_BOTTOM;
-            if (y < top) for (let ly = top - LINE_GAP; ly >= y - 1; ly -= LINE_GAP)
-                staff.appendChild(svgEl('line', { x1: x - 12, y1: ly, x2: x + 12, y2: ly, stroke: '#222', 'stroke-width': 1.2 }));
-            if (y > bottom) for (let ly = bottom + LINE_GAP; ly <= y + 1; ly += LINE_GAP)
-                staff.appendChild(svgEl('line', { x1: x - 12, y1: ly, x2: x + 12, y2: ly, stroke: '#222', 'stroke-width': 1.2 }));
-            staff.appendChild(svgEl('ellipse', { cx: x, cy: y, rx: 7.6, ry: 6, fill: '#111', transform: `rotate(-18 ${x} ${y})` }));
-            const sym = accSymbol(note.acc);
-            if (sym) {
-                const sh = svgEl('text', { x: x - 22, y: y + 6, 'font-size': 18, fill: '#111' });
-                sh.textContent = sym; staff.appendChild(sh);
-            }
+        function drawMeasure(measure, mx, mw) {
+            const evs = measure.events;
+            const stepX = mw / evs.length;
+            const xs = evs.map((_, i) => mx + stepX * (i + 0.5));
+            // positions dessinées, pour beams/liaisons : {side: {evIdx: {stemX, tipY, headYs, xs}}}
+            const drawn = { t: [], b: [] };
+
+            evs.forEach((ev, ei) => {
+                ['t', 'b'].forEach(side => {
+                    const notes = ev[side];
+                    if (!notes.length) { drawn[side][ei] = null; return; }
+                    const x = xs[ei];
+                    const info = drawSideEvent(notes, x, side, ev, ei);
+                    drawn[side][ei] = info;
+                    if (ev[side === 't' ? 'at' : 'ab']) drawArpeggio(x - 11, info.minY - 4, info.maxY + 4);
+                });
+            });
+
+            // barres de croches (beams)
+            ['t', 'b'].forEach(side => {
+                const gk = side === 't' ? 'gt' : 'gb';
+                const groups = {};
+                evs.forEach((ev, ei) => {
+                    if (ev[gk] >= 0 && drawn[side][ei]) (groups[ev[gk]] = groups[ev[gk]] || []).push(ei);
+                });
+                for (const gid in groups) {
+                    const members = groups[gid];
+                    if (members.length < 2) { drawFlagsFallback(side, members, drawn, evs); continue; }
+                    // direction commune : majorité des hampes
+                    const ups = members.filter(ei => drawn[side][ei].up).length;
+                    const up = ups >= members.length / 2;
+                    // niveau de barre : extrême des bouts potentiels
+                    let beamY = up ? Infinity : -Infinity;
+                    members.forEach(ei => {
+                        const d = drawn[side][ei];
+                        const tip = up ? d.minY - 24 : d.maxY + 24;
+                        beamY = up ? Math.min(beamY, tip) : Math.max(beamY, tip);
+                    });
+                    // redessiner les hampes jusqu'à la barre
+                    members.forEach(ei => {
+                        const d = drawn[side][ei];
+                        const sx = up ? d.x + 6.8 : d.x - 6.8;
+                        const from = up ? d.maxY : d.minY;
+                        staff.appendChild(svgEl('line', { x1: sx, y1: from, x2: sx, y2: beamY, stroke: INK, 'stroke-width': 1.4 }));
+                        d.stemX = sx;
+                    });
+                    const x1 = drawn[side][members[0]].stemX, x2 = drawn[side][members[members.length - 1]].stemX;
+                    const count = measure.beamCounts[gid] || 1;
+                    for (let bl = 0; bl < count; bl++) {
+                        const off = (up ? 1 : -1) * bl * 5;
+                        staff.appendChild(svgEl('line', { x1: x1, y1: beamY + off, x2: x2, y2: beamY + off, stroke: INK, 'stroke-width': 3.2 }));
+                    }
+                }
+            });
+
+            // hampes + crochets isolés (événements hors groupe)
+            evs.forEach((ev, ei) => {
+                ['t', 'b'].forEach(side => {
+                    const d = drawn[side][ei];
+                    if (!d || d.stemX !== undefined) return;
+                    if (d.allWhole) return; // rondes : pas de hampe
+                    const up = d.up;
+                    const sx = up ? d.x + 6.8 : d.x - 6.8;
+                    const y1 = up ? d.maxY : d.minY;
+                    const y2 = up ? d.minY - 24 : d.maxY + 24;
+                    staff.appendChild(svgEl('line', { x1: sx, y1: y1, x2: sx, y2: y2, stroke: INK, 'stroke-width': 1.4 }));
+                    const nf = ev[side === 't' ? 'ft' : 'fb'];
+                    for (let f = 0; f < nf; f++) {
+                        const fy = y2 + (up ? f * 6 : -f * 6);
+                        const dir = up ? 1 : -1;
+                        staff.appendChild(svgEl('path', {
+                            d: `M ${sx} ${fy} q 7 ${3 * dir} 5 ${13 * dir}`,
+                            stroke: INK, 'stroke-width': 1.6, fill: 'none'
+                        }));
+                    }
+                });
+            });
+
+            // liaisons
+            measure.curves.forEach(([k0, k1, side, pitchTok, up]) => {
+                const target = parseTok(pitchTok);
+                const d0 = drawn[side][k0];
+                if (!d0) return;
+                const y0 = yForSide(target, side);
+                const x0 = xs[k0] + 8;
+                let x1;
+                if (k1 >= 0 && drawn[side][k1]) x1 = xs[k1] - 8;
+                else x1 = Math.min(xs[k0] + stepX * 1.2, mx + mw - 4);
+                if (x1 - x0 < 10) x1 = x0 + 10;
+                const depth = Math.min(9, Math.max(4, (x1 - x0) * 0.28));
+                const bend = up ? -depth : depth;
+                const yEdge = y0 + (up ? -6 : 6);
+                staff.appendChild(svgEl('path', {
+                    d: `M ${x0} ${yEdge} Q ${(x0 + x1) / 2} ${yEdge + bend} ${x1} ${yEdge}`,
+                    stroke: INK, 'stroke-width': 1.5, fill: 'none'
+                }));
+            });
+        }
+
+        function drawFlagsFallback(side, members, drawn, evs) {
+            // groupe d'1 seul membre : traité comme hampe isolée (rien à faire ici)
+        }
+
+        function drawSideEvent(notes, x, side, ev, ei) {
+            const top = side === 't' ? T_TOP : B_TOP;
+            const bottom = side === 't' ? T_BOTTOM : B_BOTTOM;
+            let minY = Infinity, maxY = -Infinity;
+            let sumDiat = 0;
+            const allWhole = notes.every(n => n.head === 'w');
+
+            notes.forEach(n => {
+                const y = yForSide(n, side);
+                minY = Math.min(minY, y); maxY = Math.max(maxY, y);
+                sumDiat += n.diatonic;
+                // lignes supplémentaires
+                if (y < top) for (let ly = top - LINE_GAP; ly >= y - 1; ly -= LINE_GAP)
+                    staff.appendChild(svgEl('line', { x1: x - 12, y1: ly, x2: x + 12, y2: ly, stroke: INK, 'stroke-width': 1.2 }));
+                if (y > bottom) for (let ly = bottom + LINE_GAP; ly <= y + 1; ly += LINE_GAP)
+                    staff.appendChild(svgEl('line', { x1: x - 12, y1: ly, x2: x + 12, y2: ly, stroke: INK, 'stroke-width': 1.2 }));
+                // tête
+                if (n.head === 'q') {
+                    staff.appendChild(svgEl('ellipse', { cx: x, cy: y, rx: 7.2, ry: 5.6, fill: INK, transform: `rotate(-18 ${x} ${y})` }));
+                } else if (n.head === 'h') {
+                    staff.appendChild(svgEl('ellipse', { cx: x, cy: y, rx: 7.2, ry: 5.4, fill: 'none', stroke: INK, 'stroke-width': 1.9, transform: `rotate(-18 ${x} ${y})` }));
+                } else {
+                    staff.appendChild(svgEl('ellipse', { cx: x, cy: y, rx: 8.6, ry: 5.6, fill: 'none', stroke: INK, 'stroke-width': 2.2 }));
+                }
+                // altération
+                const sym = accSymbol(n.acc);
+                if (sym) {
+                    const sh = svgEl('text', { x: x - 21, y: y + 6, 'font-size': 18, fill: INK });
+                    sh.textContent = sym; staff.appendChild(sh);
+                }
+                // point : dans l'espace (si la note est sur une ligne, décaler vers le haut)
+                if (n.dot) {
+                    const ref = side === 't' ? T_REF : B_REF;
+                    const onLine = ((n.diatonic - ref) % 2 + 2) % 2 === 0;
+                    staff.appendChild(svgEl('circle', { cx: x + 12, cy: y - (onLine ? 3.5 : 0), r: 1.9, fill: INK }));
+                }
+            });
+            const mid = side === 't' ? 33 : 21; // B4 / D3
+            const up = (sumDiat / notes.length) < mid;
+            return { x, minY, maxY, up, allWhole };
+        }
+
+        function drawArpeggio(x, y0, y1) {
+            let d = `M ${x} ${y0}`;
+            for (let y = y0; y < y1; y += 6) d += ` q 3 3 0 6`;
+            staff.appendChild(svgEl('path', { d, stroke: INK, 'stroke-width': 1.5, fill: 'none' }));
         }
 
         // ---------- Son ----------
@@ -431,7 +514,7 @@
         function playExcerpt() {
             let t = 0;
             excerpt.forEach(measure => measure.events.forEach(ev => {
-                ev.forEach(n => playNote(n.midi, t));
+                allNotes(ev).forEach(n => playNote(n.midi, t));
                 t += 0.45;
             }));
         }
@@ -439,7 +522,7 @@
         // ---------- Génération d'extrait ----------
         function flattenEvents() {
             const evs = [];
-            excerpt.forEach(measure => measure.events.forEach(ev => evs.push(ev.map(n => n.midi))));
+            excerpt.forEach(measure => measure.events.forEach(ev => evs.push(allNotes(ev).map(n => n.midi))));
             return evs;
         }
         let flatEvents = [];
@@ -458,12 +541,9 @@
         }
 
         function updateConfidence() {
-            const approx = excerpt.some(m => !m.confident);
             const el = document.getElementById('confidence');
-            el.className = 'confidence ' + (approx ? 'approx' : 'solid');
-            el.textContent = approx
-                ? '⚠️ Mesures ' + excerpt[0].index + '–' + excerpt[excerpt.length - 1].index + ' : reconstruction approximative'
-                : '✓ Mesures ' + excerpt[0].index + '–' + excerpt[excerpt.length - 1].index + ' : transcription fidèle';
+            el.className = 'confidence solid';
+            el.textContent = '✓ Mesures ' + excerpt[0].index + '–' + excerpt[excerpt.length - 1].index + ' : transcription fidèle';
         }
 
         // ---------- Affichage / cachette ----------
