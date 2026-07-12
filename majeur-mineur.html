@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Majeur ou Mineur ?</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Baloo+2:wght@400;500;700&display=swap');
+
+        :root {
+            --bg: #010520;
+            --panel: #0b1336;
+            --accent: #3c6dff;
+            --good: #2ec27e;
+            --bad: #ff4d5e;
+            --text: #e8ecff;
+            --muted: #8c97c9;
+        }
+
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        html, body { overflow-x: hidden; }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            background: radial-gradient(1200px 600px at 50% -10%, #142057 0%, var(--bg) 60%);
+            color: var(--text);
+            font-family: "Baloo 2", system-ui, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 18px 10px 50px;
+        }
+
+        h1 { margin: 4px 0 2px; font-weight: 700; font-size: clamp(22px, 6vw, 36px); text-align: center; }
+        .subtitle { color: var(--muted); margin: 0 0 10px; text-align: center; font-size: clamp(13px, 3.5vw, 16px); }
+        .nav { display: flex; gap: 14px; margin-bottom: 10px; flex-wrap: wrap; justify-content: center; }
+        .nav a { color: var(--accent); text-decoration: none; font-size: 14px; }
+
+        .scoreboard { display: flex; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; justify-content: center; }
+        .score-card { background: var(--panel); border: 1px solid #233169; border-radius: 12px; padding: 5px 16px; text-align: center; min-width: 90px; }
+        .score-card .label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
+        .score-card .value { font-size: 24px; font-weight: 700; }
+
+        .staff-wrap { background: #fbfbff; border-radius: 16px; padding: 8px 10px; box-shadow: 0 10px 40px rgba(0,0,0,.45); width: 100%; max-width: 420px; position: relative; }
+        #staff { display: block; width: 100%; height: auto; }
+
+        .replay {
+            position: absolute; top: 8px; right: 10px; background: var(--accent); color: #fff;
+            border: none; border-radius: 8px; width: 34px; height: 34px; font-size: 16px; cursor: pointer;
+        }
+
+        .feedback { min-height: 44px; font-size: 18px; font-weight: 700; margin: 10px 0 2px; text-align: center; }
+        .feedback .chordname { display: block; font-weight: 500; font-size: 14px; color: var(--muted); margin-top: 2px; }
+        .feedback.good { color: var(--good); }
+        .feedback.bad { color: var(--bad); }
+
+        .answers { display: flex; gap: 14px; margin-top: 10px; }
+        .answers button {
+            background: var(--panel); color: var(--text); border: 2px solid #2e3c72;
+            border-radius: 16px; min-width: 130px; padding: 20px 18px; font-family: inherit;
+            font-size: 20px; font-weight: 700; cursor: pointer; transition: background .1s, transform .05s;
+        }
+        .answers button:hover { background: #16225a; }
+        .answers button:active { transform: translateY(1px); }
+        .answers button.correct { background: linear-gradient(var(--good), #1e9b61); border-color: var(--good); color: #fff; }
+        .answers button.wrong { background: linear-gradient(var(--bad), #c92f3e); border-color: var(--bad); color: #fff; }
+
+        .controls { margin-top: 22px; display: flex; flex-direction: column; gap: 12px; align-items: center; width: 100%; max-width: 580px; }
+        .control-row { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; align-items: center; }
+        .seg-label { color: var(--muted); font-size: 13px; width: 100%; text-align: center; margin-bottom: -4px; }
+        .segmented { display: inline-flex; background: var(--panel); border: 1px solid #233169; border-radius: 10px; overflow: hidden; }
+        .segmented button { background: transparent; border: none; color: var(--muted); font-family: inherit; font-size: 14px; font-weight: 600; padding: 9px 14px; cursor: pointer; transition: background .12s, color .12s; }
+        .segmented button.active { background: var(--accent); color: #fff; }
+
+        .toggle { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 14px; cursor: pointer; background: var(--panel); border: 1px solid #233169; border-radius: 10px; padding: 8px 12px; }
+        .toggle input { width: 16px; height: 16px; }
+
+        .hint { margin-top: 14px; color: var(--muted); font-size: 13px; text-align: center; max-width: 520px; padding: 0 10px; }
+
+        @media (orientation: landscape) and (max-height: 560px) {
+            body { padding: 8px 10px 30px; }
+            h1 { font-size: 20px; margin: 0; }
+            .subtitle, .hint, .nav { display: none; }
+            .scoreboard { margin-bottom: 8px; }
+            .staff-wrap { max-width: 300px; }
+            .controls { margin-top: 12px; gap: 8px; }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="nav">
+        <a href="piano.html">← Entraîneur d'accords</a>
+        <a href="lecture.html">👀 Lecture à vue</a>
+    </div>
+    <h1>🎭 Majeur ou Mineur ?</h1>
+    <p class="subtitle">Écoute / regarde l'accord, puis devine sa qualité.</p>
+
+    <div class="scoreboard">
+        <div class="score-card"><div class="label">Bonnes</div><div class="value" id="score">0</div></div>
+        <div class="score-card"><div class="label">Série</div><div class="value" id="streak">0</div></div>
+        <div class="score-card"><div class="label">Erreurs</div><div class="value" id="mistakes">0</div></div>
+    </div>
+
+    <div class="staff-wrap">
+        <button class="replay" id="replay" title="Réécouter">🔊</button>
+        <svg id="staff" viewBox="0 0 360 160"></svg>
+    </div>
+
+    <div class="feedback" id="feedback">&nbsp;</div>
+
+    <div class="answers">
+        <button id="btnMajor">Majeur</button>
+        <button id="btnMinor">Mineur</button>
+    </div>
+
+    <div class="controls">
+        <div class="control-row"><span class="seg-label">Clé</span></div>
+        <div class="control-row">
+            <div class="segmented" id="clefMode">
+                <button data-clef="treble" class="active">Clé de Sol</button>
+                <button data-clef="bass">Clé de Fa</button>
+            </div>
+        </div>
+
+        <div class="control-row"><span class="seg-label">Présentation</span></div>
+        <div class="control-row">
+            <div class="segmented" id="styleMode">
+                <button data-style="block" class="active">Plaqués</button>
+                <button data-style="broken">Cassés (arpège)</button>
+                <button data-style="random">Aléatoire</button>
+            </div>
+        </div>
+
+        <div class="control-row"><span class="seg-label">Types d'accords</span></div>
+        <div class="control-row">
+            <label class="toggle"><input type="checkbox" id="tTriad" checked> Triade</label>
+            <label class="toggle"><input type="checkbox" id="tTriadDup" checked> Fondamentale doublée</label>
+            <label class="toggle"><input type="checkbox" id="tSeventh" checked> Accord de 7e</label>
+            <label class="toggle"><input type="checkbox" id="tOpen" checked> Ouvert (Do-Fa-Do)</label>
+        </div>
+
+        <div class="control-row">
+            <label class="toggle"><input type="checkbox" id="soundOn" checked> 🔊 Son automatique</label>
+        </div>
+    </div>
+
+    <p class="hint">
+        Réponds avec les boutons, les flèches ← / → du clavier, ou 1 (Majeur) / 2 (Mineur).
+        L'accord « ouvert » ne montre pas la tierce sur la portée : fie-toi au son (🔊) pour celui-là.
+    </p>
+
+    <script>
+        // ---------- Théorie musicale (orthographe enharmonique) ----------
+        const LETTER_INDEX = { C: 0, D: 1, E: 2, F: 3, G: 4, A: 5, B: 6 };
+        const LETTERS = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
+        const LETTER_PC = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
+        const ROOT_SPELLINGS = {
+            0: [{ l: 'C', a: 0 }], 1: [{ l: 'C', a: 1 }, { l: 'D', a: -1 }],
+            2: [{ l: 'D', a: 0 }], 3: [{ l: 'D', a: 1 }, { l: 'E', a: -1 }],
+            4: [{ l: 'E', a: 0 }], 5: [{ l: 'F', a: 0 }],
+            6: [{ l: 'F', a: 1 }, { l: 'G', a: -1 }], 7: [{ l: 'G', a: 0 }],
+            8: [{ l: 'G', a: 1 }, { l: 'A', a: -1 }], 9: [{ l: 'A', a: 0 }],
+            10: [{ l: 'A', a: 1 }, { l: 'B', a: -1 }], 11: [{ l: 'B', a: 0 }]
+        };
+        function accSymbol(a) {
+            return a === 0 ? '' : a === 1 ? '♯' : a === -1 ? '♭' : a === 2 ? '𝄪' : a === -2 ? '𝄫' : '';
+        }
+        const rand = n => Math.floor(Math.random() * n);
+
+        function spellChord(rootMidi, degrees, midis) {
+            const pc = ((rootMidi % 12) + 12) % 12;
+            const opts = ROOT_SPELLINGS[pc];
+            const order = opts.map((_, i) => i).sort(() => Math.random() - 0.5);
+            let best = null;
+            for (const oi of order) {
+                const rs = opts[oi];
+                const rootOct = Math.floor((rootMidi - rs.a) / 12) - 1;
+                const rootDiat = rootOct * 7 + LETTER_INDEX[rs.l];
+                let doubles = 0;
+                const spelled = midis.map((m, idx) => {
+                    const nd = rootDiat + degrees[idx];
+                    const li = ((nd % 7) + 7) % 7;
+                    const oct = Math.floor(nd / 7);
+                    const acc = m - ((oct + 1) * 12 + LETTER_PC[LETTERS[li]]);
+                    if (Math.abs(acc) >= 2) doubles++;
+                    return { midi: m, diatonic: nd, acc };
+                });
+                if (!best || doubles < best.doubles) best = { spelled, doubles, rootLetter: rs.l, rootAcc: rs.a };
+                if (best.doubles === 0) break;
+            }
+            return best;
+        }
+
+        // ---------- Types d'accords (base = tierce qui définit majeur/mineur) ----------
+        const CHORD_KINDS = [
+            { key: 'triad', label: 'Triade', checkboxId: 'tTriad',
+                build: isMajor => ({ intervals: isMajor ? [0, 4, 7] : [0, 3, 7], degrees: [0, 2, 4], suffix: isMajor ? 'M' : 'm' }) },
+            { key: 'triadDup', label: 'Triade (fondamentale doublée)', checkboxId: 'tTriadDup',
+                build: isMajor => ({ intervals: isMajor ? [0, 4, 7, 12] : [0, 3, 7, 12], degrees: [0, 2, 4, 7], suffix: isMajor ? 'M' : 'm' }) },
+            { key: 'seventh', label: 'Accord de 7e', checkboxId: 'tSeventh',
+                build: isMajor => {
+                    const variant = isMajor
+                        ? (Math.random() < 0.5 ? { intervals: [0, 4, 7, 11], suffix: 'maj7' } : { intervals: [0, 4, 7, 10], suffix: '7' })
+                        : (Math.random() < 0.5 ? { intervals: [0, 3, 7, 10], suffix: 'm7' } : { intervals: [0, 3, 6, 10], suffix: 'm7♭5' });
+                    return { intervals: variant.intervals, degrees: [0, 2, 4, 6], suffix: variant.suffix };
+                } },
+            // "Do Fa Do" : fondamentale - quarte - fondamentale (octave), sans tierce visible.
+            // La qualité reste définie en interne ; l'accord complet (avec tierce) est joué au son.
+            { key: 'open', label: 'Ouvert (Do-Fa-Do)', checkboxId: 'tOpen',
+                build: isMajor => ({ intervals: [0, 5, 12], degrees: [0, 3, 7], suffix: isMajor ? 'M' : 'm',
+                    hearIntervals: isMajor ? [0, 4, 7] : [0, 3, 7] }) }
+        ];
+
+        const CLEFS = {
+            treble: { symbol: '𝄞', symX: 16, symY: 116, symSize: 86, ref: 30, low: 60, high: 83 },
+            bass:   { symbol: '𝄢', symX: 18, symY: 100, symSize: 60, ref: 18, low: 36, high: 59 }
+        };
+
+        // ---------- État ----------
+        let clef = 'treble', displayStyle = 'block';
+        let current = null, locked = false;
+        let score = 0, streak = 0, mistakes = 0;
+        let lastSig = null, lastCount = 0;
+
+        // ---------- Génération ----------
+        function enabledKinds() {
+            return CHORD_KINDS.filter(k => document.getElementById(k.checkboxId).checked);
+        }
+
+        function makeChord() {
+            const kinds = enabledKinds();
+            const pool = kinds.length ? kinds : CHORD_KINDS;
+            const kind = pool[rand(pool.length)];
+            const isMajor = Math.random() < 0.5;
+            const built = kind.build(isMajor);
+            const span = Math.max(...built.intervals);
+            const c = CLEFS[clef];
+            const root = c.low + rand(c.high - span - c.low + 1);
+            const midis = built.intervals.map(i => root + i);
+            const sp = spellChord(root, built.degrees, midis);
+            const hearMidis = (built.hearIntervals || built.intervals).map(i => root + i);
+            const style = displayStyle === 'random' ? (Math.random() < 0.5 ? 'block' : 'broken') : displayStyle;
+            return {
+                notes: midis.slice().sort((a, b) => a - b), spelled: sp.spelled,
+                root: { letter: sp.rootLetter, acc: sp.rootAcc }, suffix: built.suffix,
+                kindLabel: kind.label, isMajor, hearMidis, style
+            };
+        }
+
+        function makeUniqueChord() {
+            let c, sig, tries = 0;
+            do { c = makeChord(); sig = c.notes.join(',') + c.kindLabel; tries++; }
+            while (sig === lastSig && lastCount >= 2 && tries < 25);
+            if (sig === lastSig) lastCount++; else { lastSig = sig; lastCount = 1; }
+            return c;
+        }
+
+        // ---------- Portée ----------
+        const SVG_NS = 'http://www.w3.org/2000/svg';
+        const staff = document.getElementById('staff');
+        const STAFF_TOP = 55, LINE_GAP = 14, STEP = 7, BOTTOM_Y = 111;
+        const STAFF_BOTTOM = STAFF_TOP + 4 * LINE_GAP;
+        const diatonicToY = d => BOTTOM_Y - (d - CLEFS[clef].ref) * STEP;
+
+        function svgEl(tag, attrs) {
+            const e = document.createElementNS(SVG_NS, tag);
+            for (const k in attrs) e.setAttribute(k, attrs[k]);
+            return e;
+        }
+
+        function drawStaff() {
+            staff.innerHTML = '';
+            for (let i = 0; i < 5; i++) {
+                const y = STAFF_TOP + i * LINE_GAP;
+                staff.appendChild(svgEl('line', { x1: 14, y1: y, x2: 346, y2: y, stroke: '#222', 'stroke-width': 1.2 }));
+            }
+            const c = CLEFS[clef];
+            const clefEl = svgEl('text', { x: c.symX, y: c.symY, 'font-size': c.symSize, fill: '#111' });
+            clefEl.textContent = c.symbol;
+            staff.appendChild(clefEl);
+
+            const notes = [...current.spelled].sort((a, b) => a.diatonic - b.diatonic);
+            if (current.style === 'broken') {
+                const startX = 360 / 2 - (notes.length - 1) * 22;
+                notes.forEach((n, i) => drawNote(n, startX + i * 44));
+            } else {
+                notes.forEach(n => drawNote(n, 185));
+            }
+        }
+
+        function drawNote(note, x) {
+            const y = diatonicToY(note.diatonic);
+            if (y < STAFF_TOP) {
+                for (let ly = STAFF_TOP - LINE_GAP; ly >= y - 1; ly -= LINE_GAP)
+                    staff.appendChild(svgEl('line', { x1: x - 13, y1: ly, x2: x + 13, y2: ly, stroke: '#222', 'stroke-width': 1.2 }));
+            }
+            if (y > STAFF_BOTTOM) {
+                for (let ly = STAFF_BOTTOM + LINE_GAP; ly <= y + 1; ly += LINE_GAP)
+                    staff.appendChild(svgEl('line', { x1: x - 13, y1: ly, x2: x + 13, y2: ly, stroke: '#222', 'stroke-width': 1.2 }));
+            }
+            staff.appendChild(svgEl('ellipse', { cx: x, cy: y, rx: 8.3, ry: 6.6, fill: '#111', transform: `rotate(-18 ${x} ${y})` }));
+            const sym = accSymbol(note.acc);
+            if (sym) {
+                const sh = svgEl('text', { x: x - 24, y: y + 6, 'font-size': 20, fill: '#111' });
+                sh.textContent = sym;
+                staff.appendChild(sh);
+            }
+        }
+
+        // ---------- Son ----------
+        let audioCtx = null;
+        function ensureAudio() {
+            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+        }
+        function playNote(midi, when) {
+            ensureAudio();
+            const freq = 440 * Math.pow(2, (midi - 69) / 12);
+            const now = audioCtx.currentTime + when;
+            const gain = audioCtx.createGain();
+            gain.gain.setValueAtTime(0.0001, now);
+            gain.gain.exponentialRampToValueAtTime(0.22, now + 0.008);
+            gain.gain.exponentialRampToValueAtTime(0.0001, now + 1.1);
+            gain.connect(audioCtx.destination);
+            [[freq, 'triangle', 1], [freq * 2, 'sine', 0.35]].forEach(([f, type, mul]) => {
+                const osc = audioCtx.createOscillator();
+                osc.type = type;
+                osc.frequency.value = f;
+                const g = audioCtx.createGain();
+                g.gain.value = mul;
+                osc.connect(g).connect(gain);
+                osc.start(now);
+                osc.stop(now + 1.2);
+            });
+        }
+        function playChord(chord) {
+            if (!chord) return;
+            ensureAudio();
+            if (chord.style === 'broken') {
+                chord.hearMidis.slice().sort((a, b) => a - b).forEach((m, i) => playNote(m, i * 0.22));
+            } else {
+                chord.hearMidis.forEach(m => playNote(m, 0));
+            }
+        }
+
+        // ---------- Cycle de jeu ----------
+        function newChord() {
+            locked = false;
+            current = makeUniqueChord();
+            drawStaff();
+            clearAnswerStates();
+            document.getElementById('feedback').innerHTML = '&nbsp;';
+            document.getElementById('feedback').className = 'feedback';
+            if (document.getElementById('soundOn').checked) playChord(current);
+        }
+
+        function clearAnswerStates() {
+            document.getElementById('btnMajor').classList.remove('correct', 'wrong');
+            document.getElementById('btnMinor').classList.remove('correct', 'wrong');
+        }
+
+        function answer(guessMajor) {
+            if (locked || !current) return;
+            locked = true;
+            const btn = document.getElementById(guessMajor ? 'btnMajor' : 'btnMinor');
+            const correctBtn = document.getElementById(current.isMajor ? 'btnMajor' : 'btnMinor');
+            const fb = document.getElementById('feedback');
+            const rootLabel = current.root.letter + accSymbol(current.root.acc);
+            const chordDesc = rootLabel + ' ' + (current.isMajor ? 'Majeur' : 'Mineur') +
+                '<span class="chordname">' + current.kindLabel + ' — ' + rootLabel + ' ' + current.suffix + '</span>';
+
+            if (guessMajor === current.isMajor) {
+                btn.classList.add('correct');
+                score++; streak++; updateScore();
+                fb.innerHTML = 'Bravo ! ' + chordDesc;
+                fb.className = 'feedback good';
+                setTimeout(newChord, 850);
+            } else {
+                btn.classList.add('wrong');
+                correctBtn.classList.add('correct');
+                streak = 0; mistakes++; updateScore();
+                fb.innerHTML = 'Raté — ' + chordDesc;
+                fb.className = 'feedback bad';
+                setTimeout(newChord, 1300);
+            }
+        }
+
+        function updateScore() {
+            document.getElementById('score').textContent = score;
+            document.getElementById('streak').textContent = streak;
+            document.getElementById('mistakes').textContent = mistakes;
+            saveState();
+        }
+
+        document.getElementById('btnMajor').addEventListener('click', () => answer(true));
+        document.getElementById('btnMinor').addEventListener('click', () => answer(false));
+        document.getElementById('replay').addEventListener('click', () => playChord(current));
+
+        document.addEventListener('keydown', ev => {
+            if (ev.key === 'ArrowLeft' || ev.key === '1') answer(true);
+            else if (ev.key === 'ArrowRight' || ev.key === '2') answer(false);
+        });
+
+        function wireSegment(id, fn) {
+            document.querySelectorAll('#' + id + ' button').forEach(b => {
+                b.addEventListener('click', () => {
+                    document.querySelectorAll('#' + id + ' button').forEach(x => x.classList.remove('active'));
+                    b.classList.add('active');
+                    fn(b);
+                    saveState();
+                });
+            });
+        }
+        wireSegment('clefMode', b => { clef = b.dataset.clef; if (!locked) newChord(); });
+        wireSegment('styleMode', b => { displayStyle = b.dataset.style; if (!locked) newChord(); });
+
+        ['tTriad', 'tTriadDup', 'tSeventh', 'tOpen', 'soundOn'].forEach(id => {
+            document.getElementById(id).addEventListener('change', saveState);
+        });
+
+        // ---------- Persistance ----------
+        function activateSeg(id, attr, value) {
+            document.querySelectorAll('#' + id + ' button').forEach(b => b.classList.toggle('active', b.dataset[attr] === String(value)));
+        }
+        function saveState() {
+            try {
+                localStorage.setItem('majeurMineurTrainer', JSON.stringify({
+                    clef, displayStyle,
+                    tTriad: document.getElementById('tTriad').checked,
+                    tTriadDup: document.getElementById('tTriadDup').checked,
+                    tSeventh: document.getElementById('tSeventh').checked,
+                    tOpen: document.getElementById('tOpen').checked,
+                    soundOn: document.getElementById('soundOn').checked,
+                    score, streak, mistakes
+                }));
+            } catch (e) { /* indisponible */ }
+        }
+        function loadState() {
+            let s;
+            try { s = JSON.parse(localStorage.getItem('majeurMineurTrainer')); } catch (e) { return; }
+            if (!s) return;
+            if (s.clef && CLEFS[s.clef]) { clef = s.clef; activateSeg('clefMode', 'clef', clef); }
+            if (s.displayStyle) { displayStyle = s.displayStyle; activateSeg('styleMode', 'style', displayStyle); }
+            ['tTriad', 'tTriadDup', 'tSeventh', 'tOpen'].forEach(id => {
+                if (typeof s[id] === 'boolean') document.getElementById(id).checked = s[id];
+            });
+            if (typeof s.soundOn === 'boolean') document.getElementById('soundOn').checked = s.soundOn;
+            score = s.score || 0; streak = s.streak || 0; mistakes = s.mistakes || 0;
+        }
+
+        // ---------- Démarrage ----------
+        loadState();
+        updateScore();
+        newChord();
+    </script>
+</body>
+
+</html>
