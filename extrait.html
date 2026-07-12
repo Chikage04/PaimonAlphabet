@@ -314,6 +314,16 @@
 
         function drawStaff() {
             staff.innerHTML = '';
+            // viewBox dynamique : englobe les notes qui sortent de la portée (hampes/lignes suppl. incluses)
+            let minY = T_TOP, maxY = B_BOTTOM;
+            excerpt.forEach(measure => measure.events.forEach(ev => {
+                ev.t.forEach(n => { const y = yForSide(n, 't'); if (y < minY) minY = y; if (y > maxY) maxY = y; });
+                ev.b.forEach(n => { const y = yForSide(n, 'b'); if (y < minY) minY = y; if (y > maxY) maxY = y; });
+            }));
+            const top = Math.min(T_TOP, minY - 34);
+            const bottom = Math.max(B_BOTTOM, maxY + 34);
+            staff.setAttribute('viewBox', `0 ${top.toFixed(1)} 360 ${(bottom - top).toFixed(1)}`);
+
             [[T_TOP, T_BOTTOM], [B_TOP, B_BOTTOM]].forEach(([top]) => {
                 for (let i = 0; i < 5; i++) {
                     const y = top + i * LINE_GAP;
