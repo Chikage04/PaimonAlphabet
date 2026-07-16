@@ -96,7 +96,9 @@
             display: flex;
             flex-direction: column;
             align-items: center;
-            min-height: 180px;
+            /* hauteur FIXE : le clavier ne se déplace plus selon le mode d'affichage
+               (partition / nom / les deux) ni quand l'accord est caché */
+            height: 250px;
             justify-content: center;
         }
 
@@ -295,7 +297,7 @@
             .scoreboard { gap: 8px; margin-bottom: 8px; }
             .score-card { padding: 3px 12px; min-width: 70px; }
             .score-card .value { font-size: 18px; }
-            .display-area { min-height: 0; max-width: 300px; }
+            .display-area { height: 176px; max-width: 300px; }
             .staff-wrap { max-width: 300px; }
             .chord-name { font-size: 26px; min-height: 30px; margin-top: 4px; }
             .piano-scaler { margin-top: 8px; }
@@ -386,6 +388,7 @@
                 <button data-ms="0" class="active">Jamais</button>
                 <button data-ms="5000">5 sec</button>
                 <button data-ms="2000">2 sec</button>
+                <button data-ms="1000">1 sec</button>
             </div>
         </div>
 
