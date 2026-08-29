@@ -70,6 +70,21 @@
         .gauge.g-warn .value { color: var(--warn); }
         .gauge.g-bad  .value { color: var(--bad); }
 
+        /* ---- Coach temps réel ---- */
+        .coach {
+            display: flex; align-items: center; justify-content: center; gap: 10px;
+            width: 100%; max-width: 580px; min-height: 50px; margin: 14px 0 0;
+            padding: 8px 18px; border-radius: 14px; text-align: center;
+            font-size: clamp(15px, 4vw, 20px); font-weight: 600; line-height: 1.25;
+            border: 1px solid var(--line); background: var(--panel); color: var(--muted);
+            transition: background .25s, color .25s, border-color .25s;
+        }
+        .coach .ic { font-size: 1.35em; line-height: 1; }
+        .coach.ok   { color: var(--good); border-color: #1e6b48; background: #0c2b1f; }
+        .coach.warn { color: var(--warn); border-color: #5a431f; background: #241a08; }
+        .coach.bad  { color: var(--bad);  border-color: #5a1f27; background: #260d12; }
+        .coach.off  { display: none; }
+
         /* ---- Portée ---- */
         .staff-wrap {
             background: #fbfbff; border-radius: 16px; padding: 8px 10px;
@@ -224,6 +239,8 @@
     </div>
     <p class="motif-caption" id="motifCaption"></p>
 
+    <div class="coach" id="coach"><span class="ic">💬</span> Lance une session, les conseils arrivent en jouant</div>
+
     <div class="piano-scaler" id="pianoScaler">
         <div class="piano" id="piano"></div>
     </div>
@@ -276,6 +293,7 @@
         <div class="control-row" style="margin-top:4px;">
             <button class="btn" id="startBtn">▶ Démarrer</button>
             <label class="toggle"><input type="checkbox" id="showNames"> Noms des touches</label>
+            <label class="toggle"><input type="checkbox" id="coachOn" checked> 💬 Conseils en direct</label>
         </div>
         <div class="control-row" id="recordRow"></div>
     </div>
@@ -432,6 +450,24 @@ const HANON = {
             return res.map(r => r - m);      // centré : seuls les écarts relatifs ont un sens
         }
 
+
+        // Crescendo involontaire, mesuré sur les MOYENNES PAR GROUPE et non
+        // note à note. Chaque groupe contient exactement les mêmes doigts, donc
+        // un doigt systématiquement faible ne peut plus se lire comme un
+        // crescendo — c'est un faux positif que la mesure note à note produisait.
+        function crescPerOctave(ev, motif) {
+            const g = new Map();
+            for (const e of ev) {
+                const k = Math.floor(e.idx / motif);
+                if (!g.has(k)) g.set(k, { v: [], p: [] });
+                g.get(k).v.push(e.vel); g.get(k).p.push(e.pitch);
+            }
+            const xs = [], ys = [];
+            for (const [, o] of g)
+                if (o.v.length >= motif - 2) { xs.push(mean(o.p)); ys.push(mean(o.v)); }
+            return xs.length < 3 ? 0 : linreg(xs, ys).a * 12;
+        }
+
         function groupBy(items, keyFn, valFn) {
             const m = new Map();
             for (const it of items) {
@@ -489,8 +525,8 @@ const HANON = {
                     h.byPos.push(r.length ? mean(r) : null);
                 }
 
-                // --- crescendo involontaire : vélocité en fonction de la hauteur
-                h.cresc = linreg(ev.map(e => e.pitch), ev.map(e => e.vel)).a * 12;
+                // --- crescendo involontaire (voir crescPerOctave)
+                h.cresc = crescPerOctave(ev, MOTIF);
 
                 // --- courbe de tempo local + dérive
                 const W = 16, curve = [];
@@ -830,6 +866,7 @@ const HANON = {
             clearKeyStates();
             markNext();
             resetGauges();
+            resetCoach('Joue — les conseils arrivent au bout de quelques notes');
             // après resetGauges, sinon le décompte est effacé dès sa première image
             if (S.mode === 'metro') S.gridT0 = startMetronome(S.bpm, 4);
         }
@@ -841,6 +878,7 @@ const HANON = {
             document.getElementById('startBtn').textContent = '▶ Démarrer';
             document.getElementById('startBtn').classList.remove('stop');
             clearKeyStates();
+            resetCoach('Session terminée — le détail est dans le rapport ci-dessous');
             if (S.events.length >= 8) renderReport(analyze(S.events, {
                 subMs: S.subMs, mode: S.mode, gridT0: S.gridT0, hands: S.hands, pedal: S.pedal
             }), finished);
@@ -872,6 +910,7 @@ const HANON = {
             markNext();
             if (S.cur[H] % MOTIF === 0) drawMotif();
             updateGauges();
+            updateCoach();
             if (S.hands.every(h => S.cur[h] >= S.seq[h].length)) stop(true);
         }
 
@@ -938,6 +977,165 @@ const HANON = {
             const tot = S.hands.reduce((a, h) => a + S.seq[h].length, 0);
             const dn = S.hands.reduce((a, h) => a + S.cur[h], 0);
             setGauge('gProg', 'vProg', Math.round(dn / tot * 100), '%', dn / tot * 100, '');
+        }
+
+        // =====================================================================
+        //  9 bis. Coach temps réel
+        // =====================================================================
+        //  On ne lit pas de texte en jouant des doubles croches : un seul
+        //  message à la fois, court, et qui ne change pas plus souvent que
+        //  toutes les 2,5 s. Surtout, chaque conseil doit dépasser DEUX FOIS
+        //  son erreur type pour avoir le droit de s'afficher — sur une fenêtre
+        //  de 16 ou 32 notes, un écart plus faible est du bruit, et conseiller
+        //  du bruit apprend à corriger ce qui n'existe pas.
+        //  coachAdvice est une fonction pure : elle est testée par ?selftest=1.
+        // =====================================================================
+        const COACH_MIN_SEV = 2;      // erreurs types
+        const COACH_HOLD = 2500;      // ms d'affichage minimum d'un message
+
+        function tailOf(events, H, n) {
+            const out = [];
+            for (let i = events.length - 1; i >= 0 && out.length < n; i--)
+                if (events[i].hand === H) out.push(events[i]);
+            return out.reverse();
+        }
+
+        function iois(ev) {
+            const o = [];
+            for (let i = 1; i < ev.length; i++) o.push(ev[i].t - ev[i - 1].t);
+            return o;
+        }
+
+        function coachAdvice(events, opts) {
+            const H = opts.hands[0];
+            const found = [];
+            const add = (key, sev, icon, text, cls) => {
+                if (isFinite(sev) && sev >= COACH_MIN_SEV) found.push({ key, sev: Math.min(sev, 10), icon, text, cls });
+            };
+
+            // --- tempo : fenêtre courte, on veut réagir vite.
+            // En mode Libre il n'y a pas de tempo imposé — la référence est
+            // alors TON tempo moyen sur la session, pas la position du curseur.
+            let target = opts.targetIoi;
+            if (opts.mode !== 'metro') {
+                const allIo = iois(events.filter(e => e.hand === H));
+                target = allIo.length >= 20 ? median(allIo) : 0;
+            }
+
+            const w9 = tailOf(events, H, 9);
+            if (w9.length >= 6 && target > 0) {
+                const io = iois(w9), m = mean(io);
+                const rel = (m - target) / target;
+                const se = Math.max(0.008, (sd(io) / Math.sqrt(io.length)) / target);
+                if (rel <= -0.03) add('rush', Math.abs(rel) / se, '⏩', 'Tu accélères — reste sur le clic', 'bad');
+                else if (rel >= 0.03) add('drag', Math.abs(rel) / se, '⏪', 'Tu ralentis — relance', 'bad');
+            }
+
+            // --- régularité et legato : fenêtre moyenne
+            const w17 = tailOf(events, H, 17);
+            if (w17.length >= 12) {
+                const io = iois(w17), m = mean(io);
+                const cv = m ? sd(io) / m * 100 : 0;
+                if (cv > 8) add('cv', cv / 4, '〰️', 'Irrégulier — place chaque note', 'bad');
+
+                const rat = [];
+                for (let i = 0; i < w17.length - 1; i++) {
+                    const gap = w17[i + 1].t - w17[i].t;
+                    if (w17[i].dur > 0 && gap > 0 && w17[i].dur < gap * 6) rat.push(w17[i].dur / gap);
+                }
+                if (rat.length >= 6) {
+                    const r = mean(rat), se = Math.max(0.02, sd(rat) / Math.sqrt(rat.length));
+                    if (r < 0.95) add('legato-court', (0.95 - r) / se, '🔗', 'Notes trop courtes — tiens-les jusqu\'à la suivante', 'warn');
+                    else if (r > 1.15) add('legato-long', (r - 1.15) / se, '✂️', 'Tu lies trop — relâche un peu plus tôt', 'warn');
+                }
+            }
+
+            // --- force : fenêtre longue, sinon trop peu de notes par doigt
+            const w32 = tailOf(events, H, 32);
+            if (w32.length >= 16) {
+                const vs = w32.map(e => e.vel), mAll = mean(vs), sAll = sd(vs) || 1;
+
+                let bestF = null;
+                for (const [f, arr] of groupBy(w32, e => e.finger, e => e.vel)) {
+                    if (arr.length < 3) continue;
+                    const d = mean(arr) - mAll, sev = Math.abs(d) / (sAll / Math.sqrt(arr.length));
+                    if (Math.abs(d) >= 4 && (!bestF || sev > bestF.sev)) bestF = { f, d, sev };
+                }
+                if (bestF) add('doigt' + bestF.f, bestF.sev, '🖐️',
+                    bestF.d > 0 ? `Doigt ${bestF.f} trop fort — allège` : `Doigt ${bestF.f} trop faible — appuie plus`, 'warn');
+
+                // accent sur une position du motif : on l'ignore s'il s'explique
+                // déjà par le doigt signalé au-dessus, pour ne pas dire deux fois
+                // la même chose sous deux formes
+                let bestP = null;
+                for (const [p, arr] of groupBy(w32, e => mod(e.idx, MOTIF), e => e.vel)) {
+                    if (arr.length < 3) continue;
+                    const d = mean(arr) - mAll, sev = d / (sAll / Math.sqrt(arr.length));
+                    if (d >= 5 && (!bestP || sev > bestP.sev)) bestP = { p, d, sev };
+                }
+                if (bestP) {
+                    const fingerAt = w32.find(e => mod(e.idx, MOTIF) === bestP.p);
+                    if (!bestF || !fingerAt || fingerAt.finger !== bestF.f)
+                        add('pos' + bestP.p, bestP.sev, '🎯', `Tu accentues la note ${bestP.p + 1} du groupe`, 'warn');
+                }
+
+                if (w32.length >= 20) {
+                    const sl = crescPerOctave(w32, MOTIF);
+                    if (Math.abs(sl) >= 6) add('cresc', Math.abs(sl) / 3, sl > 0 ? '📈' : '📉',
+                        sl > 0 ? 'Tu forces en montant — même volume partout'
+                            : 'Tu faiblis en montant — même volume partout', 'warn');
+                }
+            }
+
+            // --- mains
+            if (opts.hands.length === 2) {
+                const byIdx = new Map();
+                for (const e of events.slice(-40)) {
+                    if (!byIdx.has(e.idx)) byIdx.set(e.idx, {});
+                    byIdx.get(e.idx)[e.hand] = e.t;
+                }
+                const dd = [];
+                for (const [, p] of byIdx) if (p.R != null && p.L != null) dd.push(Math.abs(p.R - p.L));
+                if (dd.length >= 6) {
+                    const m = mean(dd), se = Math.max(2, sd(dd) / Math.sqrt(dd.length));
+                    if (m > 20) add('sync', (m - 20) / se, '🤝', 'Mains décalées — écoute-les ensemble', 'bad');
+                }
+            }
+
+            if (!found.length) return null;
+            found.sort((a, b) => b.sev - a.sev);
+            return found[0];
+        }
+
+        const coachState = { key: null, since: 0 };
+
+        function resetCoach(text) {
+            const el = document.getElementById('coach');
+            coachState.key = null; coachState.since = 0;
+            el.className = 'coach';
+            el.innerHTML = '<span class="ic">💬</span> ' + text;
+        }
+
+        function updateCoach() {
+            const el = document.getElementById('coach');
+            if (!document.getElementById('coachOn').checked) { el.classList.add('off'); return; }
+            el.classList.remove('off');
+
+            // rien à dire tant qu'on n'a pas de quoi juger : annoncer « ça tient »
+            // dès la première note serait une affirmation sans donnée
+            if (tailOf(S.events, S.hands[0], 12).length < 12) return;
+
+            const a = coachAdvice(S.events, { hands: S.hands, targetIoi: S.subMs, mode: S.mode });
+            const now = performance.now();
+            const key = a ? a.key : 'ok';
+            if (key === coachState.key) return;
+            if (coachState.since && now - coachState.since < COACH_HOLD) return;   // anti-clignotement
+
+            coachState.key = key;
+            coachState.since = now;
+            el.className = 'coach ' + (a ? a.cls : 'ok');
+            el.innerHTML = a ? `<span class="ic">${a.icon}</span> ${a.text}`
+                : '<span class="ic">✓</span> Ça tient — continue';
         }
 
         // =====================================================================
@@ -1397,6 +1595,9 @@ const HANON = {
             if (!S.running) { currentSettings(); updateCaption(); }
         });
         document.getElementById('showNames').addEventListener('change', refreshNames);
+        document.getElementById('coachOn').addEventListener('change', e => {
+            document.getElementById('coach').classList.toggle('off', !e.target.checked);
+        });
         document.getElementById('midiSel').addEventListener('change', e => {
             try { localStorage.setItem(LS_MIDI, e.target.value); } catch (err) { }
             if (midiAccess) refreshMidiInputs(midiAccess);
@@ -1413,7 +1614,7 @@ const HANON = {
         //      Un chiffre affiché sans moteur vérifié ne veut rien dire.
         // =====================================================================
         function synth(seq, opts) {
-            const o = Object.assign({ ioi: 150, vel: 64, lateFinger: 0, lateMs: 0, handOffset: 0, accel: 0, crescPerOct: 0 }, opts);
+            const o = Object.assign({ ioi: 150, vel: 64, lateFinger: 0, lateMs: 0, handOffset: 0, accel: 0, crescPerOct: 0, durRatio: 1, softFinger: 0, softBy: 0 }, opts);
             const ev = [];
             for (const H of ['R', 'L']) {
                 if (opts.hands && !opts.hands.includes(H)) continue;
@@ -1424,13 +1625,16 @@ const HANON = {
                     const off = (H === 'L') ? o.handOffset : 0;
                     ev.push({
                         t: t + jitter + off, pitch: n.midi,
-                        vel: o.vel + o.crescPerOct * (n.midi - seq[H][0].midi) / 12,
-                        hand: H, idx: i, finger: n.finger, expected: n.midi, ok: true, dur: o.ioi * 0.9
+                        vel: o.vel + o.crescPerOct * (n.midi - seq[H][0].midi) / 12
+                            + (o.softFinger && n.finger === o.softFinger ? o.softBy : 0),
+                        hand: H, idx: i, finger: n.finger, expected: n.midi, ok: true, dur: o.ioi * o.durRatio
                     });
                     t += o.ioi + o.accel * i;
                 }
             }
-            return ev;
+            // ordre d'arrivée, comme un vrai flux MIDI : le coach ne regarde
+            // que les derniers événements reçus, pas la séquence par main
+            return ev.sort((a, b) => a.t - b.t);
         }
 
         function runSelfTest() {
@@ -1501,6 +1705,51 @@ const HANON = {
                 check('hauteur des touches = hauteur réservée', Math.abs(kh - KB_H) < 0.5,
                     `touches ${kh}px, réservé ${KB_H}px`);
             }
+
+            // 8 bis. Coach temps réel. Le test le plus important est le
+            //        premier : sur un jeu parfait, le coach doit se TAIRE.
+            //        Un coach bavard apprend à corriger du bruit.
+            const cOpt = { hands: ['R', 'L'], targetIoi: 150, mode: 'free' };
+            const adv = o => coachAdvice(synth(seq, o), Object.assign({}, cOpt, o.hands ? { hands: o.hands } : {}));
+
+            check('jeu parfait → le coach se tait', adv({ durRatio: 1.05 }) === null,
+                String((adv({ durRatio: 1.05 }) || {}).key || 'silence'));
+
+            let a = adv({ durRatio: 1.05, softFinger: 4, softBy: -14, hands: ['R'] });
+            check('doigt 4 trop faible → nommé correctement',
+                a && a.key === 'doigt4' && /appuie plus/.test(a.text), a ? a.key + ' : ' + a.text : 'aucun conseil');
+
+            a = adv({ durRatio: 1.05, softFinger: 1, softBy: 16, hands: ['R'] });
+            check('pouce trop fort → nommé correctement',
+                a && a.key === 'doigt1' && /allège/.test(a.text), a ? a.key + ' : ' + a.text : 'aucun conseil');
+
+            a = adv({ durRatio: 0.55, hands: ['R'] });
+            check('notes trop courtes → « tiens-les »',
+                a && a.key === 'legato-court', a ? a.key : 'aucun conseil');
+
+            a = adv({ durRatio: 1.6, hands: ['R'] });
+            check('notes trop liées → « relâche plus tôt »',
+                a && a.key === 'legato-long', a ? a.key : 'aucun conseil');
+
+            a = coachAdvice(synth(seq, { durRatio: 1.05, ioi: 132 }), { hands: ['R'], targetIoi: 150, mode: 'metro' });
+            check('12 % trop rapide → « tu accélères »', a && a.key === 'rush', a ? a.key : 'aucun conseil');
+
+            a = coachAdvice(synth(seq, { durRatio: 1.05, ioi: 170 }), { hands: ['R'], targetIoi: 150, mode: 'metro' });
+            check('13 % trop lent → « tu ralentis »', a && a.key === 'drag', a ? a.key : 'aucun conseil');
+
+            a = adv({ durRatio: 1.05, handOffset: 45 });
+            check('mains décalées de 45 ms → signalé', a && a.key === 'sync', a ? a.key : 'aucun conseil');
+
+            // un écart réel mais sous le seuil de bruit ne doit PAS déclencher
+            a = adv({ durRatio: 1.05, softFinger: 4, softBy: -3, hands: ['R'] });
+            check('écart de 3 sur un doigt → sous le bruit, ignoré', a === null, a ? a.key : 'silence');
+
+            // en mode Libre, jouer à un autre tempo que le curseur n'est pas une faute
+            a = coachAdvice(synth(seq, { durRatio: 1.05, ioi: 90 }), { hands: ['R'], targetIoi: 250, mode: 'free' });
+            check('mode Libre : tempo différent du curseur → pas de reproche',
+                a === null || a.key !== 'rush', a ? a.key : 'silence');
+            a = coachAdvice(synth(seq, { durRatio: 1.05, ioi: 90 }), { hands: ['R'], targetIoi: 250, mode: 'metro' });
+            check('mode Métronome : le même jeu est bien signalé', a && a.key === 'rush', a ? a.key : 'silence');
 
             // 9. entrées MIDI : un piano expose souvent plusieurs ports qui
             //    portent les mêmes notes. Un seul doit être écouté, sinon
