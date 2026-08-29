@@ -1,0 +1,1353 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hanon — Entraîneur</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Baloo+2:wght@400;500;700&display=swap');
+
+        :root {
+            --bg: #010520;
+            --panel: #0b1336;
+            --accent: #3c6dff;
+            --good: #2ec27e;
+            --warn: #ffb14d;
+            --bad: #ff4d5e;
+            --text: #e8ecff;
+            --muted: #8c97c9;
+            --line: #233169;
+        }
+
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        html, body { overflow-x: hidden; }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            background: radial-gradient(1200px 600px at 50% -10%, #142057 0%, var(--bg) 60%);
+            color: var(--text);
+            font-family: "Baloo 2", system-ui, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 18px 10px 60px;
+        }
+
+        h1 { margin: 4px 0 2px; font-weight: 700; font-size: clamp(22px, 6vw, 38px); text-align: center; }
+        .subtitle { color: var(--muted); margin: 0 0 14px; text-align: center; font-size: clamp(13px, 3.5vw, 16px); }
+
+        .navlinks { display: flex; gap: 14px; flex-wrap: wrap; justify-content: center; margin-bottom: 10px; }
+        .navlinks a { color: var(--accent); text-decoration: none; font-size: 14px; }
+
+        .midi-status {
+            font-size: 12px; border-radius: 20px; padding: 4px 12px; margin-bottom: 12px;
+            border: 1px solid var(--line); background: var(--panel);
+            transition: color .2s, border-color .2s, background .2s;
+        }
+        .midi-status.idle { color: var(--muted); }
+        .midi-status.off { color: var(--warn); border-color: #5a431f; }
+        .midi-status.on { color: var(--good); border-color: #1e6b48; background: #0c2b1f; }
+
+        /* ---- Jauges live ---- */
+        .gauges { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; margin-bottom: 14px; }
+
+        .gauge {
+            background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
+            padding: 8px 18px; text-align: center; min-width: 116px;
+        }
+        .gauge .label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
+        .gauge .value { font-size: 30px; font-weight: 700; line-height: 1.1; font-variant-numeric: tabular-nums; }
+        .gauge .unit { font-size: 13px; color: var(--muted); font-weight: 400; margin-left: 2px; }
+        .gauge .bar { height: 5px; border-radius: 3px; background: #1a2452; margin-top: 6px; overflow: hidden; }
+        .gauge .bar > i { display: block; height: 100%; width: 0%; background: var(--good); transition: width .15s, background .15s; }
+        .gauge.g-good .value { color: var(--good); }
+        .gauge.g-warn .value { color: var(--warn); }
+        .gauge.g-bad  .value { color: var(--bad); }
+
+        /* ---- Portée ---- */
+        .staff-wrap {
+            background: #fbfbff; border-radius: 16px; padding: 8px 10px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, .45); width: 100%; max-width: 460px;
+        }
+        #staff { display: block; width: 100%; height: auto; }
+        .motif-caption { color: var(--muted); font-size: 13px; text-align: center; margin: 8px 0 0; }
+        .motif-caption b { color: var(--text); font-weight: 600; }
+
+        /* ---- Clavier ---- */
+        .piano-scaler { margin: 14px auto 0; position: relative; }
+        .piano { position: absolute; top: 0; left: 0; transform-origin: top left; user-select: none; touch-action: manipulation; }
+
+        .key {
+            position: absolute; top: 0; border-radius: 0 0 6px 6px;
+            display: flex; align-items: flex-end; justify-content: center;
+            padding-bottom: 7px; font-size: 12px; font-weight: 700;
+        }
+        .key.white { height: 190px; background: linear-gradient(#ffffff, #eef0fb); border: 1px solid #c4c9e6; color: #4a5285; z-index: 1; }
+        .key.black { height: 114px; background: linear-gradient(#2a2f4a, #11142a); border: 1px solid #000; color: #c9cfff; z-index: 2; }
+        .key.next.white { background: linear-gradient(#cddcff, #a9c1ff); border-color: #6f8fe6; }
+        .key.next.black { background: linear-gradient(#2b45a0, #16215c); }
+        .key.hit.white  { background: linear-gradient(var(--good), #1e9b61); color: #fff; }
+        .key.hit.black  { background: linear-gradient(#1e9b61, #12603c); color: #fff; }
+        .key.miss.white { background: linear-gradient(var(--bad), #c92f3e); color: #fff; }
+        .key.miss.black { background: linear-gradient(var(--bad), #8d2029); color: #fff; }
+        .key .fing {
+            position: absolute; top: 6px; left: 50%; transform: translateX(-50%);
+            font-size: 11px; font-weight: 700; opacity: 0; transition: opacity .1s;
+        }
+        .key.next .fing { opacity: 1; }
+        .key.white .fing { color: #1b2a6b; }
+        .key.black .fing { color: #dfe6ff; }
+
+        /* ---- Contrôles ---- */
+        .controls { margin-top: 20px; display: flex; flex-direction: column; gap: 11px; align-items: center; width: 100%; max-width: 620px; }
+        .control-row { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; align-items: center; }
+        .seg-label { color: var(--muted); font-size: 13px; width: 100%; text-align: center; margin-bottom: -5px; }
+
+        .segmented { display: inline-flex; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+        .segmented button {
+            background: transparent; border: none; color: var(--muted); font-family: inherit;
+            font-size: 14px; font-weight: 600; padding: 9px 14px; cursor: pointer; transition: background .12s, color .12s;
+        }
+        .segmented button.active { background: var(--accent); color: #fff; }
+
+        button.btn {
+            background: var(--accent); color: #fff; border: none; border-radius: 10px;
+            padding: 11px 22px; font-family: inherit; font-size: 15px; font-weight: 700; cursor: pointer;
+        }
+        button.btn.stop { background: var(--bad); }
+        button.btn:active { transform: translateY(1px); }
+        button.btn:disabled { opacity: .45; cursor: default; }
+
+        .toggle {
+            display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 14px;
+            cursor: pointer; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 8px 12px;
+        }
+        .toggle input { width: 16px; height: 16px; }
+
+        select {
+            background: var(--panel); color: var(--text); border: 1px solid var(--line);
+            border-radius: 10px; padding: 9px 12px; font-family: inherit; font-size: 14px; font-weight: 600;
+        }
+        input[type=range] { width: 190px; accent-color: var(--accent); }
+
+        .bpm-box { display: inline-flex; align-items: center; gap: 10px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 6px 14px; }
+        .bpm-box .n { font-size: 20px; font-weight: 700; min-width: 42px; text-align: right; font-variant-numeric: tabular-nums; }
+        .bpm-box .cap { color: var(--muted); font-size: 13px; }
+
+        .record-line { color: var(--muted); font-size: 13px; text-align: center; }
+        .record-line b { color: var(--accent); font-size: 15px; }
+
+        .warnbox {
+            margin-top: 12px; max-width: 620px; font-size: 13px; color: var(--warn);
+            background: #241a08; border: 1px solid #5a431f; border-radius: 10px; padding: 8px 14px;
+            text-align: center; line-height: 1.45;
+        }
+
+        /* ---- Rapport ---- */
+        .report { width: 100%; max-width: 780px; margin-top: 26px; display: none; }
+        .report.on { display: block; }
+        .report h2 { font-size: 21px; margin: 0 0 4px; text-align: center; }
+        .report .when { color: var(--muted); font-size: 13px; text-align: center; margin: 0 0 16px; }
+
+        .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; }
+        .card { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 11px 14px; }
+        .card .k { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
+        .card .v { font-size: 25px; font-weight: 700; font-variant-numeric: tabular-nums; }
+        .card .v .u { font-size: 13px; color: var(--muted); font-weight: 400; }
+        .card .d { font-size: 12px; color: var(--muted); margin-top: 3px; line-height: 1.35; }
+        .card.good .v { color: var(--good); } .card.warn .v { color: var(--warn); } .card.bad .v { color: var(--bad); }
+
+        .chart-block { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; margin-top: 10px; }
+        .chart-block h3 { margin: 0 0 2px; font-size: 15px; font-weight: 700; }
+        .chart-block p { margin: 0 0 8px; font-size: 12px; color: var(--muted); line-height: 1.4; }
+        .chart-block canvas { display: block; width: 100%; height: auto; }
+
+        table.tbl { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
+        table.tbl th, table.tbl td { padding: 5px 6px; text-align: right; border-bottom: 1px solid #17204a; }
+        table.tbl th:first-child, table.tbl td:first-child { text-align: left; }
+        table.tbl th { color: var(--muted); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: .6px; }
+
+        .verdict { margin-top: 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 12px 16px; font-size: 14px; line-height: 1.55; }
+        .verdict ul { margin: 6px 0 0; padding-left: 20px; }
+        .verdict li { margin-bottom: 5px; }
+        .verdict .ok { color: var(--good); }
+        .verdict .no { color: var(--warn); }
+
+        .hint { margin-top: 18px; color: var(--muted); font-size: 13px; text-align: center; max-width: 620px; padding: 0 10px; line-height: 1.55; }
+        .hint code { background: var(--panel); border: 1px solid var(--line); border-radius: 5px; padding: 1px 5px; font-size: 12px; }
+
+        #selftest { width: 100%; max-width: 780px; margin-top: 20px; font-size: 13px; }
+        #selftest pre { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px; overflow-x: auto; line-height: 1.6; margin: 0; }
+
+        @media (max-width: 520px) {
+            .segmented button { padding: 8px 10px; font-size: 13px; }
+            .gauge { min-width: 100px; padding: 7px 12px; }
+            .gauge .value { font-size: 25px; }
+        }
+    </style>
+</head>
+
+<body>
+    <h1>🏋️ Hanon</h1>
+    <p class="subtitle">Les notes ne sont pas la question. On mesure l'égalité, les mains et la tenue du tempo.</p>
+    <div class="navlinks">
+        <a href="index.html">🏠 Accueil</a>
+        <a href="piano.html">🎹 Accords</a>
+        <a href="lecture.html">👀 Lecture à vue</a>
+        <a href="majeur-mineur.html">🎭 Majeur ou Mineur ?</a>
+        <a href="extrait.html">🎼 Extrait à rejouer</a>
+    </div>
+    <div class="midi-status idle" id="midiStatus">🎛️ MIDI : recherche…</div>
+
+    <div class="gauges">
+        <div class="gauge" id="gTempo"><div class="label">Tempo</div><div class="value" id="vTempo">—</div><div class="bar"><i></i></div></div>
+        <div class="gauge" id="gEven"><div class="label">Égalité</div><div class="value" id="vEven">—</div><div class="bar"><i></i></div></div>
+        <div class="gauge" id="gHands"><div class="label">Mains</div><div class="value" id="vHands">—</div><div class="bar"><i></i></div></div>
+        <div class="gauge" id="gProg"><div class="label">Avancement</div><div class="value" id="vProg">—</div><div class="bar"><i></i></div></div>
+    </div>
+
+    <div class="staff-wrap">
+        <svg id="staff" viewBox="0 0 460 210"></svg>
+    </div>
+    <p class="motif-caption" id="motifCaption"></p>
+
+    <div class="piano-scaler" id="pianoScaler">
+        <div class="piano" id="piano"></div>
+    </div>
+
+    <div class="controls">
+        <div class="control-row">
+            <select id="exSel" title="Exercice"></select>
+            <div class="bpm-box">
+                <span class="cap">♩ =</span><span class="n" id="bpmN">60</span>
+                <input type="range" id="bpm" min="40" max="144" step="2" value="60">
+            </div>
+        </div>
+
+        <div class="control-row"><span class="seg-label">Référence de tempo</span></div>
+        <div class="control-row">
+            <div class="segmented" id="modeSeg">
+                <button data-mode="metro" class="active">Métronome</button>
+                <button data-mode="free">Libre</button>
+            </div>
+            <label class="toggle"><input type="checkbox" id="clickOn" checked> 🔊 Clic</label>
+        </div>
+
+        <div class="control-row"><span class="seg-label">Mains</span></div>
+        <div class="control-row">
+            <div class="segmented" id="handSeg">
+                <button data-h="both" class="active">Les deux</button>
+                <button data-h="R">Main droite</button>
+                <button data-h="L">Main gauche</button>
+            </div>
+        </div>
+
+        <div class="control-row"><span class="seg-label">Longueur</span></div>
+        <div class="control-row">
+            <div class="segmented" id="lenSeg">
+                <button data-len="4">4 groupes</button>
+                <button data-len="8" class="active">8 groupes</button>
+                <button data-len="up">Montée</button>
+                <button data-len="all">Complet</button>
+            </div>
+        </div>
+
+        <div class="control-row" style="margin-top:4px;">
+            <button class="btn" id="startBtn">▶ Démarrer</button>
+            <label class="toggle"><input type="checkbox" id="showNames"> Noms des touches</label>
+        </div>
+        <div class="control-row" id="recordRow"></div>
+    </div>
+
+    <div class="warnbox" id="verifWarn" style="display:none;"></div>
+
+    <div class="report" id="report"></div>
+    <div id="selftest"></div>
+
+    <p class="hint">
+        Les doigtés sont issus d'une transcription recoupée avec deux sources indépendantes.
+        Joue <b>pianissimo</b> une fois sur deux : c'est le filtre le plus dur, un doigt faible n'y sonne
+        simplement pas. Ajoute <code>?selftest=1</code> à l'URL pour vérifier le moteur de mesure lui-même.
+    </p>
+
+    <script>
+        // =====================================================================
+        //  Données Hanon n°1 à 20 — forme compressée.
+        //  Chaque main : p = levée, k = blocs {b:répétitions, d:pas de
+        //  transposition, d0:degré de départ, r:degrés du motif, f:doigtés},
+        //  t = queue. mR / mL = hauteur MIDI du degré 0 de chaque main.
+        //  Extrait de sources publiques puis recoupé (notes contre un jeu MIDI
+        //  indépendant, doigtés contre une seconde transcription) ; la
+        //  reconstruction a été vérifiée note à note.
+        // =====================================================================
+const HANON = {
+  1:{n:1,mR:60,mL:48,len:233,R:{p:[],k:[{b:14,d:1,d0:0,r:[0,2,3,4,5,4,3,2],f:[1,2,3,4,5,4,3,2]},{b:15,d:-1,d0:18,r:[0,-2,-3,-4,-5,-4,-3,-2],f:[5,4,3,2,1,2,3,4]}],t:[[0,2]]},L:{p:[],k:[{b:14,d:1,d0:0,r:[0,2,3,4,5,4,3,2],f:[5,4,3,2,1,2,3,4]},{b:15,d:-1,d0:18,r:[0,-2,-3,-4,-5,-4,-3,-2],f:[1,2,3,4,5,4,3,2]}],t:[[0,4]]}},
+  2:{n:2,mR:60,mL:48,len:225,R:{p:[],k:[{b:14,d:1,d0:0,r:[0,2,5,4,3,4,3,2],f:[1,2,5,4,3,4,3,2]},{b:14,d:-1,d0:18,r:[0,-3,-5,-4,-3,-4,-3,-2],f:[5,2,1,2,3,2,3,4]}],t:[[0,1]]},L:{p:[],k:[{b:14,d:1,d0:0,r:[0,2,5,4,3,4,3,2],f:[5,3,1,2,3,2,3,4]},{b:14,d:-1,d0:18,r:[0,-3,-5,-4,-3,-4,-3,-2],f:[1,3,5,4,3,4,3,2]}],t:[[0,5]]}},
+  3:{n:3,mR:60,mL:48,len:225,R:{p:[],k:[{b:14,d:1,d0:0,r:[0,2,5,4,3,2,3,4],f:[1,2,5,4,3,2,3,4]},{b:14,d:-1,d0:18,r:[0,-3,-5,-4,-3,-2,-3,-4],f:[5,2,1,2,3,4,3,2]}],t:[[0,1]]},L:{p:[],k:[{b:14,d:1,d0:0,r:[0,2,5,4,3,2,3,4],f:[5,3,1,2,3,4,3,2]},{b:14,d:-1,d0:18,r:[0,-3,-5,-4,-3,-2,-3,-4],f:[1,3,5,4,3,2,3,4]}],t:[[0,5]]}},
+  4:{n:4,mR:60,mL:48,len:225,R:{p:[],k:[{b:14,d:1,d0:0,r:[0,1,0,2,5,4,3,2],f:[1,2,1,2,5,4,3,2]},{b:14,d:-1,d0:18,r:[0,-1,0,-3,-5,-4,-3,-2],f:[5,4,5,2,1,2,3,4]}],t:[[0,1]]},L:{p:[],k:[{b:14,d:1,d0:0,r:[0,1,0,2,5,4,3,2],f:[5,4,5,3,1,2,3,4]},{b:14,d:-1,d0:18,r:[0,-1,0,-3,-5,-4,-3,-2],f:[1,2,1,3,5,4,3,2]}],t:[[0,5]]}},
+  5:{n:5,mR:60,mL:48,len:225,R:{p:[],k:[{b:14,d:1,d0:0,r:[0,5,4,5,3,4,2,3],f:[1,5,4,5,3,4,2,3]},{b:14,d:-1,d0:14,r:[0,1,0,2,1,3,2,4],f:[1,2,1,3,2,4,3,5]}],t:[[0,1]]},L:{p:[],k:[{b:14,d:1,d0:0,r:[0,5,4,5,3,4,2,3],f:[5,1,2,1,3,2,3,4]},{b:14,d:-1,d0:14,r:[0,1,0,2,1,3,2,4],f:[5,4,5,3,4,2,3,1]}],t:[[0,5]]}},
+  6:{n:6,mR:60,mL:48,len:225,R:{p:[],k:[{b:13,d:1,d0:0,r:[0,5,4,5,3,5,2,5],f:[1,5,4,5,3,5,2,5]},{b:1,d:0,d0:13,r:[0,5,4,5,3,5,2,1],f:[1,5,4,5,3,5,2,1]},{b:13,d:-1,d0:18,r:[0,-5,-4,-5,-3,-5,-2,-5],f:[5,1,2,5,3,1,4,1]},{b:1,d:0,d0:5,r:[0,-5,-4,-5,-3,-5,-2,-3],f:[5,1,2,1,3,1,4,3]}],t:[[0,1]]},L:{p:[],k:[{b:13,d:1,d0:0,r:[0,5,4,5,3,5,2,5],f:[5,1,2,1,3,1,4,1]},{b:1,d:0,d0:13,r:[0,5,4,5,3,5,2,1],f:[5,1,2,1,3,1,4,5]},{b:13,d:-1,d0:18,r:[0,-5,-4,-5,-3,-5,-2,-5],f:[1,5,4,5,3,5,2,5]},{b:1,d:0,d0:5,r:[0,-5,-4,-5,-3,-5,-2,-3],f:[1,5,4,5,3,5,2,3]}],t:[[0,5]]}},
+  7:{n:7,mR:60,mL:48,len:225,R:{p:[],k:[{b:13,d:1,d0:0,r:[0,2,1,3,2,4,3,2],f:[1,3,2,4,3,5,4,3]},{b:1,d:0,d0:13,r:[0,2,1,3,2,4,3,2],f:[1,3,2,4,3,5,3,2]},{b:13,d:-1,d0:18,r:[0,-2,-1,-3,-2,-4,-3,-2],f:[1,3,2,4,3,1,3,4]},{b:1,d:0,d0:5,r:[0,-2,-1,-3,-2,-4,-3,-2],f:[5,3,4,2,3,1,3,4]}],t:[[0,1]]},L:{p:[],k:[{b:14,d:1,d0:0,r:[0,2,1,3,2,4,3,2],f:[5,3,4,2,3,1,3,4]},{b:13,d:-1,d0:18,r:[0,-2,-1,-3,-2,-4,-3,-2],f:[1,3,2,4,3,5,4,3]},{b:1,d:0,d0:5,r:[0,-2,-1,-3,-2,-4,-3,-2],f:[1,3,2,4,3,5,3,2]}],t:[[0,5]]}},
+  8:{n:8,mR:60,mL:48,len:225,R:{p:[],k:[{b:14,d:1,d0:0,r:[0,2,4,5,3,4,2,3],f:[1,2,4,5,3,4,2,3]},{b:14,d:-1,d0:18,r:[0,-2,-4,-5,-3,-4,-2,-3],f:[5,4,2,1,3,2,4,3]}],t:[[0,1]]},L:{p:[],k:[{b:14,d:1,d0:0,r:[0,2,4,5,3,4,2,3],f:[5,4,2,1,3,2,4,3]},{b:14,d:-1,d0:18,r:[0,-2,-4,-5,-3,-4,-2,-3],f:[1,2,4,5,3,4,2,3]}],t:[[0,5]]}},
+  9:{n:9,mR:60,mL:48,len:225,R:{p:[],k:[{b:14,d:1,d0:0,r:[0,2,3,2,4,3,5,4],f:[1,2,3,2,4,3,5,4]},{b:13,d:-1,d0:18,r:[0,-2,-3,-2,-4,-3,-5,-4],f:[5,4,3,4,2,3,1,2]},{b:1,d:0,d0:5,r:[0,-2,-3,-2,-4,-3,-4,-3],f:[5,3,4,2,2,3,2,3]}],t:[[0,1]]},L:{p:[],k:[{b:14,d:1,d0:0,r:[0,2,3,2,4,3,5,4],f:[5,4,3,4,2,3,1,2]},{b:13,d:-1,d0:18,r:[0,-2,-3,-2,-4,-3,-5,-4],f:[1,2,3,2,4,3,5,4]},{b:1,d:0,d0:5,r:[0,-2,-3,-2,-4,-3,-4,-3],f:[1,2,3,2,4,5,4,5]}],t:[[0,5]]}},
+  10:{n:10,mR:60,mL:48,len:225,R:{p:[],k:[{b:14,d:1,d0:0,r:[0,5,4,3,2,3,2,3],f:[1,5,4,3,2,3,2,3]},{b:14,d:-1,d0:18,r:[0,-5,-4,-3,-2,-3,-2,-3],f:[5,1,2,3,3,2,3,2]}],t:[[0,1]]},L:{p:[],k:[{b:14,d:1,d0:0,r:[0,5,4,3,2,3,2,3],f:[5,1,2,3,4,3,4,3]},{b:14,d:-1,d0:18,r:[0,-5,-4,-3,-2,-3,-2,-3],f:[1,5,2,3,2,3,2,3]}],t:[[0,5]]}},
+  11:{n:11,mR:60,mL:48,len:225,R:{p:[],k:[{b:14,d:1,d0:0,r:[0,2,5,4,5,4,3,4],f:[1,2,5,4,5,4,3,4]},{b:14,d:-1,d0:18,r:[0,-3,-5,-4,-5,-4,-3,-4],f:[5,2,1,2,1,2,3,2]}],t:[[0,1]]},L:{p:[],k:[{b:14,d:1,d0:0,r:[0,2,5,4,5,4,3,4],f:[5,3,1,2,5,4,3,4]},{b:14,d:-1,d0:18,r:[0,-3,-5,-4,-5,-4,-3,-4],f:[1,3,5,4,5,4,3,4]}],t:[[0,5]]}},
+  12:{n:12,mR:60,mL:48,len:233,R:{p:[[4,5]],k:[{b:13,d:1,d0:0,r:[0,2,1,0,1,2,0,6],f:[1,3,2,1,2,3,1,5]},{b:1,d:0,d0:13,r:[0,2,1,0,1,2,3,0],f:[1,3,2,1,2,3,4,1]},{b:13,d:-1,d0:18,r:[0,-2,-1,0,-1,-2,0,-6],f:[5,3,4,5,4,3,5,1]},{b:1,d:0,d0:5,r:[0,-2,-1,0,-1,-2,0,-5],f:[5,3,4,5,4,3,5,1]},{b:1,d:0,d0:4,r:[0,-2,-1,0,-1,-2,-1,-4],f:[5,3,4,5,4,3,4,1]}],t:[]},L:{p:[[4,1]],k:[{b:13,d:1,d0:0,r:[0,2,1,0,1,2,0,6],f:[5,3,4,5,4,3,5,1]},{b:1,d:0,d0:13,r:[0,2,1,0,1,2,3,0],f:[5,2,3,5,4,3,2,5]},{b:13,d:-1,d0:18,r:[0,-2,-1,0,-1,-2,0,-6],f:[1,3,2,1,2,3,1,5]},{b:1,d:0,d0:5,r:[0,-2,-1,0,-1,-2,0,-5],f:[1,3,2,1,2,3,1,5]},{b:1,d:0,d0:4,r:[0,-2,-1,0,-1,-2,-1,-4],f:[1,3,2,1,2,3,2,5]}],t:[]}},
+  13:{n:13,mR:64,mL:52,len:225,R:{p:[],k:[{b:14,d:1,d0:0,r:[0,-2,1,-1,2,0,1,2],f:[3,1,4,2,5,3,4,5]},{b:14,d:-1,d0:14,r:[0,2,-1,1,0,-2,-1,0],f:[3,5,2,4,3,1,3,4]}],t:[[-2,1]]},L:{p:[],k:[{b:14,d:1,d0:0,r:[0,-2,1,-1,2,0,1,2],f:[3,5,2,4,1,3,2,1]},{b:14,d:-1,d0:14,r:[0,2,-1,1,0,-2,-1,0],f:[3,1,4,2,3,5,3,2]}],t:[[-2,5]]}},
+  14:{n:14,mR:60,mL:48,len:225,R:{p:[],k:[{b:14,d:1,d0:0,r:[0,1,3,2,3,2,4,3],f:[1,2,4,3,4,3,5,4]},{b:14,d:-1,d0:18,r:[0,-1,-3,-2,-3,-2,-4,-3],f:[5,4,2,3,2,3,1,3]}],t:[[0,1]]},L:{p:[],k:[{b:14,d:1,d0:0,r:[0,1,3,2,3,2,4,3],f:[5,4,2,3,2,3,1,3]},{b:14,d:-1,d0:18,r:[0,-1,-3,-2,-3,-2,-4,-3],f:[1,2,4,3,4,3,5,4]}],t:[[0,5]]}},
+  15:{n:15,mR:60,mL:48,len:225,R:{p:[],k:[{b:13,d:1,d0:0,r:[0,2,1,3,2,4,3,5],f:[1,2,1,3,2,4,3,5]},{b:1,d:0,d0:13,r:[0,2,1,3,2,4,3,4],f:[1,2,1,3,2,4,3,4]},{b:13,d:-1,d0:18,r:[0,-2,-1,-3,-2,-4,-3,-5],f:[5,3,4,2,3,1,2,1]},{b:1,d:0,d0:5,r:[0,-2,-1,-3,-2,-4,-3,-4],f:[5,3,4,2,3,1,3,2]}],t:[[0,1]]},L:{p:[],k:[{b:13,d:1,d0:0,r:[0,2,1,3,2,4,3,5],f:[5,3,4,2,3,1,2,1]},{b:1,d:0,d0:13,r:[0,2,1,3,2,4,3,4],f:[5,3,4,2,3,1,3,2]},{b:13,d:-1,d0:18,r:[0,-2,-1,-3,-2,-4,-3,-5],f:[1,2,1,3,2,4,3,5]},{b:1,d:0,d0:5,r:[0,-2,-1,-3,-2,-4,-3,-4],f:[1,2,1,3,2,4,3,4]}],t:[[0,5]]}},
+  16:{n:16,mR:60,mL:48,len:225,R:{p:[],k:[{b:14,d:1,d0:0,r:[0,2,1,2,5,4,3,4],f:[1,3,2,3,5,4,3,4]},{b:14,d:-1,d0:18,r:[0,-3,-2,-3,-5,-4,-3,-4],f:[5,2,3,2,1,2,3,2]}],t:[[0,1]]},L:{p:[],k:[{b:14,d:1,d0:0,r:[0,2,1,2,5,4,3,4],f:[5,3,4,3,1,2,3,2]},{b:14,d:-1,d0:18,r:[0,-3,-2,-3,-5,-4,-3,-4],f:[1,3,2,3,5,4,3,4]}],t:[[0,5]]}},
+  17:{n:17,mR:60,mL:48,len:217,R:{p:[],k:[{b:13,d:1,d0:0,r:[0,2,5,4,6,5,4,5],f:[1,2,4,3,5,4,3,4]},{b:1,d:0,d0:13,r:[0,2,5,4,6,5,4,3],f:[1,2,4,3,5,4,3,2]},{b:12,d:-1,d0:18,r:[0,-3,-5,-4,-6,-5,-4,-6],f:[5,3,2,3,1,2,3,1]},{b:1,d:0,d0:6,r:[0,-3,-5,-4,-6,-5,-4,-5],f:[5,3,2,3,1,2,3,1]}],t:[[0,1]]},L:{p:[],k:[{b:13,d:1,d0:0,r:[0,2,5,4,6,5,4,5],f:[5,4,2,3,1,2,3,2]},{b:1,d:0,d0:13,r:[0,2,5,4,6,5,4,3],f:[5,4,2,3,1,2,3,4]},{b:12,d:-1,d0:18,r:[0,-3,-5,-4,-6,-5,-4,-6],f:[1,2,4,3,5,4,3,5]},{b:1,d:0,d0:6,r:[0,-3,-5,-4,-6,-5,-4,-5],f:[1,2,4,3,5,4,3,5]}],t:[[0,5]]}},
+  18:{n:18,mR:60,mL:48,len:225,R:{p:[],k:[{b:13,d:1,d0:0,r:[0,1,3,2,4,3,1,2],f:[1,2,4,3,5,4,2,3]},{b:1,d:0,d0:13,r:[0,1,3,2,4,3,1,2],f:[1,2,4,3,5,4,1,2]},{b:13,d:-1,d0:18,r:[0,-1,-3,-2,-4,-3,-1,-2],f:[5,4,2,3,1,2,4,3]},{b:1,d:0,d0:5,r:[0,-1,-3,-2,-4,-3,-1,-2],f:[5,5,2,3,1,4,5,4]}],t:[[0,1]]},L:{p:[],k:[{b:13,d:1,d0:0,r:[0,1,3,2,4,3,1,2],f:[5,4,2,3,1,2,4,3]},{b:1,d:0,d0:13,r:[0,1,3,2,4,3,1,2],f:[5,4,2,3,1,2,5,4]},{b:13,d:-1,d0:18,r:[0,-1,-3,-2,-4,-3,-1,-2],f:[1,2,4,3,5,4,2,3]},{b:1,d:0,d0:5,r:[0,-1,-3,-2,-4,-3,-1,-2],f:[1,2,4,3,5,4,1,2]}],t:[[0,5]]}},
+  19:{n:19,mR:60,mL:48,len:225,R:{p:[],k:[{b:14,d:1,d0:0,r:[0,5,3,4,5,3,2,4],f:[1,5,3,4,5,3,2,4]},{b:14,d:-1,d0:18,r:[0,-5,-3,-4,-5,-3,-2,-4],f:[5,1,3,2,1,3,4,2]}],t:[[0,1]]},L:{p:[],k:[{b:14,d:1,d0:0,r:[0,5,3,4,5,3,2,4],f:[5,1,3,2,1,3,4,2]},{b:14,d:-1,d0:18,r:[0,-5,-3,-4,-5,-3,-2,-4],f:[1,5,3,4,5,3,2,4]}],t:[[0,5]]}},
+  20:{n:20,mR:64,mL:52,len:241,R:{p:[],k:[{b:14,d:1,d0:0,r:[0,2,5,7,5,4,5,3],f:[1,2,5,4,4,3,4,2]},{b:1,d:0,d0:14,r:[0,2,5,7,5,4,5,2],f:[1,2,4,5,4,3,4,2]},{b:14,d:-1,d0:21,r:[0,-2,-5,-7,-5,-6,-5,-7],f:[1,2,4,5,3,4,3,5]},{b:1,d:0,d0:7,r:[0,-2,-5,-7,-5,-6,-5,-6],f:[5,5,2,3,3,2,3,2]}],t:[[-2,1]]},L:{p:[],k:[{b:14,d:1,d0:0,r:[0,2,5,7,5,4,5,3],f:[5,4,2,1,2,3,4,2]},{b:1,d:0,d0:14,r:[0,2,5,7,5,4,5,2],f:[5,4,2,1,2,3,2,4]},{b:14,d:-1,d0:21,r:[0,-2,-5,-7,-5,-6,-5,-7],f:[1,2,4,5,3,4,3,5]},{b:1,d:0,d0:7,r:[0,-2,-5,-7,-5,-6,-5,-6],f:[1,2,4,5,3,4,3,4]}],t:[[-2,5]]}}
+};
+
+        // =====================================================================
+        //  1. Théorie : degrés diatoniques (touches blanches) <-> MIDI
+        // =====================================================================
+        const DEG_PC = [0, 2, 4, 5, 7, 9, 11];
+        const DEG_LETTER = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
+        const FR = { C: 'Do', D: 'Ré', E: 'Mi', F: 'Fa', G: 'Sol', A: 'La', B: 'Si' };
+        const BLACK_PC = new Set([1, 3, 6, 8, 10]);
+
+        const mod = (a, n) => ((a % n) + n) % n;
+        const degToMidi = d => (Math.floor(d / 7) + 1) * 12 + DEG_PC[mod(d, 7)];
+
+        function midiToDeg(m) {
+            const oct = Math.floor(m / 12) - 1, pc = mod(m, 12);
+            let i = DEG_PC.indexOf(pc);
+            if (i < 0) i = DEG_PC.findIndex(x => x > pc);   // note noire : rattachée au degré au-dessus
+            return oct * 7 + i;
+        }
+
+        const noteName = m => DEG_LETTER[mod(midiToDeg(m), 7)] + (BLACK_PC.has(mod(m, 12)) ? '♯' : '');
+        const noteNameFr = m => FR[DEG_LETTER[mod(midiToDeg(m), 7)]];
+
+        // =====================================================================
+        //  2. Construction de la séquence attendue
+        // =====================================================================
+        function expandHand(h) {
+            const out = [];
+            for (const [d, f] of h.p) out.push({ d, f });
+            for (const b of h.k)
+                for (let k = 0; k < b.b; k++) {
+                    const base = b.d0 + k * b.d;
+                    for (let i = 0; i < b.r.length; i++) out.push({ d: base + b.r[i], f: b.f[i] });
+                }
+            for (const [d, f] of h.t) out.push({ d, f });
+            return out;
+        }
+
+        // longueur de la seule montée (levée + blocs dont le pas est >= 0)
+        function ascLen(ex) {
+            let n = ex.R.p.length;
+            for (const b of ex.R.k) { if (b.d < 0) break; n += b.b * b.r.length; }
+            return n;
+        }
+
+        const MOTIF = 8;   // toute la partie 1 de Hanon est en groupes de 8 doubles croches
+
+        function buildSeq(exNum, len) {
+            const ex = HANON[exNum];
+            const bR = midiToDeg(ex.mR), bL = midiToDeg(ex.mL);
+            const R = expandHand(ex.R).map(o => ({ midi: degToMidi(bR + o.d), finger: o.f }));
+            const L = expandHand(ex.L).map(o => ({ midi: degToMidi(bL + o.d), finger: o.f }));
+            let cut = R.length;
+            if (len === '4') cut = Math.min(cut, MOTIF * 4);
+            else if (len === '8') cut = Math.min(cut, MOTIF * 8);
+            else if (len === 'up') cut = Math.min(cut, ascLen(ex));
+            return { R: R.slice(0, cut), L: L.slice(0, cut) };
+        }
+
+        // =====================================================================
+        //  3. Statistiques de base
+        // =====================================================================
+        const sum = a => a.reduce((x, y) => x + y, 0);
+        const mean = a => a.length ? sum(a) / a.length : 0;
+
+        function sd(a) {
+            if (a.length < 2) return 0;
+            const m = mean(a);
+            return Math.sqrt(sum(a.map(x => (x - m) * (x - m))) / (a.length - 1));
+        }
+
+        function median(a) {
+            if (!a.length) return 0;
+            const s = [...a].sort((x, y) => x - y), h = s.length >> 1;
+            return s.length % 2 ? s[h] : (s[h - 1] + s[h]) / 2;
+        }
+
+        // régression linéaire y = a*x + b
+        function linreg(xs, ys) {
+            const n = xs.length;
+            if (n < 2) return { a: 0, b: ys[0] || 0 };
+            const mx = mean(xs), my = mean(ys);
+            let num = 0, den = 0;
+            for (let i = 0; i < n; i++) { num += (xs[i] - mx) * (ys[i] - my); den += (xs[i] - mx) ** 2; }
+            const a = den === 0 ? 0 : num / den;
+            return { a, b: my - a * mx };
+        }
+
+        // Résidus : écart de chaque attaque à une grille ajustée localement.
+        // La fenêtre glissante absorbe une dérive lente de tempo, ce qui laisse
+        // apparaître l'irrégularité locale — c'est ça qu'on veut voir.
+        const RES_WIN = 17;
+
+        function residuals(ts) {
+            const n = ts.length, res = new Array(n).fill(0);
+            if (n < 4) return res;
+            const half = RES_WIN >> 1;
+            for (let i = 0; i < n; i++) {
+                let lo = Math.max(0, i - half);
+                let hi = Math.min(n, lo + RES_WIN);
+                lo = Math.max(0, hi - RES_WIN);
+                const xs = [], ys = [];
+                for (let j = lo; j < hi; j++) { xs.push(j); ys.push(ts[j]); }
+                const { a, b } = linreg(xs, ys);
+                res[i] = ts[i] - (a * i + b);
+            }
+            const m = mean(res);
+            return res.map(r => r - m);      // centré : seuls les écarts relatifs ont un sens
+        }
+
+        function groupBy(items, keyFn, valFn) {
+            const m = new Map();
+            for (const it of items) {
+                const k = keyFn(it);
+                if (!m.has(k)) m.set(k, []);
+                m.get(k).push(valFn(it));
+            }
+            return m;
+        }
+
+        // =====================================================================
+        //  4. Le moteur de mesure — fonction pure, vérifiée par ?selftest=1
+        // =====================================================================
+        //  events : [{ t, pitch, vel, hand, idx, finger, expected, ok, dur }]
+        //  opts   : { subMs, mode, gridT0, hands }
+        // =====================================================================
+        function analyze(events, opts) {
+            const out = { hands: {}, order: [], notes: events.length, wrong: 0, pedal: !!opts.pedal };
+            out.wrong = events.filter(e => !e.ok).length;
+
+            for (const H of opts.hands) {
+                const ev = events.filter(e => e.hand === H).sort((a, b) => a.t - b.t);
+                if (ev.length < 4) continue;
+                const ts = ev.map(e => e.t);
+                const iois = [];
+                for (let i = 1; i < ts.length; i++) iois.push(ts[i] - ts[i - 1]);
+
+                const res = residuals(ts);
+                const mIoi = mean(iois);
+                const h = {
+                    n: ev.length,
+                    ioiMean: mIoi,
+                    cv: mIoi ? sd(iois) / mIoi * 100 : 0,
+                    resSD: sd(res),
+                    bpm: mIoi ? 60000 / (mIoi * 4) : 0,
+                    velMean: mean(ev.map(e => e.vel)),
+                    velSD: sd(ev.map(e => e.vel)),
+                    wrong: ev.filter(e => !e.ok).length
+                };
+
+                // --- par doigt : retard moyen (ms) et vélocité moyenne
+                const rByF = groupBy(ev.map((e, i) => ({ f: e.finger, r: res[i] })), x => x.f, x => x.r);
+                const vByF = groupBy(ev, e => e.finger, e => e.vel);
+                h.byFinger = {};
+                for (let f = 1; f <= 5; f++) {
+                    const r = rByF.get(f) || [], v = vByF.get(f) || [];
+                    h.byFinger[f] = { n: r.length, res: r.length ? mean(r) : null, vel: v.length ? mean(v) : null };
+                }
+
+                // --- par position dans le motif : révèle les accidents récurrents
+                const rByP = groupBy(ev.map((e, i) => ({ p: mod(e.idx, MOTIF), r: res[i] })), x => x.p, x => x.r);
+                h.byPos = [];
+                for (let p = 0; p < MOTIF; p++) {
+                    const r = rByP.get(p) || [];
+                    h.byPos.push(r.length ? mean(r) : null);
+                }
+
+                // --- crescendo involontaire : vélocité en fonction de la hauteur
+                h.cresc = linreg(ev.map(e => e.pitch), ev.map(e => e.vel)).a * 12;
+
+                // --- courbe de tempo local + dérive
+                const W = 16, curve = [];
+                for (let i = 0; i + W < ts.length; i += 4) {
+                    const seg = ts.slice(i, i + W + 1);
+                    const dt = (seg[seg.length - 1] - seg[0]) / (seg.length - 1);
+                    if (dt > 0) curve.push({ t: (seg[0] - ts[0]) / 1000, bpm: 60000 / (dt * 4) });
+                }
+                h.curve = curve;
+                h.drift = curve.length > 2
+                    ? linreg(curve.map(c => c.t), curve.map(c => c.bpm)).a * 60 : 0;
+
+                // --- articulation (durée / IOI) ; faussée si la pédale est tenue
+                const arts = [];
+                for (let i = 0; i < ev.length - 1; i++) {
+                    const d = ev[i].dur, gap = ts[i + 1] - ts[i];
+                    if (d > 0 && gap > 0 && d < gap * 6) arts.push(d / gap);
+                }
+                h.artMean = arts.length ? mean(arts) : null;
+                h.artSD = arts.length ? sd(arts) : null;
+
+                // --- écart à la grille du métronome (mode Métronome uniquement)
+                if (opts.mode === 'metro' && opts.gridT0 != null && opts.subMs > 0) {
+                    const dev = ev.map(e => e.t - (opts.gridT0 + e.idx * opts.subMs));
+                    const lat = median(dev);              // latence de sortie audio : constante, on la retire
+                    const c = dev.map(d => d - lat);
+                    h.grid = { lat, meanAbs: mean(c.map(Math.abs)), sd: sd(c) };
+                }
+
+                out.hands[H] = h;
+                out.order.push(H);
+            }
+
+            // --- synchronisation des deux mains
+            if (out.hands.R && out.hands.L) {
+                const byIdx = new Map();
+                for (const e of events) {
+                    if (!byIdx.has(e.idx)) byIdx.set(e.idx, {});
+                    byIdx.get(e.idx)[e.hand] = e.t;
+                }
+                const diffs = [];
+                for (const [, p] of byIdx) if (p.R != null && p.L != null) diffs.push(p.R - p.L);
+                if (diffs.length) {
+                    out.sync = {
+                        n: diffs.length,
+                        meanAbs: mean(diffs.map(Math.abs)),
+                        bias: mean(diffs),
+                        sd: sd(diffs)
+                    };
+                }
+            }
+            return out;
+        }
+
+        // =====================================================================
+        //  5. Clavier
+        // =====================================================================
+        const WHITE_W = 34, BLACK_W = 21, KB_H = 150;
+        const piano = document.getElementById('piano');
+        const scaler = document.getElementById('pianoScaler');
+        let keyEls = {}, whiteTotal = 0, kbLow = 48, kbHigh = 91;
+
+        function buildKeyboard(lo, hi) {
+            // marges jusqu'aux Do les plus proches, pour un clavier qui « tient »
+            kbLow = Math.floor(lo / 12) * 12;
+            kbHigh = Math.ceil((hi + 1) / 12) * 12;
+            piano.innerHTML = '';
+            keyEls = {};
+            let white = 0;
+            for (let m = kbLow; m <= kbHigh; m++) {
+                const black = BLACK_PC.has(mod(m, 12));
+                const el = document.createElement('div');
+                el.className = 'key ' + (black ? 'black' : 'white');
+                el.dataset.midi = m;
+                if (black) {
+                    el.style.width = BLACK_W + 'px';
+                    el.style.left = (white * WHITE_W - BLACK_W / 2) + 'px';
+                } else {
+                    el.style.width = WHITE_W + 'px';
+                    el.style.left = (white * WHITE_W) + 'px';
+                    white++;
+                }
+                const f = document.createElement('span');
+                f.className = 'fing';
+                el.appendChild(f);
+                const lbl = document.createElement('span');
+                lbl.className = 'nm';
+                el.appendChild(lbl);
+                el.addEventListener('pointerdown', e => { e.preventDefault(); onNoteOn(m, 80, performance.now()); });
+                el.addEventListener('pointerup', () => onNoteOff(m, performance.now()));
+                piano.appendChild(el);
+                keyEls[m] = el;
+            }
+            whiteTotal = white;
+            piano.style.width = (white * WHITE_W) + 'px';
+            piano.style.height = KB_H + 'px';
+            refreshNames();
+            fitKeyboard();
+        }
+
+        function fitKeyboard() {
+            const natural = whiteTotal * WHITE_W;
+            const avail = Math.min(window.innerWidth - 20, natural);
+            let s = avail / natural;
+            const maxH = window.innerWidth > window.innerHeight ? window.innerHeight * 0.4 : KB_H;
+            if (KB_H * s > maxH) s = maxH / KB_H;
+            piano.style.transform = 'scale(' + s + ')';
+            scaler.style.width = (natural * s) + 'px';
+            scaler.style.height = (KB_H * s) + 'px';
+        }
+
+        function refreshNames() {
+            const on = document.getElementById('showNames').checked;
+            for (const m in keyEls) {
+                const el = keyEls[m].querySelector('.nm');
+                el.textContent = on ? noteName(+m) : '';
+            }
+        }
+
+        function clearKeyStates() {
+            for (const m in keyEls) {
+                keyEls[m].classList.remove('next', 'hit', 'miss');
+                keyEls[m].querySelector('.fing').textContent = '';
+            }
+        }
+
+        function markNext() {
+            for (const m in keyEls) {
+                keyEls[m].classList.remove('next');
+                keyEls[m].querySelector('.fing').textContent = '';
+            }
+            if (!S.running) return;
+            for (const H of S.hands) {
+                const i = S.cur[H];
+                if (i >= S.seq[H].length) continue;
+                const { midi, finger } = S.seq[H][i];
+                const el = keyEls[midi];
+                if (!el) continue;
+                el.classList.add('next');
+                el.querySelector('.fing').textContent = finger;
+            }
+        }
+
+        function flash(midi, ok) {
+            const el = keyEls[midi];
+            if (!el) return;
+            const c = ok ? 'hit' : 'miss';
+            el.classList.add(c);
+            setTimeout(() => el.classList.remove(c), 140);
+        }
+
+        // =====================================================================
+        //  6. Portée : le groupe de 8 notes en cours (main droite)
+        // =====================================================================
+        const SVG_NS = 'http://www.w3.org/2000/svg';
+        const staff = document.getElementById('staff');
+        const STAFF_TOP = 78, LINE_GAP = 13;
+        const STAFF_BOTTOM = STAFF_TOP + 4 * LINE_GAP;
+        const REF_DEG = midiToDeg(64);           // mi4 = ligne du bas de la clé de sol
+
+        const yOf = d => STAFF_BOTTOM - (d - REF_DEG) * (LINE_GAP / 2);
+
+        function svgEl(tag, attrs) {
+            const e = document.createElementNS(SVG_NS, tag);
+            for (const k in attrs) e.setAttribute(k, attrs[k]);
+            return e;
+        }
+
+        function drawMotif() {
+            staff.innerHTML = '';
+            for (let i = 0; i < 5; i++) {
+                const y = STAFF_TOP + i * LINE_GAP;
+                staff.appendChild(svgEl('line', { x1: 14, y1: y, x2: 446, y2: y, stroke: '#222', 'stroke-width': 1.1 }));
+            }
+            const clef = svgEl('text', { x: 16, y: STAFF_BOTTOM + 12, 'font-size': 80, fill: '#111' });
+            clef.textContent = '𝄞';
+            staff.appendChild(clef);
+
+            if (!S.seq) return;
+            const ref = S.hands.includes('R') ? 'R' : 'L';
+            const start = Math.floor(S.cur[ref] / MOTIF) * MOTIF;
+            const notes = S.seq[ref].slice(start, start + MOTIF);
+            if (!notes.length) return;
+
+            const x0 = 92, dx = 44;
+            notes.forEach((n, i) => {
+                const x = x0 + i * dx;
+                const active = start + i === S.cur[ref];
+                const done = start + i < S.cur[ref];
+                const col = active ? '#2b45c8' : (done ? '#9aa2c4' : '#111');
+                const d = midiToDeg(n.midi), y = yOf(d);
+
+                for (let ly = STAFF_TOP - LINE_GAP; ly >= y - 1; ly -= LINE_GAP)
+                    staff.appendChild(svgEl('line', { x1: x - 11, y1: ly, x2: x + 11, y2: ly, stroke: col, 'stroke-width': 1.1 }));
+                for (let ly = STAFF_BOTTOM + LINE_GAP; ly <= y + 1; ly += LINE_GAP)
+                    staff.appendChild(svgEl('line', { x1: x - 11, y1: ly, x2: x + 11, y2: ly, stroke: col, 'stroke-width': 1.1 }));
+
+                staff.appendChild(svgEl('ellipse', { cx: x, cy: y, rx: 7.4, ry: 5.9, fill: col, transform: `rotate(-18 ${x} ${y})` }));
+                staff.appendChild(svgEl('line', { x1: x + 7, y1: y - 2, x2: x + 7, y2: y - 36, stroke: col, 'stroke-width': 1.5 }));
+
+                const f = svgEl('text', { x, y: 200, 'font-size': 15, 'font-weight': 700, fill: col, 'text-anchor': 'middle' });
+                f.textContent = n.finger;
+                staff.appendChild(f);
+
+                if (active) staff.appendChild(svgEl('circle', { cx: x, cy: 186, r: 3.2, fill: '#2b45c8' }));
+            });
+
+            const cap = svgEl('text', { x: 92, y: 24, 'font-size': 13, fill: '#666' });
+            cap.textContent = 'Groupe ' + (start / MOTIF + 1) + ' — doigtés sous les notes';
+            staff.appendChild(cap);
+        }
+
+        // =====================================================================
+        //  7. Métronome (ordonnancement Web Audio, pas de setInterval naïf)
+        // =====================================================================
+        let ac = null;
+        const metro = { timer: null, nextCtx: 0, beat: 0, firstPerf: 0 };
+
+        function ensureAudio() {
+            if (!ac) ac = new (window.AudioContext || window.webkitAudioContext)();
+            if (ac.state === 'suspended') ac.resume();
+            return ac;
+        }
+
+        function click(when, accent) {
+            const o = ac.createOscillator(), g = ac.createGain();
+            o.frequency.value = accent ? 1600 : 1000;
+            o.connect(g); g.connect(ac.destination);
+            g.gain.setValueAtTime(0.0001, when);
+            g.gain.exponentialRampToValueAtTime(accent ? 0.5 : 0.28, when + 0.001);
+            g.gain.exponentialRampToValueAtTime(0.0001, when + 0.06);
+            o.start(when); o.stop(when + 0.07);
+        }
+
+        function startMetronome(bpm, leadBeats) {
+            const a = ensureAudio();
+            const spb = 60 / bpm;
+            const first = a.currentTime + 0.25;
+
+            // Correspondance horloge audio -> performance.now(). getOutputTimestamp
+            // donne l'instant réellement entendu, ce qui neutralise la latence de sortie.
+            let ctxNow = a.currentTime, perfNow = performance.now();
+            const ts = a.getOutputTimestamp ? a.getOutputTimestamp() : null;
+            if (ts && ts.contextTime > 0 && ts.performanceTime > 0) {
+                ctxNow = ts.contextTime; perfNow = ts.performanceTime;
+            }
+            // la première note attendue tombe après les temps de décompte
+            metro.firstPerf = perfNow + (first - ctxNow) * 1000 + leadBeats * spb * 1000;
+            metro.nextCtx = first;
+            metro.beat = -leadBeats;
+
+            const audible = document.getElementById('clickOn').checked;
+            metro.timer = setInterval(() => {
+                while (metro.nextCtx < ac.currentTime + 0.12) {
+                    if (audible) click(metro.nextCtx, mod(metro.beat, 2) === 0);
+                    metro.nextCtx += spb;
+                    metro.beat++;
+                }
+            }, 25);
+            return metro.firstPerf;
+        }
+
+        function stopMetronome() {
+            if (metro.timer) { clearInterval(metro.timer); metro.timer = null; }
+        }
+
+        // =====================================================================
+        //  8. Session
+        // =====================================================================
+        const S = {
+            running: false, seq: null, hands: ['R', 'L'], cur: { R: 0, L: 0 },
+            events: [], down: new Map(), mode: 'metro', bpm: 60, subMs: 250,
+            gridT0: null, pedal: false, exNum: 1, len: '8'
+        };
+
+        function currentSettings() {
+            S.exNum = +document.getElementById('exSel').value;
+            S.bpm = +document.getElementById('bpm').value;
+            S.subMs = 60000 / S.bpm / 4;
+            S.mode = document.querySelector('#modeSeg button.active').dataset.mode;
+            const h = document.querySelector('#handSeg button.active').dataset.h;
+            S.hands = h === 'both' ? ['R', 'L'] : [h];
+            S.len = document.querySelector('#lenSeg button.active').dataset.len;
+        }
+
+        function prepare() {
+            currentSettings();
+            S.seq = buildSeq(S.exNum, S.len);
+            let lo = Infinity, hi = -Infinity;
+            for (const H of ['R', 'L'])
+                for (const n of S.seq[H]) { lo = Math.min(lo, n.midi); hi = Math.max(hi, n.midi); }
+            buildKeyboard(lo, hi);
+            S.cur = { R: 0, L: 0 };
+            drawMotif();
+            updateCaption();
+            updateRecordLine();
+        }
+
+        function updateCaption() {
+            const total = S.seq ? S.seq.R.length : 0;
+            const el = document.getElementById('motifCaption');
+            const notesPerSec = (S.bpm * 4 / 60).toFixed(1);
+            el.innerHTML = `Exercice <b>n°${S.exNum}</b> — <b>${total}</b> notes par main, `
+                + `${total / MOTIF | 0} groupes de ${MOTIF} doubles croches, `
+                + `soit <b>${notesPerSec}</b> notes/seconde à ♩=${S.bpm}.`;
+        }
+
+        function start() {
+            prepare();
+            S.events = [];
+            S.down.clear();
+            S.pedal = false;
+            S.running = true;
+            S.gridT0 = null;
+            document.getElementById('report').classList.remove('on');
+            document.getElementById('startBtn').textContent = '⏹ Arrêter';
+            document.getElementById('startBtn').classList.add('stop');
+            if (S.mode === 'metro') S.gridT0 = startMetronome(S.bpm, 4);
+            clearKeyStates();
+            markNext();
+            resetGauges();
+        }
+
+        function stop(finished) {
+            if (!S.running) return;
+            S.running = false;
+            stopMetronome();
+            document.getElementById('startBtn').textContent = '▶ Démarrer';
+            document.getElementById('startBtn').classList.remove('stop');
+            clearKeyStates();
+            if (S.events.length >= 8) renderReport(analyze(S.events, {
+                subMs: S.subMs, mode: S.mode, gridT0: S.gridT0, hands: S.hands, pedal: S.pedal
+            }), finished);
+        }
+
+        function pickHand(pitch) {
+            if (S.hands.length === 1) return S.hands[0];
+            const iR = S.cur.R, iL = S.cur.L;
+            const dR = iR < S.seq.R.length ? Math.abs(pitch - S.seq.R[iR].midi) : 1e9;
+            const dL = iL < S.seq.L.length ? Math.abs(pitch - S.seq.L[iL].midi) : 1e9;
+            if (dR === dL) return pitch >= 60 ? 'R' : 'L';
+            return dR < dL ? 'R' : 'L';
+        }
+
+        function onNoteOn(pitch, vel, t) {
+            if (!S.running) { flash(pitch, true); return; }
+            const H = pickHand(pitch);
+            const i = S.cur[H];
+            if (i >= S.seq[H].length) return;
+            const exp = S.seq[H][i];
+            const ev = {
+                t, pitch, vel, hand: H, idx: i, finger: exp.finger,
+                expected: exp.midi, ok: pitch === exp.midi, dur: 0
+            };
+            S.events.push(ev);
+            S.down.set(H + ':' + pitch, ev);
+            S.cur[H]++;
+            flash(pitch, ev.ok);
+            markNext();
+            if (S.cur[H] % MOTIF === 0) drawMotif();
+            updateGauges();
+            if (S.hands.every(h => S.cur[h] >= S.seq[h].length)) stop(true);
+        }
+
+        function onNoteOff(pitch, t) {
+            for (const H of S.hands) {
+                const k = H + ':' + pitch, ev = S.down.get(k);
+                if (ev) { ev.dur = t - ev.t; S.down.delete(k); }
+            }
+        }
+
+        // =====================================================================
+        //  9. Jauges live — volontairement peu nombreuses et lisibles de loin
+        // =====================================================================
+        function setGauge(id, vid, txt, unit, pct, cls) {
+            const g = document.getElementById(id);
+            g.className = 'gauge ' + (cls || '');
+            document.getElementById(vid).innerHTML = txt + (unit ? `<span class="unit">${unit}</span>` : '');
+            g.querySelector('.bar > i').style.width = Math.max(0, Math.min(100, pct)) + '%';
+            g.querySelector('.bar > i').style.background =
+                cls === 'g-bad' ? 'var(--bad)' : cls === 'g-warn' ? 'var(--warn)' : 'var(--good)';
+        }
+
+        function resetGauges() {
+            setGauge('gTempo', 'vTempo', '—', '', 0, '');
+            setGauge('gEven', 'vEven', '—', '', 0, '');
+            setGauge('gHands', 'vHands', '—', '', 0, '');
+            setGauge('gProg', 'vProg', '0', '%', 0, '');
+        }
+
+        function updateGauges() {
+            const N = 16;
+            for (const H of S.hands) {
+                const ev = S.events.filter(e => e.hand === H);
+                if (ev.length < 5) continue;
+                const tail = ev.slice(-N).map(e => e.t);
+                const iois = [];
+                for (let i = 1; i < tail.length; i++) iois.push(tail[i] - tail[i - 1]);
+                const m = mean(iois);
+                if (H === S.hands[0]) {
+                    setGauge('gTempo', 'vTempo', Math.round(60000 / (m * 4)), '♩', 100, '');
+                    const cv = m ? sd(iois) / m * 100 : 0;
+                    const cls = cv < 5 ? 'g-good' : cv < 9 ? 'g-warn' : 'g-bad';
+                    setGauge('gEven', 'vEven', cv.toFixed(1), '%', 100 - cv * 6, cls);
+                }
+            }
+            if (S.hands.length === 2) {
+                const byIdx = new Map();
+                for (const e of S.events.slice(-40)) {
+                    if (!byIdx.has(e.idx)) byIdx.set(e.idx, {});
+                    byIdx.get(e.idx)[e.hand] = e.t;
+                }
+                const d = [];
+                for (const [, p] of byIdx) if (p.R != null && p.L != null) d.push(Math.abs(p.R - p.L));
+                if (d.length) {
+                    const v = mean(d);
+                    const cls = v < 12 ? 'g-good' : v < 28 ? 'g-warn' : 'g-bad';
+                    setGauge('gHands', 'vHands', Math.round(v), 'ms', 100 - v * 2, cls);
+                }
+            } else {
+                setGauge('gHands', 'vHands', '—', '', 0, '');
+            }
+            const tot = S.hands.reduce((a, h) => a + S.seq[h].length, 0);
+            const dn = S.hands.reduce((a, h) => a + S.cur[h], 0);
+            setGauge('gProg', 'vProg', Math.round(dn / tot * 100), '%', dn / tot * 100, '');
+        }
+
+        // =====================================================================
+        //  10. Graphiques (canvas, sans dépendance)
+        // =====================================================================
+        function prepCanvas(cv, h) {
+            const dpr = window.devicePixelRatio || 1;
+            const w = cv.clientWidth || 500;
+            cv.width = w * dpr; cv.height = h * dpr;
+            cv.style.height = h + 'px';
+            const c = cv.getContext('2d');
+            c.setTransform(dpr, 0, 0, dpr, 0, 0);
+            c.clearRect(0, 0, w, h);
+            return { c, w, h };
+        }
+
+        const COL = { R: '#3c6dff', L: '#2ec27e', grid: '#222d5e', text: '#8c97c9', zero: '#4a58a0' };
+
+        // Barres signées autour d'un zéro central (retard / avance en ms)
+        function barChart(cv, labels, series, unit, fmt) {
+            const { c, w, h } = prepCanvas(cv, 168);
+            const padL = 42, padR = 10, padT = 12, padB = 24;
+            const iw = w - padL - padR, ih = h - padT - padB;
+            let max = 0;
+            for (const s of series) for (const v of s.data) if (v != null) max = Math.max(max, Math.abs(v));
+            max = Math.max(max, 1e-6) * 1.25;
+            const y0 = padT + ih / 2;
+
+            c.strokeStyle = COL.grid; c.lineWidth = 1;
+            for (const f of [-1, -0.5, 0, 0.5, 1]) {
+                const y = y0 - f * ih / 2;
+                c.beginPath(); c.moveTo(padL, y); c.lineTo(w - padR, y); c.stroke();
+                c.fillStyle = COL.text; c.font = '10px system-ui'; c.textAlign = 'right';
+                c.fillText((fmt ? fmt(f * max) : (f * max).toFixed(0)), padL - 6, y + 3);
+            }
+            c.strokeStyle = COL.zero; c.beginPath(); c.moveTo(padL, y0); c.lineTo(w - padR, y0); c.stroke();
+
+            const gw = iw / labels.length, bw = Math.min(22, gw / (series.length + 0.8));
+            labels.forEach((lb, i) => {
+                const cx = padL + gw * (i + 0.5);
+                series.forEach((s, k) => {
+                    const v = s.data[i];
+                    if (v == null) return;
+                    const x = cx - (series.length * bw) / 2 + k * bw + 1;
+                    const hh = (v / max) * (ih / 2);
+                    c.fillStyle = s.color;
+                    c.fillRect(x, hh >= 0 ? y0 - hh : y0, bw - 2, Math.max(1.5, Math.abs(hh)));
+                });
+                c.fillStyle = COL.text; c.font = '11px system-ui'; c.textAlign = 'center';
+                c.fillText(lb, cx, h - 8);
+            });
+            if (unit) { c.fillStyle = COL.text; c.textAlign = 'left'; c.font = '10px system-ui'; c.fillText(unit, 4, 10); }
+        }
+
+        function lineChart(cv, series, target) {
+            const { c, w, h } = prepCanvas(cv, 168);
+            const padL = 44, padR = 10, padT = 12, padB = 24;
+            const iw = w - padL - padR, ih = h - padT - padB;
+            let xs = [], ys = [];
+            for (const s of series) for (const p of s.data) { xs.push(p.t); ys.push(p.bpm); }
+            if (target) ys.push(target);
+            if (!xs.length) return;
+            const xmin = Math.min(...xs), xmax = Math.max(...xs) || 1;
+            let ymin = Math.min(...ys), ymax = Math.max(...ys);
+            const pad = Math.max(2, (ymax - ymin) * 0.25);
+            ymin -= pad; ymax += pad;
+            const X = t => padL + (t - xmin) / (xmax - xmin || 1) * iw;
+            const Y = b => padT + ih - (b - ymin) / (ymax - ymin || 1) * ih;
+
+            c.strokeStyle = COL.grid; c.lineWidth = 1;
+            for (let k = 0; k <= 4; k++) {
+                const y = padT + ih * k / 4, v = ymax - (ymax - ymin) * k / 4;
+                c.beginPath(); c.moveTo(padL, y); c.lineTo(w - padR, y); c.stroke();
+                c.fillStyle = COL.text; c.font = '10px system-ui'; c.textAlign = 'right';
+                c.fillText(v.toFixed(0), padL - 6, y + 3);
+            }
+            if (target) {
+                c.strokeStyle = '#ffb14d'; c.setLineDash([4, 4]);
+                c.beginPath(); c.moveTo(padL, Y(target)); c.lineTo(w - padR, Y(target)); c.stroke();
+                c.setLineDash([]);
+                c.fillStyle = '#ffb14d'; c.font = '10px system-ui'; c.textAlign = 'left';
+                c.fillText('cible ' + target, padL + 4, Y(target) - 4);
+            }
+            for (const s of series) {
+                if (s.data.length < 2) continue;
+                c.strokeStyle = s.color; c.lineWidth = 2; c.beginPath();
+                s.data.forEach((p, i) => i ? c.lineTo(X(p.t), Y(p.bpm)) : c.moveTo(X(p.t), Y(p.bpm)));
+                c.stroke();
+            }
+            c.fillStyle = COL.text; c.font = '10px system-ui'; c.textAlign = 'center';
+            c.fillText('secondes', padL + iw / 2, h - 7);
+        }
+
+        // =====================================================================
+        //  11. Rapport
+        // =====================================================================
+        const HN = { R: 'Main droite', L: 'Main gauche' };
+        const s1 = v => (v >= 0 ? '+' : '') + v.toFixed(1);
+
+        function card(k, v, u, d, cls) {
+            return `<div class="card ${cls || ''}"><div class="k">${k}</div>`
+                + `<div class="v">${v}${u ? `<span class="u"> ${u}</span>` : ''}</div>`
+                + (d ? `<div class="d">${d}</div>` : '') + '</div>';
+        }
+
+        function renderReport(A, finished) {
+            const R = document.getElementById('report');
+            const primary = A.hands[A.order[0]];
+            if (!primary) { R.classList.remove('on'); return; }
+
+            const cvCls = primary.cv < 4 ? 'good' : primary.cv < 8 ? 'warn' : 'bad';
+            const velCls = primary.velSD < 6 ? 'good' : primary.velSD < 11 ? 'warn' : 'bad';
+
+            let html = `<h2>${finished ? 'Exercice terminé' : 'Session interrompue'}</h2>`
+                + `<p class="when">Hanon n°${S.exNum} — ${A.notes} notes — ♩=${S.bpm} — `
+                + `mode ${S.mode === 'metro' ? 'Métronome' : 'Libre'}</p><div class="cards">`;
+
+            html += card('Égalité (CV)', primary.cv.toFixed(1), '%',
+                'Écart-type des intervalles entre attaques, rapporté à leur moyenne. Sous 4 % c\'est propre.', cvCls);
+            html += card('Irrégularité', primary.resSD.toFixed(1), 'ms',
+                'Écart-type des retards par rapport à une grille ajustée localement.', cvCls);
+            html += card('Tempo réel', primary.bpm.toFixed(0), '♩',
+                `Visé : ${S.bpm}. Dérive ${s1(primary.drift)} ♩/min.`,
+                Math.abs(primary.drift) < 3 ? 'good' : Math.abs(primary.drift) < 8 ? 'warn' : 'bad');
+            html += card('Vélocité', primary.velMean.toFixed(0), '',
+                `Écart-type ${primary.velSD.toFixed(1)} — c'est lui qui compte, pas la moyenne.`, velCls);
+            html += card('Crescendo', s1(primary.cresc), '/oct',
+                'Dérive de vélocité par octave montée. Proche de 0 = pas de crescendo involontaire.',
+                Math.abs(primary.cresc) < 3 ? 'good' : Math.abs(primary.cresc) < 7 ? 'warn' : 'bad');
+            html += card('Fausses notes', A.wrong, '',
+                'Comptées mais exclues du diagnostic : le doigt reste attribué correctement.',
+                A.wrong === 0 ? 'good' : '');
+
+            if (A.sync)
+                html += card('Écart des mains', A.sync.meanAbs.toFixed(1), 'ms',
+                    `Biais ${s1(A.sync.bias)} ms (${A.sync.bias > 0 ? 'droite en retard' : 'gauche en retard'}), dispersion ${A.sync.sd.toFixed(1)} ms.`,
+                    A.sync.meanAbs < 12 ? 'good' : A.sync.meanAbs < 25 ? 'warn' : 'bad');
+
+            if (primary.grid)
+                html += card('Écart au clic', primary.grid.sd.toFixed(1), 'ms',
+                    `Dispersion autour du métronome, latence de sortie (${primary.grid.lat.toFixed(0)} ms) retirée.`,
+                    primary.grid.sd < 15 ? 'good' : primary.grid.sd < 30 ? 'warn' : 'bad');
+
+            if (primary.artMean != null)
+                html += card('Legato', primary.artMean.toFixed(2), '×',
+                    A.pedal ? '⚠️ Pédale détectée : mesure faussée.'
+                        : `Durée / intervalle. > 1 = notes liées. Régularité ${primary.artSD.toFixed(2)}.`,
+                    A.pedal ? 'warn' : '');
+
+            html += '</div>';
+
+            // --- graphiques
+            const fingers = ['1 pouce', '2', '3', '4', '5'];
+            const resSeries = A.order.map(H => ({
+                color: COL[H], name: HN[H],
+                data: [1, 2, 3, 4, 5].map(f => A.hands[H].byFinger[f].res)
+            }));
+            const velSeries = A.order.map(H => {
+                const m = A.hands[H].velMean;
+                return { color: COL[H], name: HN[H], data: [1, 2, 3, 4, 5].map(f => { const v = A.hands[H].byFinger[f].vel; return v == null ? null : v - m; }) };
+            });
+            const posSeries = A.order.map(H => ({ color: COL[H], name: HN[H], data: A.hands[H].byPos }));
+
+            const legend = A.order.map(H => `<span style="color:${COL[H]}">■</span> ${HN[H]}`).join(' &nbsp; ');
+
+            html += `<div class="chart-block"><h3>Profil par doigt</h3>
+                <p>Retard moyen de chaque doigt, en millisecondes, une fois le tempo local retiré.
+                Au-dessus de zéro le doigt traîne, en dessous il anticipe. ${legend}</p>
+                <canvas id="cFinger"></canvas></div>`;
+
+            html += `<div class="chart-block"><h3>Force par doigt</h3>
+                <p>Écart de vélocité de chaque doigt à ta moyenne. Le schéma classique : pouce trop fort,
+                4 et 5 trop faibles. ${legend}</p>
+                <canvas id="cVel"></canvas></div>`;
+
+            html += `<div class="chart-block"><h3>Profil par position dans le motif</h3>
+                <p>Retard moyen selon le rang de la note dans le groupe de 8. Un pic isolé signale un
+                accident mécanique récurrent — changement de position, passage du pouce. ${legend}</p>
+                <canvas id="cPos"></canvas></div>`;
+
+            html += `<div class="chart-block"><h3>Tenue du tempo</h3>
+                <p>Tempo local au fil de la session. ${legend}</p>
+                <canvas id="cTempo"></canvas></div>`;
+
+            html += verdict(A, primary);
+            R.innerHTML = html;
+            R.classList.add('on');
+
+            barChart(document.getElementById('cFinger'), fingers, resSeries, 'ms', v => v.toFixed(0));
+            barChart(document.getElementById('cVel'), fingers, velSeries, 'vélocité', v => v.toFixed(0));
+            barChart(document.getElementById('cPos'), ['1', '2', '3', '4', '5', '6', '7', '8'], posSeries, 'ms', v => v.toFixed(0));
+            lineChart(document.getElementById('cTempo'),
+                A.order.map(H => ({ color: COL[H], data: A.hands[H].curve })), S.bpm);
+
+            saveSession(A, primary);
+            R.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+
+        function verdict(A, p) {
+            const li = [];
+            if (p.cv < 4) li.push('<span class="ok">Égalité propre</span> — CV sous 4 %, on est dans les clous.');
+            else if (p.cv < 8) li.push(`Égalité moyenne (${p.cv.toFixed(1)} %). Redescends de 10 ♩ et vise 4 %.`);
+            else li.push(`<span class="no">Égalité insuffisante (${p.cv.toFixed(1)} %)</span> — ce tempo est trop rapide pour ton contrôle actuel.`);
+
+            // doigt le plus en retard / le plus faible
+            let worstF = null, worstV = 0, weakF = null, weakV = 0;
+            for (let f = 1; f <= 5; f++) {
+                const b = p.byFinger[f];
+                if (b.res != null && Math.abs(b.res) > Math.abs(worstV)) { worstV = b.res; worstF = f; }
+                if (b.vel != null && (b.vel - p.velMean) < weakV) { weakV = b.vel - p.velMean; weakF = f; }
+            }
+            if (worstF && Math.abs(worstV) > 6)
+                li.push(`Le <b>doigt ${worstF}</b> ${worstV > 0 ? 'traîne' : 'anticipe'} de ${Math.abs(worstV).toFixed(0)} ms en moyenne. Travaille le groupe au ralenti en ne pensant qu'à lui.`);
+            if (weakF && weakV < -6)
+                li.push(`Le <b>doigt ${weakF}</b> sort ${Math.abs(weakV).toFixed(0)} points de vélocité sous la moyenne. Essaie l'exercice en pianissimo : c'est là que ça se verra le plus.`);
+
+            // pic de position
+            let pk = -1, pv = 0;
+            p.byPos.forEach((v, i) => { if (v != null && Math.abs(v) > Math.abs(pv)) { pv = v; pk = i; } });
+            if (pk >= 0 && Math.abs(pv) > 8)
+                li.push(`Accident récurrent sur la <b>note ${pk + 1}</b> du groupe (${s1(pv)} ms). C'est mécanique, pas musical.`);
+
+            if (Math.abs(p.cresc) > 4)
+                li.push(`Tu ${p.cresc > 0 ? 'montes' : 'descends'} en volume de ${Math.abs(p.cresc).toFixed(0)} points par octave sans le vouloir.`);
+            if (Math.abs(p.drift) > 5)
+                li.push(`Le tempo ${p.drift > 0 ? 'accélère' : 'ralentit'} de ${Math.abs(p.drift).toFixed(0)} ♩ par minute.`);
+            if (A.sync && A.sync.meanAbs > 20)
+                li.push(`Les mains sont décalées de ${A.sync.meanAbs.toFixed(0)} ms en moyenne — au-delà de 30 ms ça s'entend nettement.`);
+            if (A.pedal)
+                li.push('Pédale de sustain détectée pendant la session : la mesure de legato est à ignorer.');
+            if (li.length === 1) li.push('<span class="ok">Rien à signaler ailleurs.</span> Monte de 4 à 8 ♩ à la prochaine session.');
+
+            return `<div class="verdict"><b>Ce que disent les chiffres</b><ul>${li.map(x => `<li>${x}</li>`).join('')}</ul></div>`;
+        }
+
+        // =====================================================================
+        //  12. Historique et record de tempo propre
+        // =====================================================================
+        const LS_REC = 'hanon.records';
+
+        const loadRec = () => { try { return JSON.parse(localStorage.getItem(LS_REC)) || {}; } catch (e) { return {}; } };
+
+        function saveSession(A, p) {
+            // « tempo propre » : le plus haut BPM tenu avec une vraie qualité d'exécution
+            const clean = p.cv < 5 && p.velSD < 6 && A.wrong === 0 && A.notes >= 32;
+            if (!clean) return;
+            const r = loadRec();
+            if (!r[S.exNum] || S.bpm > r[S.exNum].bpm) {
+                r[S.exNum] = { bpm: S.bpm, date: new Date().toISOString().slice(0, 10) };
+                try { localStorage.setItem(LS_REC, JSON.stringify(r)); } catch (e) { }
+            }
+            updateRecordLine();
+        }
+
+        function updateRecordLine() {
+            const r = loadRec()[S.exNum];
+            document.getElementById('recordRow').innerHTML = r
+                ? `<span class="record-line">Record de tempo propre sur le n°${S.exNum} : <b>♩=${r.bpm}</b> <span style="opacity:.7">(${r.date})</span></span>`
+                : `<span class="record-line">Pas encore de tempo propre enregistré sur le n°${S.exNum} — il faut CV &lt; 5 %, vélocité régulière et zéro fausse note.</span>`;
+        }
+
+        // =====================================================================
+        //  13. MIDI
+        // =====================================================================
+        const midiStatusEl = document.getElementById('midiStatus');
+
+        function setMidiStatus(cls, text) {
+            midiStatusEl.className = 'midi-status ' + cls;
+            midiStatusEl.textContent = text;
+        }
+
+        function onMIDIMessage(e) {
+            // e.timeStamp est horodaté par le pilote : plus fiable que performance.now() ici
+            const t = (e.timeStamp && e.timeStamp > 0) ? e.timeStamp : performance.now();
+            const [status, a, b] = e.data;
+            const cmd = status & 0xf0;
+            if (cmd === 0x90 && b > 0) onNoteOn(a, b, t);
+            else if (cmd === 0x80 || (cmd === 0x90 && b === 0)) onNoteOff(a, t);
+            else if (cmd === 0xb0 && a === 64 && b > 63) S.pedal = true;
+        }
+
+        function refreshMidiInputs(access) {
+            const inputs = [...access.inputs.values()];
+            inputs.forEach(i => { i.onmidimessage = onMIDIMessage; });
+            if (inputs.length) setMidiStatus('on', '🎹 MIDI connecté : ' + inputs.map(i => i.name || 'appareil').join(', '));
+            else setMidiStatus('off', '🎛️ MIDI : aucun clavier détecté (branche-le puis rejoue une note)');
+        }
+
+        function initMIDI() {
+            if (!navigator.requestMIDIAccess) {
+                setMidiStatus('idle', '🎛️ Web MIDI non supporté — utilise Chrome ou Edge');
+                return;
+            }
+            navigator.requestMIDIAccess().then(access => {
+                refreshMidiInputs(access);
+                access.onstatechange = () => refreshMidiInputs(access);
+            }).catch(() => setMidiStatus('idle', '🎛️ MIDI : accès refusé'));
+        }
+
+        // =====================================================================
+        //  14. Câblage de l'interface
+        // =====================================================================
+        // exercices dont les sources consultées ne concordent pas parfaitement
+        const A_VERIFIER = {
+            5: 'doigté de la descente', 6: 'doigté de la descente',
+            15: 'une note de la main gauche', 20: 'une note en fin de descente'
+        };
+
+        function wireSeg(id, after) {
+            document.getElementById(id).addEventListener('click', e => {
+                const b = e.target.closest('button');
+                if (!b) return;
+                [...e.currentTarget.children].forEach(x => x.classList.remove('active'));
+                b.classList.add('active');
+                if (after) after(b);
+            });
+        }
+
+        const exSel = document.getElementById('exSel');
+        for (let i = 1; i <= 20; i++) {
+            const o = document.createElement('option');
+            o.value = i;
+            o.textContent = 'Hanon n°' + i + (A_VERIFIER[i] ? ' ⚠' : '');
+            exSel.appendChild(o);
+        }
+
+        function showVerifWarn() {
+            const w = document.getElementById('verifWarn');
+            const n = +exSel.value;
+            if (A_VERIFIER[n]) {
+                w.style.display = '';
+                w.innerHTML = `⚠️ Sur le n°${n}, les deux sources croisées divergent sur <b>${A_VERIFIER[n]}</b>. `
+                    + `Les autres exercices sont concordants — vérifie ce passage contre ton édition papier.`;
+            } else w.style.display = 'none';
+        }
+
+        exSel.addEventListener('change', () => { if (!S.running) prepare(); showVerifWarn(); });
+        wireSeg('modeSeg'); wireSeg('handSeg');
+        wireSeg('lenSeg', () => { if (!S.running) prepare(); });
+
+        document.getElementById('bpm').addEventListener('input', e => {
+            document.getElementById('bpmN').textContent = e.target.value;
+            if (!S.running) { currentSettings(); updateCaption(); }
+        });
+        document.getElementById('showNames').addEventListener('change', refreshNames);
+        document.getElementById('startBtn').addEventListener('click', () => S.running ? stop(false) : start());
+        window.addEventListener('resize', fitKeyboard);
+        window.addEventListener('orientationchange', fitKeyboard);
+        document.addEventListener('keydown', e => {
+            if (e.code === 'Space' && e.target === document.body) { e.preventDefault(); S.running ? stop(false) : start(); }
+        });
+
+        // =====================================================================
+        //  15. Auto-test du moteur de mesure (?selftest=1)
+        //      Un chiffre affiché sans moteur vérifié ne veut rien dire.
+        // =====================================================================
+        function synth(seq, opts) {
+            const o = Object.assign({ ioi: 150, vel: 64, lateFinger: 0, lateMs: 0, handOffset: 0, accel: 0, crescPerOct: 0 }, opts);
+            const ev = [];
+            for (const H of ['R', 'L']) {
+                if (opts.hands && !opts.hands.includes(H)) continue;
+                let t = 0;
+                for (let i = 0; i < seq[H].length; i++) {
+                    const n = seq[H][i];
+                    const jitter = (o.lateFinger && n.finger === o.lateFinger) ? o.lateMs : 0;
+                    const off = (H === 'L') ? o.handOffset : 0;
+                    ev.push({
+                        t: t + jitter + off, pitch: n.midi,
+                        vel: o.vel + o.crescPerOct * (n.midi - seq[H][0].midi) / 12,
+                        hand: H, idx: i, finger: n.finger, expected: n.midi, ok: true, dur: o.ioi * 0.9
+                    });
+                    t += o.ioi + o.accel * i;
+                }
+            }
+            return ev;
+        }
+
+        function runSelfTest() {
+            const seq = buildSeq(1, '8');
+            const base = { subMs: 150, mode: 'free', gridT0: null, hands: ['R', 'L'] };
+            const out = [];
+            let pass = 0, fail = 0;
+
+            const check = (name, cond, got) => {
+                (cond ? pass++ : fail++);
+                out.push(`${cond ? '  OK  ' : ' ÉCHEC'} │ ${name.padEnd(46)} │ ${got}`);
+            };
+
+            // 1. exécution parfaite -> tout doit être à zéro
+            let A = analyze(synth(seq, {}), base);
+            check('jeu parfait : CV ≈ 0', A.hands.R.cv < 0.01, A.hands.R.cv.toFixed(4) + ' %');
+            check('jeu parfait : irrégularité ≈ 0', A.hands.R.resSD < 0.01, A.hands.R.resSD.toFixed(4) + ' ms');
+            check('jeu parfait : mains synchrones', A.sync.meanAbs < 0.01, A.sync.meanAbs.toFixed(4) + ' ms');
+            check('jeu parfait : vélocité constante', A.hands.R.velSD < 0.01, A.hands.R.velSD.toFixed(4));
+
+            // 2. doigt 4 en retard de 20 ms -> doit ressortir sur ce doigt et lui seul
+            A = analyze(synth(seq, { lateFinger: 4, lateMs: 20 }), base);
+            const bf = A.hands.R.byFinger;
+            const others = [1, 2, 3, 5].map(f => bf[f].res).filter(v => v != null);
+            const gap = bf[4].res - median(others);
+            check('retard de 20 ms sur le doigt 4 → détecté', gap > 15 && gap < 25, gap.toFixed(1) + ' ms d\'écart');
+            check('… et les autres doigts restent groupés', sd(others) < 6, 'dispersion ' + sd(others).toFixed(1) + ' ms');
+
+            // 3. mains décalées de 15 ms
+            A = analyze(synth(seq, { handOffset: 15 }), base);
+            check('décalage de 15 ms entre les mains', Math.abs(A.sync.meanAbs - 15) < 1.5, A.sync.meanAbs.toFixed(1) + ' ms');
+            check('… avec le bon signe (gauche en retard)', A.sync.bias < -13, 'biais ' + A.sync.bias.toFixed(1) + ' ms');
+
+            // 4. accélération progressive
+            A = analyze(synth(seq, { accel: -0.35 }), base);
+            check('tempo qui accélère → dérive positive', A.hands.R.drift > 5, s1(A.hands.R.drift) + ' ♩/min');
+
+            // 5. crescendo involontaire en montant
+            A = analyze(synth(seq, { crescPerOct: 8 }), base);
+            check('crescendo de 8 par octave → détecté', Math.abs(A.hands.R.cresc - 8) < 1.5, A.hands.R.cresc.toFixed(2) + ' /octave');
+
+            // 6. écart au métronome : une avance constante ne doit PAS être comptée
+            //    comme de l'irrégularité (c'est de la latence de sortie audio)
+            const ev = synth(seq, { hands: ['R'] }).map(e => ({ ...e, t: e.t + 40 }));
+            A = analyze(ev, { subMs: 150, mode: 'metro', gridT0: 0, hands: ['R'] });
+            check('décalage constant vs clic → latence isolée', A.hands.R.grid.sd < 0.01 && Math.abs(A.hands.R.grid.lat - 40) < 1,
+                'latence ' + A.hands.R.grid.lat.toFixed(1) + ' ms, dispersion ' + A.hands.R.grid.sd.toFixed(3) + ' ms');
+
+            // 7. cohérence des données Hanon : les deux mains à l'octave, doigtés 1-5
+            let octOk = true, figOk = true, tot = 0;
+            for (let n = 1; n <= 20; n++) {
+                const s = buildSeq(n, 'all');
+                tot += s.R.length;
+                if (s.R.length !== s.L.length) octOk = false;
+                for (let i = 0; i < s.R.length; i++) {
+                    if (s.R[i].midi - s.L[i].midi !== 12) octOk = false;
+                    if (s.R[i].finger < 1 || s.R[i].finger > 5 || s.L[i].finger < 1 || s.L[i].finger > 5) figOk = false;
+                }
+            }
+            check('20 exercices : mains exactement à l\'octave', octOk, tot + ' notes vérifiées');
+            check('20 exercices : doigtés tous entre 1 et 5', figOk, 'OK');
+
+            document.getElementById('selftest').innerHTML =
+                `<pre>Auto-test du moteur de mesure\n${'─'.repeat(74)}\n${out.join('\n')}\n${'─'.repeat(74)}\n`
+                + `${pass} réussis, ${fail} échoués</pre>`;
+        }
+
+        // =====================================================================
+        //  16. Démarrage
+        // =====================================================================
+        prepare();
+        showVerifWarn();
+        resetGauges();
+        initMIDI();
+        if (new URLSearchParams(location.search).get('selftest')) runSelfTest();
+    </script>
+</body>
+
+</html>
