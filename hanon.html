@@ -171,6 +171,7 @@
         .chart-block p { margin: 0 0 8px; font-size: 12px; color: var(--muted); line-height: 1.4; }
         .chart-block canvas { display: block; width: 100%; height: auto; }
 
+        .chart-block table.tbl { margin-top: 12px; border-top: 1px solid var(--line); padding-top: 4px; }
         table.tbl { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
         table.tbl th, table.tbl td { padding: 5px 6px; text-align: right; border-bottom: 1px solid #17204a; }
         table.tbl th:first-child, table.tbl td:first-child { text-align: left; }
@@ -948,6 +949,7 @@ const HANON = {
             cv.width = w * dpr; cv.height = h * dpr;
             cv.style.height = h + 'px';
             const c = cv.getContext('2d');
+            if (!c) return null;              // les tableaux chiffrés restent lisibles sans les courbes
             c.setTransform(dpr, 0, 0, dpr, 0, 0);
             c.clearRect(0, 0, w, h);
             return { c, w, h };
@@ -957,7 +959,9 @@ const HANON = {
 
         // Barres signées autour d'un zéro central (retard / avance en ms)
         function barChart(cv, labels, series, unit, fmt) {
-            const { c, w, h } = prepCanvas(cv, 168);
+            const P = prepCanvas(cv, 168);
+            if (!P) return;
+            const { c, w, h } = P;
             const padL = 42, padR = 10, padT = 12, padB = 24;
             const iw = w - padL - padR, ih = h - padT - padB;
             let max = 0;
@@ -992,7 +996,9 @@ const HANON = {
         }
 
         function lineChart(cv, series, target) {
-            const { c, w, h } = prepCanvas(cv, 168);
+            const P = prepCanvas(cv, 168);
+            if (!P) return;
+            const { c, w, h } = P;
             const padL = 44, padR = 10, padT = 12, padB = 24;
             const iw = w - padL - padR, ih = h - padT - padB;
             let xs = [], ys = [];
@@ -1034,7 +1040,18 @@ const HANON = {
         //  11. Rapport
         // =====================================================================
         const HN = { R: 'Main droite', L: 'Main gauche' };
+        const HS = { R: 'MD', L: 'MG' };
+        const FING = ['1 (pouce)', '2 (index)', '3 (majeur)', '4 (annulaire)', '5 (auriculaire)'];
         const s1 = v => (v >= 0 ? '+' : '') + v.toFixed(1);
+        const ms = v => v == null ? '—' : s1(v) + ' ms';
+        const num = (v, d) => v == null ? '—' : v.toFixed(d == null ? 1 : d);
+
+        function tbl(head, rows) {
+            return '<table class="tbl"><thead><tr>' + head.map(h => `<th>${h}</th>`).join('')
+                + '</tr></thead><tbody>'
+                + rows.map(r => '<tr>' + r.map(c => `<td>${c}</td>`).join('') + '</tr>').join('')
+                + '</tbody></table>';
+        }
 
         function card(k, v, u, d, cls) {
             return `<div class="card ${cls || ''}"><div class="k">${k}</div>`
@@ -1102,24 +1119,73 @@ const HANON = {
 
             const legend = A.order.map(H => `<span style="color:${COL[H]}">■</span> ${HN[H]}`).join(' &nbsp; ');
 
+            // --- tableau 1 : retard par doigt
+            const tFinger = tbl(
+                ['Doigt'].concat(...A.order.map(H => [HS[H] + ' retard', HS[H] + ' notes'])),
+                FING.map((lb, k) => [lb].concat(...A.order.map(H => {
+                    const b = A.hands[H].byFinger[k + 1];
+                    return [ms(b.res), b.n || '—'];
+                })))
+            );
+
             html += `<div class="chart-block"><h3>Profil par doigt</h3>
                 <p>Retard moyen de chaque doigt, en millisecondes, une fois le tempo local retiré.
                 Au-dessus de zéro le doigt traîne, en dessous il anticipe. ${legend}</p>
-                <canvas id="cFinger"></canvas></div>`;
+                <canvas id="cFinger"></canvas>${tFinger}</div>`;
+
+            // --- tableau 2 : vélocité par doigt
+            const tVel = tbl(
+                ['Doigt'].concat(...A.order.map(H => [HS[H] + ' vélocité', HS[H] + ' écart'])),
+                FING.map((lb, k) => [lb].concat(...A.order.map(H => {
+                    const v = A.hands[H].byFinger[k + 1].vel;
+                    return [num(v, 0), v == null ? '—' : s1(v - A.hands[H].velMean)];
+                })))
+            );
 
             html += `<div class="chart-block"><h3>Force par doigt</h3>
                 <p>Écart de vélocité de chaque doigt à ta moyenne. Le schéma classique : pouce trop fort,
                 4 et 5 trop faibles. ${legend}</p>
-                <canvas id="cVel"></canvas></div>`;
+                <canvas id="cVel"></canvas>${tVel}</div>`;
+
+            // --- tableau 3 : retard par position, avec le doigté correspondant
+            const firstGroup = H => (S.seq && S.seq[H] ? S.seq[H].slice(0, MOTIF) : []);
+            const tPos = tbl(
+                ['Note du groupe'].concat(...A.order.map(H => [HS[H] + ' doigt', HS[H] + ' retard'])),
+                Array.from({ length: MOTIF }, (_, p) => [`n° ${p + 1}`].concat(...A.order.map(H => {
+                    const g = firstGroup(H)[p];
+                    return [g ? g.finger : '—', ms(A.hands[H].byPos[p])];
+                })))
+            );
 
             html += `<div class="chart-block"><h3>Profil par position dans le motif</h3>
                 <p>Retard moyen selon le rang de la note dans le groupe de 8. Un pic isolé signale un
-                accident mécanique récurrent — changement de position, passage du pouce. ${legend}</p>
-                <canvas id="cPos"></canvas></div>`;
+                accident mécanique récurrent — changement de position, passage du pouce.
+                Le doigté indiqué est celui du premier groupe. ${legend}</p>
+                <canvas id="cPos"></canvas>${tPos}</div>`;
+
+            // --- tableau 4 : tenue du tempo
+            const tTempo = tbl(
+                ['Mesure'].concat(A.order.map(H => HN[H])),
+                [
+                    ['Tempo visé', ...A.order.map(() => S.bpm + ' ♩')],
+                    ['Tempo moyen', ...A.order.map(H => num(A.hands[H].bpm, 0) + ' ♩')],
+                    ['Écart au tempo visé', ...A.order.map(H => s1(A.hands[H].bpm - S.bpm) + ' ♩')],
+                    ['Le plus lent', ...A.order.map(H => {
+                        const c = A.hands[H].curve;
+                        return c.length ? num(Math.min(...c.map(x => x.bpm)), 0) + ' ♩' : '—';
+                    })],
+                    ['Le plus rapide', ...A.order.map(H => {
+                        const c = A.hands[H].curve;
+                        return c.length ? num(Math.max(...c.map(x => x.bpm)), 0) + ' ♩' : '—';
+                    })],
+                    ['Dérive', ...A.order.map(H => s1(A.hands[H].drift) + ' ♩/min')],
+                    ['Intervalle moyen', ...A.order.map(H => num(A.hands[H].ioiMean, 0) + ' ms')]
+                ]
+            );
 
             html += `<div class="chart-block"><h3>Tenue du tempo</h3>
                 <p>Tempo local au fil de la session. ${legend}</p>
-                <canvas id="cTempo"></canvas></div>`;
+                <canvas id="cTempo"></canvas>${tTempo}</div>`;
 
             html += verdict(A, primary);
             R.innerHTML = html;
