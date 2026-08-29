@@ -84,8 +84,11 @@
             display: flex; align-items: flex-end; justify-content: center;
             padding-bottom: 7px; font-size: 12px; font-weight: 700;
         }
-        .key.white { height: 190px; background: linear-gradient(#ffffff, #eef0fb); border: 1px solid #c4c9e6; color: #4a5285; z-index: 1; }
-        .key.black { height: 114px; background: linear-gradient(#2a2f4a, #11142a); border: 1px solid #000; color: #c9cfff; z-index: 2; }
+        /* Ces hauteurs DOIVENT rester égales à KB_H (et 0.61 x KB_H pour les
+           noires) dans le script : c'est KB_H qui réserve la place sous le
+           clavier. Si elles divergent, le clavier recouvre les contrôles. */
+        .key.white { height: 150px; background: linear-gradient(#ffffff, #eef0fb); border: 1px solid #c4c9e6; color: #4a5285; z-index: 1; }
+        .key.black { height: 92px; background: linear-gradient(#2a2f4a, #11142a); border: 1px solid #000; color: #c9cfff; z-index: 2; }
         .key.next.white { background: linear-gradient(#cddcff, #a9c1ff); border-color: #6f8fe6; }
         .key.next.black { background: linear-gradient(#2b45a0, #16215c); }
         .key.hit.white  { background: linear-gradient(var(--good), #1e9b61); color: #fff; }
@@ -232,7 +235,15 @@
                 <button data-mode="metro" class="active">Métronome</button>
                 <button data-mode="free">Libre</button>
             </div>
-            <label class="toggle"><input type="checkbox" id="clickOn" checked> 🔊 Clic</label>
+        </div>
+
+        <div class="control-row"><span class="seg-label">Clic — Hanon est en doubles croches, soit 4 notes par temps</span></div>
+        <div class="control-row">
+            <div class="segmented" id="clickSeg">
+                <button data-click="sub" class="active">🔊 Chaque note</button>
+                <button data-click="beat">Sur le temps</button>
+                <button data-click="off">Muet</button>
+            </div>
         </div>
 
         <div class="control-row"><span class="seg-label">Mains</span></div>
@@ -698,17 +709,20 @@ const HANON = {
 
         function click(when, accent) {
             const o = ac.createOscillator(), g = ac.createGain();
-            o.frequency.value = accent ? 1600 : 1000;
+            o.frequency.value = accent ? 1600 : 900;
             o.connect(g); g.connect(ac.destination);
             g.gain.setValueAtTime(0.0001, when);
-            g.gain.exponentialRampToValueAtTime(accent ? 0.5 : 0.28, when + 0.001);
-            g.gain.exponentialRampToValueAtTime(0.0001, when + 0.06);
+            g.gain.exponentialRampToValueAtTime(accent ? 0.5 : 0.16, when + 0.001);
+            g.gain.exponentialRampToValueAtTime(0.0001, when + (accent ? 0.06 : 0.035));
             o.start(when); o.stop(when + 0.07);
         }
 
+        // Le clic bat la DOUBLE CROCHE, pas le temps : c'est la seule façon de
+        // rendre explicite la vitesse à laquelle il faut taper. Le temps reste
+        // accentué pour qu'on puisse continuer à compter.
         function startMetronome(bpm, leadBeats) {
             const a = ensureAudio();
-            const spb = 60 / bpm;
+            const sub = 60 / bpm / 4;
             const first = a.currentTime + 0.25;
 
             // Correspondance horloge audio -> performance.now(). getOutputTimestamp
@@ -719,19 +733,33 @@ const HANON = {
                 ctxNow = ts.contextTime; perfNow = ts.performanceTime;
             }
             // la première note attendue tombe après les temps de décompte
-            metro.firstPerf = perfNow + (first - ctxNow) * 1000 + leadBeats * spb * 1000;
+            metro.firstPerf = perfNow + (first - ctxNow) * 1000 + leadBeats * 4 * sub * 1000;
             metro.nextCtx = first;
-            metro.beat = -leadBeats;
+            metro.sub = -leadBeats * 4;          // index de double croche, négatif = décompte
 
-            const audible = document.getElementById('clickOn').checked;
+            const mode = document.querySelector('#clickSeg button.active').dataset.click;
             metro.timer = setInterval(() => {
                 while (metro.nextCtx < ac.currentTime + 0.12) {
-                    if (audible) click(metro.nextCtx, mod(metro.beat, 2) === 0);
-                    metro.nextCtx += spb;
-                    metro.beat++;
+                    const onBeat = mod(metro.sub, 4) === 0;
+                    if (mode === 'sub' || (mode === 'beat' && onBeat)) click(metro.nextCtx, onBeat);
+                    metro.nextCtx += sub;
+                    metro.sub++;
                 }
             }, 25);
+            countdown();
             return metro.firstPerf;
+        }
+
+        // Décompte visible : sans lui, on ne sait pas sur quel clic entrer.
+        function countdown() {
+            if (!S.running || !metro.timer) return;
+            const left = metro.firstPerf - performance.now();
+            if (left > 0) {
+                setGauge('gTempo', 'vTempo', Math.ceil(left / (60000 / S.bpm)), '', 100, 'g-warn');
+                requestAnimationFrame(countdown);
+            } else {
+                setGauge('gTempo', 'vTempo', '▶', '', 100, 'g-good');
+            }
         }
 
         function stopMetronome() {
@@ -773,10 +801,12 @@ const HANON = {
         function updateCaption() {
             const total = S.seq ? S.seq.R.length : 0;
             const el = document.getElementById('motifCaption');
-            const notesPerSec = (S.bpm * 4 / 60).toFixed(1);
-            el.innerHTML = `Exercice <b>n°${S.exNum}</b> — <b>${total}</b> notes par main, `
-                + `${total / MOTIF | 0} groupes de ${MOTIF} doubles croches, `
-                + `soit <b>${notesPerSec}</b> notes/seconde à ♩=${S.bpm}.`;
+            const perNote = Math.round(60000 / S.bpm / 4);
+            el.innerHTML = `Exercice <b>n°${S.exNum}</b> — ${total / MOTIF | 0} groupes de ${MOTIF} doubles croches, `
+                + `<b>${total}</b> notes par main.<br>`
+                + `À ♩=${S.bpm} : <b>4 notes par temps</b>, une note toutes les <b>${perNote} ms</b>, `
+                + `soit ${(S.bpm * 4 / 60).toFixed(1)} notes par seconde. `
+                + `Le clic bat chaque note, l'aigu marque le temps.`;
         }
 
         function start() {
@@ -789,10 +819,11 @@ const HANON = {
             document.getElementById('report').classList.remove('on');
             document.getElementById('startBtn').textContent = '⏹ Arrêter';
             document.getElementById('startBtn').classList.add('stop');
-            if (S.mode === 'metro') S.gridT0 = startMetronome(S.bpm, 4);
             clearKeyStates();
             markNext();
             resetGauges();
+            // après resetGauges, sinon le décompte est effacé dès sa première image
+            if (S.mode === 'metro') S.gridT0 = startMetronome(S.bpm, 4);
         }
 
         function stop(finished) {
@@ -872,7 +903,9 @@ const HANON = {
                 for (let i = 1; i < tail.length; i++) iois.push(tail[i] - tail[i - 1]);
                 const m = mean(iois);
                 if (H === S.hands[0]) {
-                    setGauge('gTempo', 'vTempo', Math.round(60000 / (m * 4)), '♩', 100, '');
+                    // un tempo aberrant vient d'un trille ou d'une pause, pas d'une mesure utile
+                    const b = 60000 / (m * 4);
+                    setGauge('gTempo', 'vTempo', (b > 20 && b < 400) ? Math.round(b) : '—', (b > 20 && b < 400) ? '♩' : '', 100, '');
                     const cv = m ? sd(iois) / m * 100 : 0;
                     const cls = cv < 5 ? 'g-good' : cv < 9 ? 'g-warn' : 'g-bad';
                     setGauge('gEven', 'vEven', cv.toFixed(1), '%', 100 - cv * 6, cls);
@@ -1234,7 +1267,7 @@ const HANON = {
         }
 
         exSel.addEventListener('change', () => { if (!S.running) prepare(); showVerifWarn(); });
-        wireSeg('modeSeg'); wireSeg('handSeg');
+        wireSeg('modeSeg'); wireSeg('handSeg'); wireSeg('clickSeg');
         wireSeg('lenSeg', () => { if (!S.running) prepare(); });
 
         document.getElementById('bpm').addEventListener('input', e => {
@@ -1333,6 +1366,15 @@ const HANON = {
             }
             check('20 exercices : mains exactement à l\'octave', octOk, tot + ' notes vérifiées');
             check('20 exercices : doigtés tous entre 1 et 5', figOk, 'OK');
+
+            // 8. mise en page : la boîte réservée sous le clavier doit couvrir les
+            //    touches, sinon le clavier recouvre les contrôles qui suivent
+            if (typeof getComputedStyle === 'function') {
+                const wk = document.querySelector('.key.white');
+                const kh = wk ? parseFloat(getComputedStyle(wk).height) : 0;
+                check('hauteur des touches = hauteur réservée', Math.abs(kh - KB_H) < 0.5,
+                    `touches ${kh}px, réservé ${KB_H}px`);
+            }
 
             document.getElementById('selftest').innerHTML =
                 `<pre>Auto-test du moteur de mesure\n${'─'.repeat(74)}\n${out.join('\n')}\n${'─'.repeat(74)}\n`
