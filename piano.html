@@ -63,6 +63,13 @@
         .midi-status.off { color: #ffb14d; border-color: #5a431f; }
         .midi-status.on { color: var(--good); border-color: #1e6b48; background: #0c2b1f; }
 
+        .midi-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; justify-content: center; margin-bottom: 12px; }
+        .midi-row .midi-status { margin-bottom: 0; }
+        #midiSel {
+            padding: 4px 10px; font-size: 12px; border-radius: 20px; max-width: 260px;
+            background: var(--panel); color: var(--text); border: 1px solid #233169; font-family: inherit;
+        }
+
         .scoreboard {
             display: flex;
             gap: 10px;
@@ -314,7 +321,10 @@
         <a href="majeur-mineur.html" style="color:#3c6dff;text-decoration:none;font-size:14px;">🎭 Majeur ou Mineur ?</a>
         <a href="extrait.html" style="color:#3c6dff;text-decoration:none;font-size:14px;">🎼 Extrait à rejouer</a>
     </div>
-    <div class="midi-status idle" id="midiStatus">🎛️ MIDI : recherche…</div>
+    <div class="midi-row">
+        <div class="midi-status idle" id="midiStatus">🎛️ MIDI : recherche…</div>
+        <select id="midiSel" title="Entrée MIDI écoutée" style="display:none"></select>
+    </div>
 
     <div class="scoreboard">
         <div class="score-card"><div class="label">Réussis</div><div class="value" id="score">0</div></div>
@@ -1107,15 +1117,56 @@
             if (cmd === 0x90 && velocity > 0) onKeyPress(note);
         }
 
+        // Un même piano est souvent exposé par plusieurs ports (USB, ports
+        // virtuels, re-routage d'un DAW) qui transportent tous les mêmes notes.
+        // Écouter tous les ports revient à compter chaque frappe autant de fois
+        // qu'il y a de ports : on n'attache donc qu'UN SEUL objet d'entrée.
+        const LS_MIDI = 'piano.midiInput';
+        const MIDI_PREF = [/piano\s*2/i, /piano/i];
+        let midiAccess = null;
+
         function refreshMidiInputs(access) {
+            midiAccess = access;
             const inputs = [...access.inputs.values()];
-            inputs.forEach(input => { input.onmidimessage = onMIDIMessage; });
-            if (inputs.length) {
-                const names = inputs.map(i => i.name || 'appareil MIDI').join(', ');
-                setMidiStatus('on', '🎹 MIDI connecté : ' + names);
-            } else {
-                setMidiStatus('off', '🎛️ MIDI : aucun clavier détecté (branche-le puis joue)');
+            const sel = document.getElementById('midiSel');
+            const nameOf = i => i.name || 'appareil sans nom';
+
+            let saved = null;
+            try { saved = localStorage.getItem(LS_MIDI); } catch (e) { }
+
+            // Résolution vers UN objet précis : deux ports peuvent porter le
+            // même nom, auquel cas choisir « par nom » en attacherait plusieurs.
+            let target = null;
+            if (saved && saved !== '*') target = inputs.find(i => nameOf(i) === saved) || null;
+            if (!target && saved !== '*')
+                for (const re of MIDI_PREF) { target = inputs.find(i => re.test(nameOf(i))); if (target) break; }
+            if (!target && saved !== '*') target = inputs[0] || null;
+
+            const all = saved === '*';
+            inputs.forEach(i => { i.onmidimessage = (all || i === target) ? onMIDIMessage : null; });
+
+            sel.innerHTML = '';
+            const seen = {};
+            for (const i of inputs) {
+                const n = nameOf(i);
+                seen[n] = (seen[n] || 0) + 1;
+                const o = document.createElement('option');
+                o.value = n;
+                o.textContent = n + (seen[n] > 1 ? ' (' + seen[n] + ')' : '');
+                sel.appendChild(o);
             }
+            const oAll = document.createElement('option');
+            oAll.value = '*';
+            oAll.textContent = 'Toutes les entrées (doublons)';
+            sel.appendChild(oAll);
+            sel.value = all ? '*' : (target ? nameOf(target) : '*');
+            sel.style.display = inputs.length > 1 ? '' : 'none';
+
+            const n = inputs.length;
+            if (!n) setMidiStatus('off', '\u{1F39B}\uFE0F MIDI : aucun clavier détecté (branche-le puis joue)');
+            else if (all) setMidiStatus('off', `\u26A0\uFE0F ${n} entrées écoutées \u2014 chaque note sera comptée ${n} fois`);
+            else if (n > 1) setMidiStatus('on', `\u{1F3B9} ${nameOf(target)} \u2014 ${n - 1} autre${n > 2 ? 's' : ''} entrée${n > 2 ? 's' : ''} ignorée${n > 2 ? 's' : ''}`);
+            else setMidiStatus('on', '\u{1F3B9} MIDI connecté : ' + nameOf(target));
         }
 
         function initMIDI() {
@@ -1130,6 +1181,10 @@
                 setMidiStatus('idle', '🎛️ MIDI : accès refusé');
             });
         }
+        document.getElementById('midiSel').addEventListener('change', e => {
+            try { localStorage.setItem(LS_MIDI, e.target.value); } catch (err) { }
+            if (midiAccess) refreshMidiInputs(midiAccess);
+        });
         initMIDI();
 
         // ---------- Démarrage ----------
