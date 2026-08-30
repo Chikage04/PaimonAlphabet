@@ -287,6 +287,7 @@
                 <button data-len="8" class="active">8 groupes</button>
                 <button data-len="up">Montée</button>
                 <button data-len="all">Complet</button>
+                <button data-len="loop">∞ Boucle</button>
             </div>
         </div>
 
@@ -396,6 +397,10 @@ const HANON = {
             if (len === '4') cut = Math.min(cut, MOTIF * 4);
             else if (len === '8') cut = Math.min(cut, MOTIF * 8);
             else if (len === 'up') cut = Math.min(cut, ascLen(ex));
+            // En boucle on tronque à un nombre entier de groupes : la note finale
+            // isolée décalerait la position dans le motif à chaque tour, et elle n'a
+            // de toute façon pas de sens au milieu d'un enchaînement.
+            else if (len === 'loop') cut = Math.floor(cut / MOTIF) * MOTIF;
             return { R: R.slice(0, cut), L: L.slice(0, cut) };
         }
 
@@ -468,6 +473,10 @@ const HANON = {
             return xs.length < 3 ? 0 : linreg(xs, ys).a * 12;
         }
 
+        // La position dans le motif est portée par l'événement : en boucle, l'index
+        // est absolu et croît sans fin, il ne peut plus la donner à lui seul.
+        const posOf = e => e.pos != null ? e.pos : mod(e.idx, MOTIF);
+
         function groupBy(items, keyFn, valFn) {
             const m = new Map();
             for (const it of items) {
@@ -518,7 +527,7 @@ const HANON = {
                 }
 
                 // --- par position dans le motif : révèle les accidents récurrents
-                const rByP = groupBy(ev.map((e, i) => ({ p: mod(e.idx, MOTIF), r: res[i] })), x => x.p, x => x.r);
+                const rByP = groupBy(ev.map((e, i) => ({ p: posOf(e), r: res[i] })), x => x.p, x => x.r);
                 h.byPos = [];
                 for (let p = 0; p < MOTIF; p++) {
                     const r = rByP.get(p) || [];
@@ -661,8 +670,8 @@ const HANON = {
             if (!S.running) return;
             for (const H of S.hands) {
                 const i = S.cur[H];
-                if (i >= S.seq[H].length) continue;
-                const { midi, finger } = S.seq[H][i];
+                if (pastEnd(H, i)) continue;
+                const { midi, finger } = seqAt(H, i);
                 const el = keyEls[midi];
                 if (!el) continue;
                 el.classList.add('next');
@@ -707,15 +716,16 @@ const HANON = {
 
             if (!S.seq) return;
             const ref = S.hands.includes('R') ? 'R' : 'L';
-            const start = Math.floor(S.cur[ref] / MOTIF) * MOTIF;
+            const cur = mod(S.cur[ref], S.seq[ref].length);
+            const start = Math.floor(cur / MOTIF) * MOTIF;
             const notes = S.seq[ref].slice(start, start + MOTIF);
             if (!notes.length) return;
 
             const x0 = 92, dx = 44;
             notes.forEach((n, i) => {
                 const x = x0 + i * dx;
-                const active = start + i === S.cur[ref];
-                const done = start + i < S.cur[ref];
+                const active = start + i === cur;
+                const done = start + i < cur;
                 const col = active ? '#2b45c8' : (done ? '#9aa2c4' : '#111');
                 const d = midiToDeg(n.midi), y = yOf(d);
 
@@ -816,8 +826,17 @@ const HANON = {
         const S = {
             running: false, seq: null, hands: ['R', 'L'], cur: { R: 0, L: 0 },
             events: [], down: new Map(), mode: 'metro', bpm: 60, subMs: 250,
-            gridT0: null, pedal: false, exNum: 1, len: '8'
+            gridT0: null, pedal: false, exNum: 1, len: '8', loop: false
         };
+
+        // Session sans fin : on borne la mémoire. Au-delà, le rapport porte sur
+        // la partie récente plutôt que sur tout depuis le début.
+        const EVENT_CAP = 40000;
+
+        // En boucle, la lecture dans la séquence repart à zéro mais pas le curseur.
+        const seqAt = (H, i) => S.seq[H][mod(i, S.seq[H].length)];
+        const pastEnd = (H, i) => !S.loop && i >= S.seq[H].length;
+        const lapOf = H => Math.floor(S.cur[H] / S.seq[H].length) + 1;
 
         function currentSettings() {
             S.exNum = +document.getElementById('exSel').value;
@@ -827,6 +846,7 @@ const HANON = {
             const h = document.querySelector('#handSeg button.active').dataset.h;
             S.hands = h === 'both' ? ['R', 'L'] : [h];
             S.len = document.querySelector('#lenSeg button.active').dataset.len;
+            S.loop = S.len === 'loop';
         }
 
         function prepare() {
@@ -847,7 +867,8 @@ const HANON = {
             const el = document.getElementById('motifCaption');
             const perNote = Math.round(60000 / S.bpm / 4);
             el.innerHTML = `Exercice <b>n°${S.exNum}</b> — ${total / MOTIF | 0} groupes de ${MOTIF} doubles croches, `
-                + `<b>${total}</b> notes par main.<br>`
+                + `<b>${total}</b> notes par main`
+                + (S.loop ? `, <b>répétés sans fin</b> jusqu'à ce que tu arrêtes.` : '.') + '<br>'
                 + `À ♩=${S.bpm} : <b>4 notes par temps</b>, une note toutes les <b>${perNote} ms</b>, `
                 + `soit ${(S.bpm * 4 / 60).toFixed(1)} notes par seconde. `
                 + `Le clic bat chaque note, l'aigu marque le temps.`;
@@ -881,14 +902,13 @@ const HANON = {
             resetCoach('Session terminée — le détail est dans le rapport ci-dessous');
             if (S.events.length >= 8) renderReport(analyze(S.events, {
                 subMs: S.subMs, mode: S.mode, gridT0: S.gridT0, hands: S.hands, pedal: S.pedal
-            }), finished);
+            }), finished || S.loop);
         }
 
         function pickHand(pitch) {
             if (S.hands.length === 1) return S.hands[0];
-            const iR = S.cur.R, iL = S.cur.L;
-            const dR = iR < S.seq.R.length ? Math.abs(pitch - S.seq.R[iR].midi) : 1e9;
-            const dL = iL < S.seq.L.length ? Math.abs(pitch - S.seq.L[iL].midi) : 1e9;
+            const dR = pastEnd('R', S.cur.R) ? 1e9 : Math.abs(pitch - seqAt('R', S.cur.R).midi);
+            const dL = pastEnd('L', S.cur.L) ? 1e9 : Math.abs(pitch - seqAt('L', S.cur.L).midi);
             if (dR === dL) return pitch >= 60 ? 'R' : 'L';
             return dR < dL ? 'R' : 'L';
         }
@@ -897,13 +917,14 @@ const HANON = {
             if (!S.running) { flash(pitch, true); return; }
             const H = pickHand(pitch);
             const i = S.cur[H];
-            if (i >= S.seq[H].length) return;
-            const exp = S.seq[H][i];
+            if (pastEnd(H, i)) return;
+            const exp = seqAt(H, i);
             const ev = {
-                t, pitch, vel, hand: H, idx: i, finger: exp.finger,
+                t, pitch, vel, hand: H, idx: i, pos: mod(i, MOTIF), finger: exp.finger,
                 expected: exp.midi, ok: pitch === exp.midi, dur: 0
             };
             S.events.push(ev);
+            if (S.events.length > EVENT_CAP) S.events.splice(0, EVENT_CAP / 5);
             S.down.set(H + ':' + pitch, ev);
             S.cur[H]++;
             flash(pitch, ev.ok);
@@ -911,7 +932,7 @@ const HANON = {
             if (S.cur[H] % MOTIF === 0) drawMotif();
             updateGauges();
             updateCoach();
-            if (S.hands.every(h => S.cur[h] >= S.seq[h].length)) stop(true);
+            if (!S.loop && S.hands.every(h => S.cur[h] >= S.seq[h].length)) stop(true);
         }
 
         function onNoteOff(pitch, t) {
@@ -924,9 +945,10 @@ const HANON = {
         // =====================================================================
         //  9. Jauges live — volontairement peu nombreuses et lisibles de loin
         // =====================================================================
-        function setGauge(id, vid, txt, unit, pct, cls) {
+        function setGauge(id, vid, txt, unit, pct, cls, label) {
             const g = document.getElementById(id);
             g.className = 'gauge ' + (cls || '');
+            if (label) g.querySelector('.label').textContent = label;
             document.getElementById(vid).innerHTML = txt + (unit ? `<span class="unit">${unit}</span>` : '');
             g.querySelector('.bar > i').style.width = Math.max(0, Math.min(100, pct)) + '%';
             g.querySelector('.bar > i').style.background =
@@ -937,15 +959,17 @@ const HANON = {
             setGauge('gTempo', 'vTempo', '—', '', 0, '');
             setGauge('gEven', 'vEven', '—', '', 0, '');
             setGauge('gHands', 'vHands', '—', '', 0, '');
-            setGauge('gProg', 'vProg', '0', '%', 0, '');
+            setGauge('gProg', 'vProg', '0', '%', 0, '', S.loop ? 'Tours' : 'Avancement');
         }
 
         function updateGauges() {
             const N = 16;
             for (const H of S.hands) {
-                const ev = S.events.filter(e => e.hand === H);
+                // fenêtre glissante et non filtrage complet : en boucle, la session
+                // n'a pas de fin et un coût linéaire par note deviendrait quadratique
+                const ev = tailOf(S.events, H, N);
                 if (ev.length < 5) continue;
-                const tail = ev.slice(-N).map(e => e.t);
+                const tail = ev.map(e => e.t);
                 const iois = [];
                 for (let i = 1; i < tail.length; i++) iois.push(tail[i] - tail[i - 1]);
                 const m = mean(iois);
@@ -974,9 +998,14 @@ const HANON = {
             } else {
                 setGauge('gHands', 'vHands', '—', '', 0, '');
             }
-            const tot = S.hands.reduce((a, h) => a + S.seq[h].length, 0);
-            const dn = S.hands.reduce((a, h) => a + S.cur[h], 0);
-            setGauge('gProg', 'vProg', Math.round(dn / tot * 100), '%', dn / tot * 100, '');
+            if (S.loop) {
+                const H0 = S.hands[0], len = S.seq[H0].length;
+                setGauge('gProg', 'vProg', '×' + lapOf(H0), '', mod(S.cur[H0], len) / len * 100, '', 'Tours');
+            } else {
+                const tot = S.hands.reduce((a, h) => a + S.seq[h].length, 0);
+                const dn = S.hands.reduce((a, h) => a + S.cur[h], 0);
+                setGauge('gProg', 'vProg', Math.round(dn / tot * 100), '%', dn / tot * 100, '', 'Avancement');
+            }
         }
 
         // =====================================================================
@@ -1018,7 +1047,7 @@ const HANON = {
             // alors TON tempo moyen sur la session, pas la position du curseur.
             let target = opts.targetIoi;
             if (opts.mode !== 'metro') {
-                const allIo = iois(events.filter(e => e.hand === H));
+                const allIo = iois(tailOf(events, H, 200));
                 target = allIo.length >= 20 ? median(allIo) : 0;
             }
 
@@ -1068,13 +1097,13 @@ const HANON = {
                 // déjà par le doigt signalé au-dessus, pour ne pas dire deux fois
                 // la même chose sous deux formes
                 let bestP = null;
-                for (const [p, arr] of groupBy(w32, e => mod(e.idx, MOTIF), e => e.vel)) {
+                for (const [p, arr] of groupBy(w32, e => posOf(e), e => e.vel)) {
                     if (arr.length < 3) continue;
                     const d = mean(arr) - mAll, sev = d / (sAll / Math.sqrt(arr.length));
                     if (d >= 5 && (!bestP || sev > bestP.sev)) bestP = { p, d, sev };
                 }
                 if (bestP) {
-                    const fingerAt = w32.find(e => mod(e.idx, MOTIF) === bestP.p);
+                    const fingerAt = w32.find(e => posOf(e) === bestP.p);
                     if (!bestF || !fingerAt || fingerAt.finger !== bestF.f)
                         add('pos' + bestP.p, bestP.sev, '🎯', `Tu accentues la note ${bestP.p + 1} du groupe`, 'warn');
                 }
@@ -1267,7 +1296,9 @@ const HANON = {
 
             let html = `<h2>${finished ? 'Exercice terminé' : 'Session interrompue'}</h2>`
                 + `<p class="when">Hanon n°${S.exNum} — ${A.notes} notes — ♩=${S.bpm} — `
-                + `mode ${S.mode === 'metro' ? 'Métronome' : 'Libre'}</p><div class="cards">`;
+                + `mode ${S.mode === 'metro' ? 'Métronome' : 'Libre'}`
+                + (S.loop ? ` — ${lapOf(S.hands[0]) - 1} tours complets` : '')
+                + `</p><div class="cards">`;
 
             html += card('Égalité (CV)', primary.cv.toFixed(1), '%',
                 'Écart-type des intervalles entre attaques, rapporté à leur moyenne. Sous 4 % c\'est propre.', cvCls);
@@ -1627,7 +1658,8 @@ const HANON = {
                         t: t + jitter + off, pitch: n.midi,
                         vel: o.vel + o.crescPerOct * (n.midi - seq[H][0].midi) / 12
                             + (o.softFinger && n.finger === o.softFinger ? o.softBy : 0),
-                        hand: H, idx: i, finger: n.finger, expected: n.midi, ok: true, dur: o.ioi * o.durRatio
+                        hand: H, idx: i, pos: mod(i, MOTIF),
+                        finger: n.finger, expected: n.midi, ok: true, dur: o.ioi * o.durRatio
                     });
                     t += o.ioi + o.accel * i;
                 }
@@ -1750,6 +1782,28 @@ const HANON = {
                 a === null || a.key !== 'rush', a ? a.key : 'silence');
             a = coachAdvice(synth(seq, { durRatio: 1.05, ioi: 90 }), { hands: ['R'], targetIoi: 250, mode: 'metro' });
             check('mode Métronome : le même jeu est bien signalé', a && a.key === 'rush', a ? a.key : 'silence');
+
+            // 8 ter. Boucle infinie. L'invariant qui compte : la longueur d'un
+            //         tour est un multiple du motif, sans quoi la position dans
+            //         le motif se décalerait à chaque tour et tout le profil par
+            //         position deviendrait faux au bout de quelques minutes.
+            let loopOk = true, loopLens = [];
+            for (let n = 1; n <= 20; n++) {
+                const L = buildSeq(n, 'loop').R.length;
+                loopLens.push(L);
+                if (!L || L % MOTIF !== 0) loopOk = false;
+            }
+            check('boucle : un tour = nombre entier de groupes', loopOk,
+                'de ' + Math.min(...loopLens) + ' à ' + Math.max(...loopLens) + ' notes par tour');
+
+            const Lp = buildSeq(1, 'loop').R.length;
+            let alignOk = true;
+            for (let i = 0; i < Lp * 3 + 5; i++)
+                if (mod(i, MOTIF) !== mod(mod(i, Lp), MOTIF)) alignOk = false;
+            check('boucle : position dans le motif conservée sur 3 tours', alignOk, Lp + ' notes par tour');
+
+            check('boucle : la note finale isolée est écartée',
+                buildSeq(1, 'all').R.length === Lp + 1, buildSeq(1, 'all').R.length + ' → ' + Lp);
 
             // 9. entrées MIDI : un piano expose souvent plusieurs ports qui
             //    portent les mêmes notes. Un seul doit être écouté, sinon
