@@ -85,6 +85,48 @@
         .coach.bad  { color: var(--bad);  border-color: #5a1f27; background: #260d12; }
         .coach.off  { display: none; }
 
+        /* ---- Séance quotidienne ---- */
+        .daily { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; justify-content: center; margin-bottom: 6px; }
+        .daily-btn { background: linear-gradient(#4a7bff, #2b4fd8); padding: 12px 26px; font-size: 16px; }
+        .daily-last { width: 100%; text-align: center; color: var(--muted); font-size: 13px; }
+
+        .routine {
+            width: 100%; max-width: 660px; margin-bottom: 16px; padding: 14px 16px;
+            background: var(--panel); border: 1px solid var(--accent); border-radius: 16px;
+            box-shadow: 0 8px 30px rgba(0, 0, 0, .35);
+        }
+        .routine[hidden] { display: none !important; }
+
+        .routine-head { display: flex; gap: 10px; justify-content: space-around; flex-wrap: wrap; text-align: center; }
+        .routine-head > div { display: flex; flex-direction: column; min-width: 92px; }
+        .routine-head .k { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
+        .routine-head .v { font-size: 27px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.15; }
+        .routine-head .v.low { color: var(--bad); }
+
+        .rt-state {
+            margin-top: 10px; padding: 8px 12px; border-radius: 10px; text-align: center;
+            font-size: 15px; font-weight: 600; background: #0a1030; color: var(--muted);
+        }
+        .rt-state.ok  { color: var(--good); }
+        .rt-state.bad { color: var(--bad); }
+
+        .rt-cfg { margin-top: 8px; text-align: center; font-size: 12px; color: var(--muted); line-height: 1.5; }
+
+        .rt-checks { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; margin-top: 10px; }
+        .rt-chip {
+            font-size: 12px; padding: 3px 10px; border-radius: 20px; border: 1px solid var(--line);
+            font-variant-numeric: tabular-nums; white-space: nowrap;
+        }
+        .rt-chip.ok { color: var(--good); border-color: #1e6b48; background: #0c2b1f; }
+        .rt-chip.no { color: var(--bad);  border-color: #5a1f27; background: #260d12; }
+
+        .rt-log { margin: 10px 0 0; padding: 0; list-style: none; max-height: 160px; overflow-y: auto; font-size: 13px; }
+        .rt-log li { display: flex; gap: 8px; padding: 3px 4px; border-bottom: 1px solid #17204a; font-variant-numeric: tabular-nums; }
+        .rt-log li .ex { min-width: 44px; font-weight: 700; }
+        .rt-log li .res { flex: 1; }
+        .rt-log li.ok .res { color: var(--good); }
+        .rt-log li.no .res { color: var(--warn); }
+
         /* ---- Portée ---- */
         .staff-wrap {
             background: #fbfbff; border-radius: 16px; padding: 8px 10px;
@@ -225,6 +267,28 @@
     <div class="midi-row">
         <div class="midi-status idle" id="midiStatus">🎛️ MIDI : recherche…</div>
         <select id="midiSel" title="Entrée MIDI écoutée" style="display:none"></select>
+    </div>
+
+    <div class="daily">
+        <button class="btn daily-btn" id="dailyBtn">🗓️ Séance du jour — 30 min</button>
+        <div class="segmented" id="levelSeg" title="Exigence pour qu'un passage compte comme propre">
+            <button data-level="souple" class="active">Souple</button>
+            <button data-level="normal">Normal</button>
+            <button data-level="strict">Strict</button>
+        </div>
+        <span class="daily-last" id="dailyLast"></span>
+    </div>
+
+    <div class="routine" id="routine" hidden>
+        <div class="routine-head">
+            <div><span class="k">Temps restant</span><span class="v" id="rtTime">30:00</span></div>
+            <div><span class="k">Exercice</span><span class="v" id="rtEx">n°1</span></div>
+            <div><span class="k">Passages propres</span><span class="v" id="rtStreak">○ ○</span></div>
+        </div>
+        <div class="rt-state" id="rtState">…</div>
+        <div class="rt-checks" id="rtChecks"></div>
+        <div class="rt-cfg" id="rtCfg"></div>
+        <ol class="rt-log" id="rtLog"></ol>
     </div>
 
     <div class="gauges">
@@ -900,9 +964,14 @@ const HANON = {
             document.getElementById('startBtn').classList.remove('stop');
             clearKeyStates();
             resetCoach('Session terminée — le détail est dans le rapport ci-dessous');
-            if (S.events.length >= 8) renderReport(analyze(S.events, {
+            const A = S.events.length >= 8 ? analyze(S.events, {
                 subMs: S.subMs, mode: S.mode, gridT0: S.gridT0, hands: S.hands, pedal: S.pedal
-            }), finished || S.loop);
+            }) : null;
+            // pendant une séance, le rapport complet entre deux passages serait
+            // une distraction : le journal de séance résume, et le rapport n'est
+            // rendu qu'à la fin
+            if (routine.on) { routineRunEnded(A, finished); return; }
+            if (A) renderReport(A, finished || S.loop);
         }
 
         function pickHand(pitch) {
@@ -1640,6 +1709,222 @@ const HANON = {
             if (e.code === 'Space' && e.target === document.body) { e.preventDefault(); S.running ? stop(false) : start(); }
         });
 
+
+        // =====================================================================
+        //  17. Séance quotidienne
+        // =====================================================================
+        //  Protocole : tous les exercices dans l'ordre, au métronome, DEUX
+        //  passages propres d'affilée avant de passer au suivant, on recommence
+        //  tant que ce n'est pas propre, et on s'arrête au bout de 30 minutes
+        //  même en plein exercice.
+        //
+        //  « Propre » ne veut pas seulement dire « sans fausse note » : il faut
+        //  aussi l'égalité, la régularité de force et le tempo tenu. Un seuil
+        //  unique serait soit infranchissable soit sans valeur, d'où trois
+        //  niveaux d'exigence dont les seuils sont affichés en clair, et le
+        //  détail de ce qui a bloqué après chaque passage.
+        // =====================================================================
+        const DAILY_MS = 30 * 60 * 1000;
+        const DAILY_PERFECT = 2;
+        const DAILY_PAUSE = 4500;      // respiration entre deux passages
+        const LS_DAILY = 'hanon.daily';
+        const LS_LEVEL = 'hanon.level';
+
+        const DAILY_LEVELS = {
+            souple: { label: 'Souple', cv: 8, vel: 12, tempo: 5, grid: 45 },
+            normal: { label: 'Normal', cv: 6, vel: 9, tempo: 3, grid: 30 },
+            strict: { label: 'Strict', cv: 4, vel: 6, tempo: 2, grid: 20 }
+        };
+
+        const routine = {
+            on: false, endsAt: 0, ex: 1, streak: 0, log: [], level: 'souple',
+            tick: null, next: null, timeUp: false, lastA: null
+        };
+
+        const fmtClock = ms => {
+            const s = Math.max(0, Math.round(ms / 1000));
+            return String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0');
+        };
+
+        function activateSeg(id, attr, val) {
+            for (const b of document.getElementById(id).children)
+                b.classList.toggle('active', b.dataset[attr] === String(val));
+        }
+
+        function setRtState(text, cls) {
+            const el = document.getElementById('rtState');
+            el.className = 'rt-state ' + (cls || '');
+            el.textContent = text;
+        }
+
+        // Un passage compte comme propre si TOUS ces critères passent, sur
+        // CHAQUE main jouée. On renvoie le détail pour pouvoir dire précisément
+        // ce qui a bloqué plutôt qu'un « raté » opaque.
+        function evaluateRun(A, finished) {
+            const L = DAILY_LEVELS[routine.level];
+            const c = [];
+            c.push({ label: 'Exercice terminé', ok: !!finished, val: finished ? 'oui' : 'non' });
+            c.push({ label: 'Fausses notes', ok: !!A && A.wrong === 0, val: A ? String(A.wrong) : '—', lim: '0' });
+            if (A) for (const H of A.order) {
+                const h = A.hands[H], n = A.order.length > 1 ? ' ' + HS[H] : '';
+                c.push({ label: 'Égalité' + n, ok: h.cv <= L.cv, val: h.cv.toFixed(1) + ' %', lim: '≤ ' + L.cv + ' %' });
+                c.push({ label: 'Force' + n, ok: h.velSD <= L.vel, val: h.velSD.toFixed(1), lim: '≤ ' + L.vel });
+                const dt = S.bpm ? Math.abs(h.bpm - S.bpm) / S.bpm * 100 : 0;
+                c.push({ label: 'Tempo' + n, ok: dt <= L.tempo, val: dt.toFixed(1) + ' %', lim: '±' + L.tempo + ' %' });
+                if (h.grid) c.push({ label: 'Clic' + n, ok: h.grid.sd <= L.grid, val: h.grid.sd.toFixed(0) + ' ms', lim: '≤ ' + L.grid + ' ms' });
+            }
+            return { clean: c.every(x => x.ok), checks: c, failed: c.filter(x => !x.ok) };
+        }
+
+        function renderChecks(checks) {
+            document.getElementById('rtChecks').innerHTML = (checks || []).map(x =>
+                `<span class="rt-chip ${x.ok ? 'ok' : 'no'}">${x.ok ? '✓' : '✗'} ${x.label} ${x.val}`
+                + `${x.lim && !x.ok ? ' <span style="opacity:.75">(' + x.lim + ')</span>' : ''}</span>`).join('');
+        }
+
+        // Le protocole impose le métronome et l'exercice entier : on force ces
+        // réglages, et on les affiche pour que ce ne soit pas une surprise.
+        function applyRoutineConfig() {
+            document.getElementById('exSel').value = routine.ex;
+            activateSeg('modeSeg', 'mode', 'metro');
+            activateSeg('handSeg', 'h', 'both');
+            activateSeg('lenSeg', 'len', 'all');
+            showVerifWarn();
+            const L = DAILY_LEVELS[routine.level];
+            document.getElementById('rtCfg').innerHTML =
+                'Exercice complet · les deux mains · métronome ♩=' + document.getElementById('bpm').value
+                + '<br>Niveau <b>' + L.label + '</b> — zéro fausse note, égalité ≤ ' + L.cv
+                + ' %, force ≤ ' + L.vel + ', tempo ±' + L.tempo + ' %, clic ≤ ' + L.grid + ' ms';
+        }
+
+        function updateRoutineHead() {
+            document.getElementById('rtEx').textContent = 'n°' + routine.ex;
+            document.getElementById('rtStreak').textContent =
+                ('● '.repeat(routine.streak) + '○ '.repeat(DAILY_PERFECT - routine.streak)).trim();
+        }
+
+        function renderRoutineLog() {
+            document.getElementById('rtLog').innerHTML = routine.log.map(r =>
+                `<li class="${r.clean ? 'ok' : 'no'}"><span class="ex">n°${r.ex}</span>`
+                + `<span class="res">${r.clean ? '✓ propre' : '✗ ' + r.why}</span></li>`
+            ).reverse().join('');
+        }
+
+        function routineTick() {
+            const left = routine.endsAt - Date.now();
+            const el = document.getElementById('rtTime');
+            el.textContent = fmtClock(left);
+            el.classList.toggle('low', left <= 60000);
+            if (left <= 0 && !routine.timeUp) {
+                routine.timeUp = true;
+                // « stop once 30 mins is up even if you didn't finish it »
+                if (S.running) stop(false); else finishRoutine();
+            }
+        }
+
+        function routineNextRun() {
+            if (!routine.on || routine.timeUp) return;
+            applyRoutineConfig();
+            updateRoutineHead();
+            renderChecks([]);
+            setRtState('▶ Exercice n°' + routine.ex + ' — passage ' + (routine.streak + 1)
+                + ' sur ' + DAILY_PERFECT, '');
+            start();
+        }
+
+        function routineRunEnded(A, finished) {
+            routine.lastA = A;
+            const ev = evaluateRun(A, finished);
+            renderChecks(ev.checks);
+            routine.log.push({
+                ex: routine.ex, clean: ev.clean,
+                why: ev.failed.length ? ev.failed[0].label + ' ' + ev.failed[0].val : ''
+            });
+            renderRoutineLog();
+
+            if (routine.timeUp) { finishRoutine(); return; }
+
+            if (ev.clean) {
+                routine.streak++;
+                if (routine.streak >= DAILY_PERFECT) {
+                    routine.ex++; routine.streak = 0;
+                    if (routine.ex > 20) { finishRoutine(); return; }
+                    setRtState('✓ Validé — on passe au n°' + routine.ex, 'ok');
+                } else {
+                    setRtState('✓ Propre — encore un passage pour valider', 'ok');
+                }
+            } else {
+                routine.streak = 0;
+                const f = ev.failed[0];
+                setRtState('✗ ' + f.label + ' : ' + f.val + (f.lim ? ' (il faut ' + f.lim + ')' : '')
+                    + ' — on recommence', 'bad');
+            }
+            updateRoutineHead();
+            routine.next = setTimeout(routineNextRun, DAILY_PAUSE);
+        }
+
+        function startRoutine() {
+            routine.on = true; routine.ex = 1; routine.streak = 0; routine.log = [];
+            routine.timeUp = false; routine.lastA = null;
+            routine.endsAt = Date.now() + DAILY_MS;
+            document.getElementById('routine').hidden = false;
+            document.getElementById('rtLog').innerHTML = '';
+            document.getElementById('dailyBtn').textContent = '⏹ Terminer la séance';
+            document.getElementById('report').classList.remove('on');
+            routine.tick = setInterval(routineTick, 500);
+            routineTick();
+            routineNextRun();
+        }
+
+        function finishRoutine() {
+            if (routine.next) clearTimeout(routine.next);
+            if (routine.tick) clearInterval(routine.tick);
+            routine.next = routine.tick = null;
+            routine.on = false;                       // avant stop(), sinon on reboucle
+            document.getElementById('dailyBtn').textContent = '🗓️ Séance du jour — 30 min';
+
+            if (S.running) stop(false);               // rend le rapport du dernier passage
+            else if (routine.lastA) renderReport(routine.lastA, true);
+
+            const validated = routine.ex - 1;
+            const used = Math.min(DAILY_MS, DAILY_MS - (routine.endsAt - Date.now()));
+            setRtState(`Séance terminée — ${fmtClock(used)} de jeu, ${validated} exercice`
+                + `${validated > 1 ? 's validés' : ' validé'}, ${routine.log.length} passage`
+                + `${routine.log.length > 1 ? 's' : ''}`, 'ok');
+            try {
+                localStorage.setItem(LS_DAILY, JSON.stringify({
+                    date: new Date().toISOString().slice(0, 10), level: routine.level,
+                    validated, runs: routine.log.length, reached: routine.ex
+                }));
+            } catch (e) { }
+            updateDailyLast();
+        }
+
+        function updateDailyLast() {
+            let d = null;
+            try { d = JSON.parse(localStorage.getItem(LS_DAILY)); } catch (e) { }
+            document.getElementById('dailyLast').textContent = d
+                ? `Dernière séance : ${d.date} (${d.level || ''}) — ${d.validated} validé${d.validated > 1 ? 's' : ''}, arrêté au n°${d.reached}`
+                : 'Chaque exercice dans l\'ordre, deux passages propres pour le valider, 30 minutes chrono.';
+        }
+
+        wireSeg('levelSeg', b => {
+            routine.level = b.dataset.level;
+            try { localStorage.setItem(LS_LEVEL, routine.level); } catch (e) { }
+            if (routine.on) applyRoutineConfig();
+        });
+
+        document.getElementById('dailyBtn').addEventListener('click', () => {
+            if (routine.on) finishRoutine(); else startRoutine();
+        });
+
+        function initDaily() {
+            let lv = null;
+            try { lv = localStorage.getItem(LS_LEVEL); } catch (e) { }
+            if (lv && DAILY_LEVELS[lv]) { routine.level = lv; activateSeg('levelSeg', 'level', lv); }
+            updateDailyLast();
+        }
+
         // =====================================================================
         //  15. Auto-test du moteur de mesure (?selftest=1)
         //      Un chiffre affiché sans moteur vérifié ne veut rien dire.
@@ -1830,6 +2115,7 @@ const HANON = {
         // =====================================================================
         prepare();
         showVerifWarn();
+        initDaily();
         resetGauges();
         initMIDI();
         if (new URLSearchParams(location.search).get('selftest')) runSelfTest();
