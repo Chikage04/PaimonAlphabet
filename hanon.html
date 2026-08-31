@@ -1665,6 +1665,7 @@ const HANON = {
                 [...e.currentTarget.children].forEach(x => x.classList.remove('active'));
                 b.classList.add('active');
                 if (after) after(b);
+                saveSettings();
             });
         }
 
@@ -1686,17 +1687,19 @@ const HANON = {
             } else w.style.display = 'none';
         }
 
-        exSel.addEventListener('change', () => { if (!S.running) prepare(); showVerifWarn(); });
+        exSel.addEventListener('change', () => { if (!S.running) prepare(); showVerifWarn(); saveSettings(); });
         wireSeg('modeSeg'); wireSeg('handSeg'); wireSeg('clickSeg');
         wireSeg('lenSeg', () => { if (!S.running) prepare(); });
 
         document.getElementById('bpm').addEventListener('input', e => {
             document.getElementById('bpmN').textContent = e.target.value;
             if (!S.running) { currentSettings(); updateCaption(); }
+            saveSettings();
         });
-        document.getElementById('showNames').addEventListener('change', refreshNames);
+        document.getElementById('showNames').addEventListener('change', () => { refreshNames(); saveSettings(); });
         document.getElementById('coachOn').addEventListener('change', e => {
             document.getElementById('coach').classList.toggle('off', !e.target.checked);
+            saveSettings();
         });
         document.getElementById('midiSel').addEventListener('change', e => {
             try { localStorage.setItem(LS_MIDI, e.target.value); } catch (err) { }
@@ -1747,8 +1750,11 @@ const HANON = {
         };
 
         function activateSeg(id, attr, val) {
-            for (const b of document.getElementById(id).children)
-                b.classList.toggle('active', b.dataset[attr] === String(val));
+            const el = document.getElementById(id);
+            if (!el || val == null) return;
+            const hit = [...el.children].find(b => b.dataset[attr] === String(val));
+            if (!hit) return;                 // valeur inconnue : on garde le défaut
+            for (const b of el.children) b.classList.toggle('active', b === hit);
         }
 
         function setRtState(text, cls) {
@@ -1898,6 +1904,10 @@ const HANON = {
                 }));
             } catch (e) { }
             updateDailyLast();
+            // la séance avait imposé ses réglages : on rend à l'utilisateur
+            // ceux qu'il avait choisis, sans les avoir écrasés au passage
+            loadSettings();
+            if (!S.running) prepare();
         }
 
         function updateDailyLast() {
@@ -2090,6 +2100,20 @@ const HANON = {
             check('boucle : la note finale isolée est écartée',
                 buildSeq(1, 'all').R.length === Lp + 1, buildSeq(1, 'all').R.length + ' → ' + Lp);
 
+            // 8 quater. Réglages retenus. Le risque n'est pas d'oublier un
+            //            réglage mais d'en appliquer un invalide : un groupe de
+            //            boutons sans bouton actif ferait planter le démarrage.
+            const modeBefore = segValue('modeSeg');
+            activateSeg('modeSeg', 'mode', 'reglage-qui-nexiste-pas');
+            check('réglage inconnu → le groupe garde un bouton actif',
+                segValue('modeSeg') === modeBefore, 'resté sur « ' + segValue('modeSeg') + ' »');
+
+            saveSettings();
+            let round = null;
+            try { round = JSON.parse(localStorage.getItem(LS_SET)); } catch (e) { }
+            check('les réglages sont bien écrits', !!round && round.mode === modeBefore,
+                round ? Object.keys(round).length + ' champs' : 'rien écrit');
+
             // 9. entrées MIDI : un piano expose souvent plusieurs ports qui
             //    portent les mêmes notes. Un seul doit être écouté, sinon
             //    chaque frappe est comptée autant de fois qu'il y a de ports.
@@ -2110,9 +2134,63 @@ const HANON = {
                 + `${pass} réussis, ${fail} échoués</pre>`;
         }
 
+
+        // =====================================================================
+        //  18. Réglages retenus d'une visite à l'autre
+        // =====================================================================
+        //  Tout ce qui est un choix de l'utilisateur est relu au chargement.
+        //  Les valeurs inconnues (réglage supprimé depuis, stockage bricolé)
+        //  sont ignorées plutôt qu'appliquées : un groupe de boutons sans
+        //  bouton actif ferait planter currentSettings() au démarrage.
+        // =====================================================================
+        const LS_SET = 'hanon.settings';
+
+        const segValue = id => {
+            const b = document.querySelector('#' + id + ' button.active');
+            return b ? b.dataset[Object.keys(b.dataset)[0]] : null;
+        };
+
+        function saveSettings() {
+            try {
+                localStorage.setItem(LS_SET, JSON.stringify({
+                    ex: document.getElementById('exSel').value,
+                    bpm: document.getElementById('bpm').value,
+                    mode: segValue('modeSeg'),
+                    hands: segValue('handSeg'),
+                    len: segValue('lenSeg'),
+                    click: segValue('clickSeg'),
+                    names: document.getElementById('showNames').checked,
+                    coach: document.getElementById('coachOn').checked
+                }));
+            } catch (e) { }
+        }
+
+        function loadSettings() {
+            let o = null;
+            try { o = JSON.parse(localStorage.getItem(LS_SET)); } catch (e) { }
+            if (!o) return;
+
+            if (o.ex && HANON[o.ex]) document.getElementById('exSel').value = o.ex;
+            if (o.bpm) {
+                const b = document.getElementById('bpm');
+                b.value = o.bpm;
+                document.getElementById('bpmN').textContent = b.value;   // borné par min/max
+            }
+            activateSeg('modeSeg', 'mode', o.mode);
+            activateSeg('handSeg', 'h', o.hands);
+            activateSeg('lenSeg', 'len', o.len);
+            activateSeg('clickSeg', 'click', o.click);
+            if (o.names != null) document.getElementById('showNames').checked = !!o.names;
+            if (o.coach != null) {
+                document.getElementById('coachOn').checked = !!o.coach;
+                document.getElementById('coach').classList.toggle('off', !o.coach);
+            }
+        }
+
         // =====================================================================
         //  16. Démarrage
         // =====================================================================
+        loadSettings();          // avant prepare(), qui lit ces contrôles
         prepare();
         showVerifWarn();
         initDaily();
