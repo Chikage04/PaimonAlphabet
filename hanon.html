@@ -359,6 +359,7 @@
             <button class="btn" id="startBtn">▶ Démarrer</button>
             <label class="toggle"><input type="checkbox" id="showNames"> Noms des touches</label>
             <label class="toggle"><input type="checkbox" id="coachOn" checked> 💬 Conseils en direct</label>
+            <label class="toggle" title="Deux touches voisines enfoncées en même temps comptent pour une seule"><input type="checkbox" id="mergeOn" checked> 🤏 Fusionner les touches voisines</label>
         </div>
         <div class="control-row" id="recordRow"></div>
     </div>
@@ -558,7 +559,10 @@ const HANON = {
         //  opts   : { subMs, mode, gridT0, hands }
         // =====================================================================
         function analyze(events, opts) {
-            const out = { hands: {}, order: [], notes: events.length, wrong: 0, pedal: !!opts.pedal };
+            const out = {
+                hands: {}, order: [], notes: events.length, wrong: 0,
+                pedal: !!opts.pedal, merged: opts.merged || 0
+            };
             out.wrong = events.filter(e => !e.ok).length;
 
             for (const H of opts.hands) {
@@ -890,7 +894,7 @@ const HANON = {
         const S = {
             running: false, seq: null, hands: ['R', 'L'], cur: { R: 0, L: 0 },
             events: [], down: new Map(), mode: 'metro', bpm: 60, subMs: 250,
-            gridT0: null, pedal: false, exNum: 1, len: '8', loop: false
+            gridT0: null, pedal: false, exNum: 1, len: '8', loop: false, merged: 0
         };
 
         // Session sans fin : on borne la mémoire. Au-delà, le rapport porte sur
@@ -943,6 +947,8 @@ const HANON = {
             S.events = [];
             S.down.clear();
             S.pedal = false;
+            S.merged = 0;
+            clearPending();
             S.running = true;
             S.gridT0 = null;
             document.getElementById('report').classList.remove('on');
@@ -960,12 +966,14 @@ const HANON = {
             if (!S.running) return;
             S.running = false;
             stopMetronome();
+            clearPending();
             document.getElementById('startBtn').textContent = '▶ Démarrer';
             document.getElementById('startBtn').classList.remove('stop');
             clearKeyStates();
             resetCoach('Session terminée — le détail est dans le rapport ci-dessous');
             const A = S.events.length >= 8 ? analyze(S.events, {
-                subMs: S.subMs, mode: S.mode, gridT0: S.gridT0, hands: S.hands, pedal: S.pedal
+                subMs: S.subMs, mode: S.mode, gridT0: S.gridT0, hands: S.hands,
+                pedal: S.pedal, merged: S.merged
             }) : null;
             // pendant une séance, le rapport complet entre deux passages serait
             // une distraction : le journal de séance résume, et le rapport n'est
@@ -982,7 +990,77 @@ const HANON = {
             return dR < dL ? 'R' : 'L';
         }
 
+
+        // =====================================================================
+        //  Fusion des touches voisines
+        // =====================================================================
+        //  Un doigt qui ripe enfonce la touche d'à côté en même temps que la
+        //  bonne. Le critère ne peut pas être seulement « voisines » : en Hanon
+        //  on joue constamment des notes conjointes. Il faut « voisines ET
+        //  simultanées ». Au tempo le plus rapide de la page (♩=144) deux
+        //  doubles croches sont encore à 104 ms l'une de l'autre, donc 35 ms de
+        //  fenêtre ne peut jamais avaler deux notes voulues.
+        //
+        //  Coût : le traitement d'une note est différé de 35 ms. Cela ne touche
+        //  QUE le retour visuel — l'instant retenu pour la mesure reste celui de
+        //  l'attaque, horodaté par le pilote MIDI.
+        // =====================================================================
+        const MERGE_SEMI = 2;      // un demi-ton ou un ton
+        const MERGE_MS = 35;
+        let pending = [];
+
+        function clearPending() {
+            for (const p of pending) clearTimeout(p.timer);
+            pending = [];
+        }
+
+        // Entre les candidats, on garde celui qui colle à la note attendue ;
+        // à égalité, le plus fort, car une touche effleurée sonne plus faible.
+        function bestCandidate(cands) {
+            const H = pickHand(cands[0].pitch);
+            const exp = pastEnd(H, S.cur[H]) ? null : seqAt(H, S.cur[H]).midi;
+            let best = cands[0];
+            for (const c of cands.slice(1)) {
+                if (exp != null) {
+                    const dc = Math.abs(c.pitch - exp), db = Math.abs(best.pitch - exp);
+                    if (dc !== db) { if (dc < db) best = c; continue; }
+                }
+                if (c.vel > best.vel) best = c;
+            }
+            return best;
+        }
+
         function onNoteOn(pitch, vel, t) {
+            if (!S.running || !document.getElementById('mergeOn').checked) {
+                rawNoteOn(pitch, vel, t);
+                return;
+            }
+            // la fenêtre est vérifiée sur l'horodatage des notes, pas seulement
+            // sur leur instant d'arrivée : un à-coup de traitement ne doit pas
+            // pouvoir faire fusionner deux notes réellement distantes
+            const near = pending.find(p => p.cands.some(c =>
+                Math.abs(c.pitch - pitch) <= MERGE_SEMI && Math.abs(c.t - t) <= MERGE_MS));
+            if (near) { near.cands.push({ pitch, vel, t, off: null }); S.merged++; return; }
+
+            const p = { cands: [{ pitch, vel, t, off: null }], timer: 0 };
+            pending.push(p);
+            p.timer = setTimeout(() => {
+                pending = pending.filter(x => x !== p);
+                const c = bestCandidate(p.cands);
+                rawNoteOn(c.pitch, c.vel, c.t);
+                // le relâchement a pu arriver avant l'expiration de la fenêtre
+                if (c.off != null) rawNoteOff(c.pitch, c.off);
+            }, MERGE_MS);
+        }
+
+        function onNoteOff(pitch, t) {
+            for (const p of pending)
+                for (const c of p.cands)
+                    if (c.pitch === pitch && c.off == null) { c.off = t; return; }
+            rawNoteOff(pitch, t);
+        }
+
+        function rawNoteOn(pitch, vel, t) {
             if (!S.running) { flash(pitch, true); return; }
             const H = pickHand(pitch);
             const i = S.cur[H];
@@ -1004,7 +1082,7 @@ const HANON = {
             if (!S.loop && S.hands.every(h => S.cur[h] >= S.seq[h].length)) stop(true);
         }
 
-        function onNoteOff(pitch, t) {
+        function rawNoteOff(pitch, t) {
             for (const H of S.hands) {
                 const k = H + ':' + pitch, ev = S.down.get(k);
                 if (ev) { ev.dur = t - ev.t; S.down.delete(k); }
@@ -1385,6 +1463,11 @@ const HANON = {
                 'Comptées mais exclues du diagnostic : le doigt reste attribué correctement.',
                 A.wrong === 0 ? 'good' : '');
 
+            if (A.merged)
+                html += card('Touches voisines', A.merged, '',
+                    'Attaques à un ton ou moins et à moins de ' + MERGE_MS + ' ms d\'écart, comptées '
+                    + 'pour une seule. C\'est un doigt qui ripe — position de main ou courbure à revoir.', 'warn');
+
             if (A.sync)
                 html += card('Écart des mains', A.sync.meanAbs.toFixed(1), 'ms',
                     `Biais ${s1(A.sync.bias)} ms (${A.sync.bias > 0 ? 'droite en retard' : 'gauche en retard'}), dispersion ${A.sync.sd.toFixed(1)} ms.`,
@@ -1701,6 +1784,7 @@ const HANON = {
             document.getElementById('coach').classList.toggle('off', !e.target.checked);
             saveSettings();
         });
+        document.getElementById('mergeOn').addEventListener('change', saveSettings);
         document.getElementById('midiSel').addEventListener('change', e => {
             try { localStorage.setItem(LS_MIDI, e.target.value); } catch (err) { }
             if (midiAccess) refreshMidiInputs(midiAccess);
@@ -2114,6 +2198,15 @@ const HANON = {
             check('les réglages sont bien écrits', !!round && round.mode === modeBefore,
                 round ? Object.keys(round).length + ' champs' : 'rien écrit');
 
+            // 8 quinquies. La fenêtre de fusion doit rester très en dessous de
+            //               l'intervalle entre deux notes au tempo le plus rapide
+            //               que la page autorise, sinon elle avalerait des notes
+            //               réellement jouées.
+            const bpmMax = +document.getElementById('bpm').max;
+            const fastest = 60000 / bpmMax / 4;
+            check('fenêtre de fusion bien en deçà du jeu le plus rapide',
+                MERGE_MS < fastest / 2, MERGE_MS + ' ms contre ' + fastest.toFixed(0) + ' ms à ♩=' + bpmMax);
+
             // 9. entrées MIDI : un piano expose souvent plusieurs ports qui
             //    portent les mêmes notes. Un seul doit être écouté, sinon
             //    chaque frappe est comptée autant de fois qu'il y a de ports.
@@ -2160,7 +2253,8 @@ const HANON = {
                     len: segValue('lenSeg'),
                     click: segValue('clickSeg'),
                     names: document.getElementById('showNames').checked,
-                    coach: document.getElementById('coachOn').checked
+                    coach: document.getElementById('coachOn').checked,
+                    merge: document.getElementById('mergeOn').checked
                 }));
             } catch (e) { }
         }
@@ -2185,6 +2279,7 @@ const HANON = {
                 document.getElementById('coachOn').checked = !!o.coach;
                 document.getElementById('coach').classList.toggle('off', !o.coach);
             }
+            if (o.merge != null) document.getElementById('mergeOn').checked = !!o.merge;
         }
 
         // =====================================================================
