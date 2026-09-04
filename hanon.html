@@ -127,6 +127,22 @@
         .rt-log li.ok .res { color: var(--good); }
         .rt-log li.no .res { color: var(--warn); }
 
+        /* ---- Dernier passage : survit à la séance ---- */
+        .lastpass {
+            width: 100%; max-width: 660px; margin-bottom: 16px; padding: 12px 16px;
+            background: var(--panel); border: 1px solid var(--line); border-radius: 16px;
+        }
+        .lastpass[hidden] { display: none !important; }
+        .lastpass.ok { border-color: #1e6b48; }
+        .lastpass.no { border-color: #5a1f27; }
+        .lp-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+        .lp-title { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
+        .lp-when { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+        .lp-verdict { margin-top: 6px; font-size: 17px; font-weight: 700; text-align: center; }
+        .lastpass.ok .lp-verdict { color: var(--good); }
+        .lastpass.no .lp-verdict { color: var(--bad); }
+        .lp-note { margin-top: 10px; text-align: center; font-size: 12px; color: var(--muted); line-height: 1.5; }
+
         /* ---- Portée ---- */
         .staff-wrap {
             background: #fbfbff; border-radius: 16px; padding: 8px 10px;
@@ -289,6 +305,16 @@
         <div class="rt-checks" id="rtChecks"></div>
         <div class="rt-cfg" id="rtCfg"></div>
         <ol class="rt-log" id="rtLog"></ol>
+    </div>
+
+    <div class="lastpass" id="lastPass" hidden>
+        <div class="lp-head">
+            <span class="lp-title">Dernier passage</span>
+            <span class="lp-when" id="lpWhen"></span>
+        </div>
+        <div class="lp-verdict" id="lpVerdict"></div>
+        <div class="rt-checks" id="lpChecks"></div>
+        <div class="lp-note" id="lpNote"></div>
     </div>
 
     <div class="gauges">
@@ -837,6 +863,35 @@ const HANON = {
             g.gain.exponentialRampToValueAtTime(accent ? 0.5 : 0.16, when + 0.001);
             g.gain.exponentialRampToValueAtTime(0.0001, when + (accent ? 0.06 : 0.035));
             o.start(when); o.stop(when + 0.07);
+        }
+
+        // Fin de passage : le verdict arrive à l'oreille, parce qu'à cet
+        // instant-là on a les yeux sur ses mains et pas sur l'écran. Trois
+        // signaux qu'on ne peut pas confondre : ça monte = propre, ça monte
+        // plus haut et plus longtemps = exercice validé, ça descend = raté.
+        const CUES = {
+            clean:     { f: [784, 1046.5],                d: 0.11, gain: 0.30, type: 'sine' },
+            validated: { f: [523.25, 659.25, 784, 1046.5], d: 0.11, gain: 0.32, type: 'sine' },
+            fail:      { f: [311.13, 233.08],             d: 0.19, gain: 0.26, type: 'triangle' }
+        };
+
+        function cue(kind) {
+            const c = CUES[kind];
+            if (!c) return;
+            let a;
+            // pas d'audio disponible : tant pis pour le son, le détail reste écrit
+            try { a = ensureAudio(); } catch (e) { return; }
+            const t0 = a.currentTime + 0.04;
+            c.f.forEach((freq, i) => {
+                const o = a.createOscillator(), g = a.createGain(), when = t0 + i * c.d;
+                o.type = c.type;
+                o.frequency.setValueAtTime(freq, when);
+                o.connect(g); g.connect(a.destination);
+                g.gain.setValueAtTime(0.0001, when);
+                g.gain.exponentialRampToValueAtTime(c.gain, when + 0.012);
+                g.gain.exponentialRampToValueAtTime(0.0001, when + c.d * 1.7);
+                o.start(when); o.stop(when + c.d * 1.8);
+            });
         }
 
         // Le clic bat la DOUBLE CROCHE, pas le temps : c'est la seule façon de
@@ -1866,10 +1921,14 @@ const HANON = {
             return { clean: c.every(x => x.ok), checks: c, failed: c.filter(x => !x.ok) };
         }
 
-        function renderChecks(checks) {
-            document.getElementById('rtChecks').innerHTML = (checks || []).map(x =>
+        function checksHtml(checks) {
+            return (checks || []).map(x =>
                 `<span class="rt-chip ${x.ok ? 'ok' : 'no'}">${x.ok ? '✓' : '✗'} ${x.label} ${x.val}`
                 + `${x.lim && !x.ok ? ' <span style="opacity:.75">(' + x.lim + ')</span>' : ''}</span>`).join('');
+        }
+
+        function renderChecks(checks) {
+            document.getElementById('rtChecks').innerHTML = checksHtml(checks);
         }
 
         // Le protocole impose le métronome et l'exercice entier : on force ces
@@ -1900,6 +1959,49 @@ const HANON = {
             ).reverse().join('');
         }
 
+        // ------------------------------------------------------------------
+        //  Dernier passage : le détail reste sous les yeux
+        // ------------------------------------------------------------------
+        //  Les pastilles du panneau de séance sont effacées dès que le passage
+        //  suivant démarre, et le journal n'en garde qu'une ligne résumée. Or ce
+        //  qui a bloqué, on veut pouvoir le relire à tête reposée : après la
+        //  séance, ou le lendemain avant de reprendre. Ce bloc conserve donc le
+        //  détail complet du dernier passage joué — relevé par relevé, avec les
+        //  seuils — et ne s'efface qu'au démarrage de la séance suivante. Il est
+        //  stocké pour survivre à la fermeture de l'onglet : recharger la page
+        //  n'est pas « relancer une séance ».
+        const LS_LASTPASS = 'hanon.lastpass';
+
+        function renderLastPass(rec) {
+            const el = document.getElementById('lastPass');
+            if (!rec || !rec.checks) { el.hidden = true; return; }
+            el.hidden = false;
+            el.className = 'lastpass ' + (rec.clean ? 'ok' : 'no');
+            const d = new Date(rec.ts);
+            document.getElementById('lpWhen').textContent =
+                d.toLocaleDateString('fr-FR') + ' à ' + String(d.getHours()).padStart(2, '0')
+                + ':' + String(d.getMinutes()).padStart(2, '0');
+            document.getElementById('lpVerdict').textContent = 'Exercice n°' + rec.ex + ' — '
+                + (rec.clean ? (rec.validated ? '✓ propre, exercice validé' : '✓ propre')
+                             : '✗ raté : ' + rec.why);
+            document.getElementById('lpChecks').innerHTML = checksHtml(rec.checks);
+            const L = DAILY_LEVELS[rec.level];
+            document.getElementById('lpNote').textContent =
+                'Niveau ' + (L ? L.label : rec.level) + ' · ♩=' + rec.bpm
+                + ' · ' + rec.n + (rec.n > 1 ? 'e passage' : 'er passage') + ' de la séance'
+                + ' — reste affiché jusqu\'à la prochaine séance';
+        }
+
+        function saveLastPass(rec) {
+            renderLastPass(rec);
+            try { localStorage.setItem(LS_LASTPASS, JSON.stringify(rec)); } catch (e) { }
+        }
+
+        function clearLastPass() {
+            renderLastPass(null);
+            try { localStorage.removeItem(LS_LASTPASS); } catch (e) { }
+        }
+
         function routineTick() {
             const left = routine.endsAt - Date.now();
             const el = document.getElementById('rtTime');
@@ -1926,11 +2028,19 @@ const HANON = {
             routine.lastA = A;
             const ev = evaluateRun(A, finished);
             renderChecks(ev.checks);
-            routine.log.push({
-                ex: routine.ex, clean: ev.clean,
-                why: ev.failed.length ? ev.failed[0].label + ' ' + ev.failed[0].val : ''
-            });
+            const why = ev.failed.length ? ev.failed[0].label + ' ' + ev.failed[0].val : '';
+            routine.log.push({ ex: routine.ex, clean: ev.clean, why });
             renderRoutineLog();
+
+            // Verdict d'abord à l'oreille, puis figé par écrit. Le calcul du
+            // « validé » se fait ici, avant que la série ne soit incrémentée
+            // plus bas, sinon le son du 2e passage propre serait celui du 1er.
+            const validated = ev.clean && routine.streak + 1 >= DAILY_PERFECT;
+            cue(!ev.clean ? 'fail' : validated ? 'validated' : 'clean');
+            saveLastPass({
+                ts: Date.now(), ex: routine.ex, n: routine.log.length, level: routine.level,
+                bpm: S.bpm, clean: ev.clean, validated, why, checks: ev.checks
+            });
 
             if (routine.timeUp) { finishRoutine(); return; }
 
@@ -1959,6 +2069,7 @@ const HANON = {
             routine.endsAt = Date.now() + DAILY_MS;
             document.getElementById('routine').hidden = false;
             document.getElementById('rtLog').innerHTML = '';
+            clearLastPass();            // seul moment où le détail précédent disparaît
             document.getElementById('dailyBtn').textContent = '⏹ Terminer la séance';
             document.getElementById('report').classList.remove('on');
             routine.tick = setInterval(routineTick, 500);
@@ -2016,6 +2127,9 @@ const HANON = {
             let lv = null;
             try { lv = localStorage.getItem(LS_LEVEL); } catch (e) { }
             if (lv && DAILY_LEVELS[lv]) { routine.level = lv; activateSeg('levelSeg', 'level', lv); }
+            let last = null;
+            try { last = JSON.parse(localStorage.getItem(LS_LASTPASS)); } catch (e) { }
+            renderLastPass(last);
             updateDailyLast();
         }
 
