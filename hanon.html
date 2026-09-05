@@ -143,6 +143,38 @@
         .lastpass.no .lp-verdict { color: var(--bad); }
         .lp-note { margin-top: 10px; text-align: center; font-size: 12px; color: var(--muted); line-height: 1.5; }
 
+        /* ---- Récapitulatifs cumulés ---- */
+        .recaps { width: 100%; max-width: 780px; margin-top: 18px; }
+        .recaps[hidden] { display: none !important; }
+        .recaps-head { display: flex; align-items: baseline; gap: 12px; justify-content: center; margin-bottom: 10px; }
+        .recaps-head h2 { font-size: 18px; margin: 0; }
+        .recaps-head .n { color: var(--muted); font-size: 13px; }
+        .recaps-head button {
+            background: transparent; border: 1px solid var(--line); color: var(--muted);
+            border-radius: 8px; padding: 4px 12px; font-family: inherit; font-size: 12px; cursor: pointer;
+        }
+
+        .recap {
+            background: var(--panel); border: 1px solid var(--line); border-left-width: 4px;
+            border-radius: 12px; padding: 9px 14px; margin-bottom: 8px;
+        }
+        .recap.ok { border-left-color: var(--good); }
+        .recap.no { border-left-color: var(--bad); }
+
+        .rc-head { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; font-size: 14px; }
+        .rc-head .ex { font-weight: 700; }
+        .rc-head .when { color: var(--muted); font-size: 12px; }
+        .rc-head .verdict { margin-left: auto; font-weight: 700; }
+        .recap.ok .verdict { color: var(--good); }
+        .recap.no .verdict { color: var(--bad); }
+
+        .rc-why { margin-top: 4px; font-size: 13px; color: var(--warn); }
+        .rc-nums { margin-top: 6px; display: flex; flex-wrap: wrap; gap: 5px 8px; font-size: 12px; font-variant-numeric: tabular-nums; }
+        .rc-nums span { color: var(--muted); background: #0a1030; border-radius: 6px; padding: 2px 8px; }
+        .rc-nums b { color: var(--text); font-weight: 600; }
+        .recap .rt-checks { justify-content: flex-start; margin-top: 8px; }
+        .rc-note { margin-top: 7px; font-size: 12px; color: var(--muted); }
+
         /* ---- Portée ---- */
         .staff-wrap {
             background: #fbfbff; border-radius: 16px; padding: 8px 10px;
@@ -301,17 +333,19 @@
             <div><span class="k">Exercice</span><span class="v" id="rtEx">n°1</span></div>
             <div><span class="k">Passages propres</span><span class="v" id="rtStreak">○ ○</span></div>
         </div>
+        <div class="control-row" style="margin-top:12px;">
+            <div class="segmented" id="rtHandSeg" title="Change les mains travaillées pendant la séance">
+                <button data-h="both" class="active">Les deux mains</button>
+                <button data-h="R">Main droite</button>
+                <button data-h="L">Main gauche</button>
+            </div>
+        </div>
         <div class="rt-state" id="rtState">…</div>
         <div class="rt-checks" id="rtChecks"></div>
         <div class="rt-cfg" id="rtCfg"></div>
         <ol class="rt-log" id="rtLog"></ol>
     </div>
 
-    <div class="lastpass" id="lastPass" hidden>
-        <div class="lp-head">
-            <span class="lp-title">Dernier passage</span>
-            <span class="lp-when" id="lpWhen"></span>
-        </div>
         <div class="lp-verdict" id="lpVerdict"></div>
         <div class="rt-checks" id="lpChecks"></div>
         <div class="lp-note" id="lpNote"></div>
@@ -386,11 +420,21 @@
             <label class="toggle"><input type="checkbox" id="showNames"> Noms des touches</label>
             <label class="toggle"><input type="checkbox" id="coachOn" checked> 💬 Conseils en direct</label>
             <label class="toggle" title="Deux touches voisines enfoncées en même temps comptent pour une seule"><input type="checkbox" id="mergeOn" checked> 🤏 Fusionner les touches voisines</label>
+            <label class="toggle" title="Une fausse note interrompt le passage, qui repart du début"><input type="checkbox" id="trainOn" checked> 🎯 Mode entraînement</label>
         </div>
         <div class="control-row" id="recordRow"></div>
     </div>
 
     <div class="warnbox" id="verifWarn" style="display:none;"></div>
+
+    <div class="recaps" id="recaps" hidden>
+        <div class="recaps-head">
+            <h2>Passages de cet entraînement</h2>
+            <span class="n" id="recapCount"></span>
+            <button id="clearRecaps">Vider</button>
+        </div>
+        <div id="recapList"></div>
+    </div>
 
     <div class="report" id="report"></div>
     <div id="selftest"></div>
@@ -452,7 +496,9 @@ const HANON = {
             return oct * 7 + i;
         }
 
-        const noteName = m => DEG_LETTER[mod(midiToDeg(m), 7)] + (BLACK_PC.has(mod(m, 12)) ? '♯' : '');
+        // table directe : passer par le degré diatonique nommait do♯ « ré♯ »
+        const SHARP_ABC = ['C', 'C♯', 'D', 'D♯', 'E', 'F', 'F♯', 'G', 'G♯', 'A', 'A♯', 'B'];
+        const noteName = m => SHARP_ABC[mod(m, 12)];
         const noteNameFr = m => FR[DEG_LETTER[mod(midiToDeg(m), 7)]];
 
         // =====================================================================
@@ -949,7 +995,8 @@ const HANON = {
         const S = {
             running: false, seq: null, hands: ['R', 'L'], cur: { R: 0, L: 0 },
             events: [], down: new Map(), mode: 'metro', bpm: 60, subMs: 250,
-            gridT0: null, pedal: false, exNum: 1, len: '8', loop: false, merged: 0
+            gridT0: null, pedal: false, exNum: 1, len: '8', loop: false, merged: 0,
+            training: true, lockUntil: 0, trainPending: false, failInfo: null
         };
 
         // Session sans fin : on borne la mémoire. Au-delà, le rapport porte sur
@@ -970,6 +1017,7 @@ const HANON = {
             S.hands = h === 'both' ? ['R', 'L'] : [h];
             S.len = document.querySelector('#lenSeg button.active').dataset.len;
             S.loop = S.len === 'loop';
+            S.training = document.getElementById('trainOn').checked;
         }
 
         function prepare() {
@@ -1003,6 +1051,9 @@ const HANON = {
             S.down.clear();
             S.pedal = false;
             S.merged = 0;
+            S.lockUntil = 0;
+            S.trainPending = false;
+            S.failInfo = null;
             clearPending();
             S.running = true;
             S.gridT0 = null;
@@ -1017,7 +1068,7 @@ const HANON = {
             if (S.mode === 'metro') S.gridT0 = startMetronome(S.bpm, 4);
         }
 
-        function stop(finished) {
+        function stop(finished, reason) {
             if (!S.running) return;
             S.running = false;
             stopMetronome();
@@ -1033,7 +1084,8 @@ const HANON = {
             // pendant une séance, le rapport complet entre deux passages serait
             // une distraction : le journal de séance résume, et le rapport n'est
             // rendu qu'à la fin
-            if (routine.on) { routineRunEnded(A, finished); return; }
+            pushRecap(A, finished, reason);
+            if (routine.on) { routineRunEnded(A, finished, reason); return; }
             if (A) renderReport(A, finished || S.loop);
         }
 
@@ -1116,6 +1168,8 @@ const HANON = {
         }
 
         function rawNoteOn(pitch, vel, t) {
+            // verrou qui suit une fausse note : plus rien n'est capté
+            if (performance.now() < S.lockUntil) return;
             if (!S.running) { flash(pitch, true); return; }
             const H = pickHand(pitch);
             const i = S.cur[H];
@@ -1130,6 +1184,7 @@ const HANON = {
             S.down.set(H + ':' + pitch, ev);
             S.cur[H]++;
             flash(pitch, ev.ok);
+            if (!ev.ok && S.training) { trainingFail(ev); return; }
             markNext();
             if (S.cur[H] % MOTIF === 0) drawMotif();
             updateGauges();
@@ -1840,11 +1895,16 @@ const HANON = {
             saveSettings();
         });
         document.getElementById('mergeOn').addEventListener('change', saveSettings);
+        document.getElementById('trainOn').addEventListener('change', saveSettings);
         document.getElementById('midiSel').addEventListener('change', e => {
             try { localStorage.setItem(LS_MIDI, e.target.value); } catch (err) { }
             if (midiAccess) refreshMidiInputs(midiAccess);
         });
-        document.getElementById('startBtn').addEventListener('click', () => S.running ? stop(false) : start());
+        document.getElementById('startBtn').addEventListener('click', () => {
+            S.trainPending = false;          // un arrêt manuel annule la reprise
+            S.lockUntil = 0;
+            S.running ? stop(false) : start();
+        });
         window.addEventListener('resize', fitKeyboard);
         window.addEventListener('orientationchange', fitKeyboard);
         document.addEventListener('keydown', e => {
@@ -1878,10 +1938,29 @@ const HANON = {
             strict: { label: 'Strict', cv: 4, vel: 6, tempo: 2, grid: 20 }
         };
 
+        const LS_RTHANDS = 'hanon.routineHands';
+        const RT_HAND_LABEL = { both: 'les deux mains', R: 'main droite seule', L: 'main gauche seule' };
+
         const routine = {
             on: false, endsAt: 0, ex: 1, streak: 0, log: [], level: 'souple',
-            tick: null, next: null, timeUp: false, lastA: null
+            hands: 'both', tick: null, next: null, timeUp: false, lastA: null
         };
+
+        // Changer de mains en pleine séance remet le compteur à zéro : deux
+        // passages propres doivent porter sur la MÊME configuration, sinon
+        // « validé » ne voudrait rien dire. Le passage en cours repart aussitôt.
+        function routineSetHands(h) {
+            routine.hands = h;
+            try { localStorage.setItem(LS_RTHANDS, h); } catch (e) { }
+            if (!routine.on) return;
+            routine.streak = 0;
+            if (routine.next) clearTimeout(routine.next);
+            if (S.running) stop(false, 'mains');
+            setRtState('↻ Passage relancé en ' + RT_HAND_LABEL[h], '');
+            updateRoutineHead();
+            applyRoutineConfig();
+            routine.next = setTimeout(routineNextRun, 900);
+        }
 
         const fmtClock = ms => {
             const s = Math.max(0, Math.round(ms / 1000));
@@ -1936,12 +2015,14 @@ const HANON = {
         function applyRoutineConfig() {
             document.getElementById('exSel').value = routine.ex;
             activateSeg('modeSeg', 'mode', 'metro');
-            activateSeg('handSeg', 'h', 'both');
+            activateSeg('handSeg', 'h', routine.hands);
+            activateSeg('rtHandSeg', 'h', routine.hands);
             activateSeg('lenSeg', 'len', 'all');
             showVerifWarn();
             const L = DAILY_LEVELS[routine.level];
             document.getElementById('rtCfg').innerHTML =
-                'Exercice complet · les deux mains · métronome ♩=' + document.getElementById('bpm').value
+                'Exercice complet · ' + RT_HAND_LABEL[routine.hands] + ' · métronome ♩='
+                + document.getElementById('bpm').value
                 + '<br>Niveau <b>' + L.label + '</b> — zéro fausse note, égalité ≤ ' + L.cv
                 + ' %, force ≤ ' + L.vel + ', tempo ±' + L.tempo + ' %, clic ≤ ' + L.grid + ' ms';
         }
@@ -1957,49 +2038,6 @@ const HANON = {
                 `<li class="${r.clean ? 'ok' : 'no'}"><span class="ex">n°${r.ex}</span>`
                 + `<span class="res">${r.clean ? '✓ propre' : '✗ ' + r.why}</span></li>`
             ).reverse().join('');
-        }
-
-        // ------------------------------------------------------------------
-        //  Dernier passage : le détail reste sous les yeux
-        // ------------------------------------------------------------------
-        //  Les pastilles du panneau de séance sont effacées dès que le passage
-        //  suivant démarre, et le journal n'en garde qu'une ligne résumée. Or ce
-        //  qui a bloqué, on veut pouvoir le relire à tête reposée : après la
-        //  séance, ou le lendemain avant de reprendre. Ce bloc conserve donc le
-        //  détail complet du dernier passage joué — relevé par relevé, avec les
-        //  seuils — et ne s'efface qu'au démarrage de la séance suivante. Il est
-        //  stocké pour survivre à la fermeture de l'onglet : recharger la page
-        //  n'est pas « relancer une séance ».
-        const LS_LASTPASS = 'hanon.lastpass';
-
-        function renderLastPass(rec) {
-            const el = document.getElementById('lastPass');
-            if (!rec || !rec.checks) { el.hidden = true; return; }
-            el.hidden = false;
-            el.className = 'lastpass ' + (rec.clean ? 'ok' : 'no');
-            const d = new Date(rec.ts);
-            document.getElementById('lpWhen').textContent =
-                d.toLocaleDateString('fr-FR') + ' à ' + String(d.getHours()).padStart(2, '0')
-                + ':' + String(d.getMinutes()).padStart(2, '0');
-            document.getElementById('lpVerdict').textContent = 'Exercice n°' + rec.ex + ' — '
-                + (rec.clean ? (rec.validated ? '✓ propre, exercice validé' : '✓ propre')
-                             : '✗ raté : ' + rec.why);
-            document.getElementById('lpChecks').innerHTML = checksHtml(rec.checks);
-            const L = DAILY_LEVELS[rec.level];
-            document.getElementById('lpNote').textContent =
-                'Niveau ' + (L ? L.label : rec.level) + ' · ♩=' + rec.bpm
-                + ' · ' + rec.n + (rec.n > 1 ? 'e passage' : 'er passage') + ' de la séance'
-                + ' — reste affiché jusqu\'à la prochaine séance';
-        }
-
-        function saveLastPass(rec) {
-            renderLastPass(rec);
-            try { localStorage.setItem(LS_LASTPASS, JSON.stringify(rec)); } catch (e) { }
-        }
-
-        function clearLastPass() {
-            renderLastPass(null);
-            try { localStorage.removeItem(LS_LASTPASS); } catch (e) { }
         }
 
         function routineTick() {
@@ -2024,7 +2062,8 @@ const HANON = {
             start();
         }
 
-        function routineRunEnded(A, finished) {
+        function routineRunEnded(A, finished, reason) {
+            if (reason === 'mains') return;   // relance volontaire, pas un essai
             routine.lastA = A;
             const ev = evaluateRun(A, finished);
             renderChecks(ev.checks);
@@ -2037,10 +2076,7 @@ const HANON = {
             // plus bas, sinon le son du 2e passage propre serait celui du 1er.
             const validated = ev.clean && routine.streak + 1 >= DAILY_PERFECT;
             cue(!ev.clean ? 'fail' : validated ? 'validated' : 'clean');
-            saveLastPass({
-                ts: Date.now(), ex: routine.ex, n: routine.log.length, level: routine.level,
-                bpm: S.bpm, clean: ev.clean, validated, why, checks: ev.checks
-            });
+            attachChecks(ev, validated, why);
 
             if (routine.timeUp) { finishRoutine(); return; }
 
@@ -2069,7 +2105,8 @@ const HANON = {
             routine.endsAt = Date.now() + DAILY_MS;
             document.getElementById('routine').hidden = false;
             document.getElementById('rtLog').innerHTML = '';
-            clearLastPass();            // seul moment où le détail précédent disparaît
+
+            clearRecaps();              // seul moment où les passages précédents disparaissent
             document.getElementById('dailyBtn').textContent = '⏹ Terminer la séance';
             document.getElementById('report').classList.remove('on');
             routine.tick = setInterval(routineTick, 500);
@@ -2119,6 +2156,8 @@ const HANON = {
             if (routine.on) applyRoutineConfig();
         });
 
+        wireSeg('rtHandSeg', b => routineSetHands(b.dataset.h));
+
         document.getElementById('dailyBtn').addEventListener('click', () => {
             if (routine.on) finishRoutine(); else startRoutine();
         });
@@ -2127,11 +2166,158 @@ const HANON = {
             let lv = null;
             try { lv = localStorage.getItem(LS_LEVEL); } catch (e) { }
             if (lv && DAILY_LEVELS[lv]) { routine.level = lv; activateSeg('levelSeg', 'level', lv); }
+            let rh = null;
+            try { rh = localStorage.getItem(LS_RTHANDS); } catch (e) { }
+            if (rh && RT_HAND_LABEL[rh]) { routine.hands = rh; activateSeg('rtHandSeg', 'h', rh); }
             let last = null;
-            try { last = JSON.parse(localStorage.getItem(LS_LASTPASS)); } catch (e) { }
-            renderLastPass(last);
+            loadRecaps();
             updateDailyLast();
         }
+
+
+        // =====================================================================
+        //  19. Mode entraînement et récapitulatifs cumulés
+        // =====================================================================
+        //  Une fausse note interrompt le passage : on le reprend depuis le
+        //  début. Un son d'erreur, puis deux secondes pendant lesquelles PLUS
+        //  RIEN n'est capté — sans ce verrou, les notes jouées dans l'élan
+        //  enchaîneraient les échecs et on ne saurait plus laquelle a compté.
+        //
+        //  Les récapitulatifs ne sont pas remplacés d'un passage à l'autre :
+        //  ils s'empilent, pour voir la progression au fil de l'entraînement.
+        //  Les graphiques détaillés, eux, restent sur le dernier passage : une
+        //  quinzaine de jeux de courbes empilés seraient illisibles.
+        // =====================================================================
+        const TRAIN_LOCK_MS = 2000;
+
+        function trainingFail(ev) {
+            S.failInfo = {
+                idx: ev.idx, hand: ev.hand, played: ev.pitch, expected: ev.expected,
+                total: S.seq[ev.hand].length
+            };
+            S.lockUntil = performance.now() + TRAIN_LOCK_MS;
+            S.trainPending = true;
+            cue('fail');          // même vocabulaire sonore que le verdict de fin de passage
+            stop(false, 'fausse');
+
+            // Le verrou doit se voir : sans compte à rebours on ne sait pas quand
+            // reprendre. On force la bannière même si les conseils sont coupés,
+            // parce que ce n'est pas un conseil mais un état de la session.
+            const el = document.getElementById('coach');
+            el.classList.remove('off');
+            (function tick() {
+                const left = S.lockUntil - performance.now();
+                if (left <= 0) {
+                    el.classList.toggle('off', !document.getElementById('coachOn').checked);
+                    if (S.trainPending && !routine.on && !S.running) start();
+                    return;
+                }
+                el.className = 'coach bad';
+                el.innerHTML = '<span class="ic">✗</span> Fausse note — reprise du passage dans '
+                    + Math.ceil(left / 1000) + ' s';
+                setTimeout(tick, 200);
+            })();
+        }
+
+        // Les récapitulatifs ne sont pas remplacés d'un passage à l'autre : ils
+        // s'empilent sur toute la séance en cours et sont relus au rechargement,
+        // parce que rouvrir l'onglet n'est pas relancer une séance. Les
+        // graphiques détaillés, eux, restent sur le dernier passage : quinze
+        // jeux de courbes empilés seraient illisibles.
+        const RECAP_MAX = 40;
+        const LS_RECAPS = 'hanon.passes';
+        const SHARP_FR = ['Do', 'Do♯', 'Ré', 'Ré♯', 'Mi', 'Fa', 'Fa♯', 'Sol', 'Sol♯', 'La', 'La♯', 'Si'];
+        const fullName = m => SHARP_FR[mod(m, 12)] + (Math.floor(m / 12) - 1);
+
+        let recaps = [];
+
+        function saveRecaps() {
+            try { localStorage.setItem(LS_RECAPS, JSON.stringify(recaps)); } catch (e) { }
+        }
+
+        function clearRecaps() {
+            recaps = [];
+            try { localStorage.removeItem(LS_RECAPS); } catch (e) { }
+            renderRecaps();
+        }
+
+        function pushRecap(A, finished, reason) {
+            if (!S.events.length || reason === 'mains') return;
+            const p = A && A.hands[A.order[0]];
+            recaps.push({
+                ts: Date.now(), ex: S.exNum, reason, bpm: S.bpm,
+                clean: !!(finished && A && A.wrong === 0),
+                notes: A ? A.notes : S.events.length,
+                wrong: A ? A.wrong : S.events.filter(e => !e.ok).length,
+                merged: S.merged,
+                fail: reason === 'fausse' ? S.failInfo : null,
+                cv: p ? p.cv : null, res: p ? p.resSD : null, vel: p ? p.velSD : null,
+                tempo: p ? p.bpm : null, grid: p && p.grid ? p.grid.sd : null,
+                sync: A && A.sync ? A.sync.meanAbs : null, art: p ? p.artMean : null
+            });
+            if (recaps.length > RECAP_MAX) recaps.shift();
+            saveRecaps();
+            renderRecaps();
+        }
+
+        // Le relévé critère par critère n'est connu qu'après coup, quand la
+        // séance a évalué le passage : on complète la dernière entrée.
+        function attachChecks(ev, validated, why) {
+            const r = recaps[recaps.length - 1];
+            if (!r) return;
+            r.checks = ev.checks; r.level = routine.level;
+            r.validated = validated; r.why = why; r.clean = ev.clean;
+            saveRecaps();
+            renderRecaps();
+        }
+
+        function renderRecaps() {
+            const box = document.getElementById('recaps');
+            box.hidden = !recaps.length;
+            document.getElementById('recapCount').textContent =
+                recaps.length + (recaps.length > 1 ? ' passages' : ' passage');
+
+            const num = (v, d, u) => v == null ? null : v.toFixed(d) + (u || '');
+            document.getElementById('recapList').innerHTML = recaps.map((r, i) => {
+                const verdict = r.clean
+                    ? (r.validated ? '✓ propre, exercice validé' : '✓ propre')
+                    : r.reason === 'fausse' ? '✗ fausse note'
+                        : r.why ? '✗ ' + r.why
+                            : r.wrong ? '✗ ' + r.wrong + ' fausse' + (r.wrong > 1 ? 's' : '')
+                                : '✗ interrompu';
+                const why = r.fail
+                    ? `À la note ${r.fail.idx + 1} sur ${r.fail.total} (${HN[r.fail.hand].toLowerCase()}) : `
+                      + `<b>${fullName(r.fail.played)}</b> au lieu de <b>${fullName(r.fail.expected)}</b>.`
+                    : '';
+                const nums = [
+                    ['notes', r.notes], ['CV', num(r.cv, 1, ' %')], ['irrég.', num(r.res, 1, ' ms')],
+                    ['force', num(r.vel, 1)], ['tempo', num(r.tempo, 0, ' ♩')],
+                    ['clic', num(r.grid, 1, ' ms')], ['mains', num(r.sync, 1, ' ms')],
+                    ['legato', num(r.art, 2)], ['voisines', r.merged || null]
+                ].filter(x => x[1] != null).map(x => `<span>${x[0]} <b>${x[1]}</b></span>`).join('');
+                const d = new Date(r.ts);
+                const L = r.level ? DAILY_LEVELS[r.level] : null;
+                return `<div class="recap ${r.clean ? 'ok' : 'no'}">`
+                    + `<div class="rc-head"><span class="ex">n°${r.ex}</span>`
+                    + `<span class="when">passage ${i + 1} · `
+                    + `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}:`
+                    + `${String(d.getSeconds()).padStart(2, '0')}</span>`
+                    + `<span class="verdict">${verdict}</span></div>`
+                    + (why ? `<div class="rc-why">${why}</div>` : '')
+                    + (r.checks ? `<div class="rt-checks">${checksHtml(r.checks)}</div>` : '')
+                    + `<div class="rc-nums">${nums}</div>`
+                    + (L ? `<div class="rc-note">Niveau ${L.label} · ♩=${r.bpm}</div>` : '')
+                    + `</div>`;
+            }).reverse().join('');
+        }
+
+        function loadRecaps() {
+            try { recaps = JSON.parse(localStorage.getItem(LS_RECAPS)) || []; } catch (e) { recaps = []; }
+            if (!Array.isArray(recaps)) recaps = [];
+            renderRecaps();
+        }
+
+        document.getElementById('clearRecaps').addEventListener('click', clearRecaps);
 
         // =====================================================================
         //  15. Auto-test du moteur de mesure (?selftest=1)
@@ -2321,6 +2507,23 @@ const HANON = {
             check('fenêtre de fusion bien en deçà du jeu le plus rapide',
                 MERGE_MS < fastest / 2, MERGE_MS + ' ms contre ' + fastest.toFixed(0) + ' ms à ♩=' + bpmMax);
 
+            // 8 sexies. Mode entraînement : le verrou doit être plus long que
+            //           l'intervalle entre deux notes, sinon la note suivante
+            //           serait captée et relâncerait un échec en cascade.
+            const slowest = 60000 / +document.getElementById('bpm').min / 4;
+            check('verrou plus long que l\'intervalle le plus lent',
+                TRAIN_LOCK_MS > slowest, TRAIN_LOCK_MS + ' ms contre ' + slowest.toFixed(0)
+                + ' ms à ♩=' + document.getElementById('bpm').min);
+
+            check('noms des touches noires corrects',
+                noteName(61) === 'C♯' && noteName(70) === 'A♯' && noteName(60) === 'C',
+                noteName(60) + ' ' + noteName(61) + ' ' + noteName(70));
+
+            check('les 3 choix de mains de la séance existent',
+                document.querySelectorAll('#rtHandSeg button').length === 3
+                && [...document.querySelectorAll('#rtHandSeg button')].every(b => RT_HAND_LABEL[b.dataset.h]),
+                [...document.querySelectorAll('#rtHandSeg button')].map(b => b.dataset.h).join(', '));
+
             // 9. entrées MIDI : un piano expose souvent plusieurs ports qui
             //    portent les mêmes notes. Un seul doit être écouté, sinon
             //    chaque frappe est comptée autant de fois qu'il y a de ports.
@@ -2368,7 +2571,8 @@ const HANON = {
                     click: segValue('clickSeg'),
                     names: document.getElementById('showNames').checked,
                     coach: document.getElementById('coachOn').checked,
-                    merge: document.getElementById('mergeOn').checked
+                    merge: document.getElementById('mergeOn').checked,
+                    train: document.getElementById('trainOn').checked
                 }));
             } catch (e) { }
         }
@@ -2394,6 +2598,7 @@ const HANON = {
                 document.getElementById('coach').classList.toggle('off', !o.coach);
             }
             if (o.merge != null) document.getElementById('mergeOn').checked = !!o.merge;
+            if (o.train != null) document.getElementById('trainOn').checked = !!o.train;
         }
 
         // =====================================================================
