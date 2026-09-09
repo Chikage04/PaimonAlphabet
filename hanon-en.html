@@ -1,10 +1,10 @@
 <!DOCTYPE html>
-<html lang="fr">
+<html lang="en">
 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Hanon — Entraîneur</title>
+    <title>Hanon Trainer</title>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Baloo+2:wght@400;500;700&display=swap');
 
@@ -300,25 +300,25 @@
 
 <body>
     <h1>🏋️ Hanon</h1>
-    <p class="subtitle">Les notes ne sont pas la question. On mesure l'égalité, les mains et la tenue du tempo.</p>
+    <p class="subtitle">The notes are not the point. This measures evenness, hand synchrony and tempo stability.</p>
     <div class="navlinks">
-        <a href="index.html">🏠 Accueil</a>
-        <a href="piano.html">🎹 Accords</a>
-        <a href="lecture.html">👀 Lecture à vue</a>
-        <a href="majeur-mineur.html">🎭 Majeur ou Mineur ?</a>
-        <a href="extrait.html">🎼 Extrait à rejouer</a>
-        <a href="hanon-en.html" id="langLink">🇬🇧 English version</a>
+        <a href="index.html">🏠 Home</a>
+        <a href="piano.html">🎹 Chords</a>
+        <a href="lecture.html">👀 Sight-reading</a>
+        <a href="majeur-mineur.html">🎭 Major or Minor?</a>
+        <a href="extrait.html">🎼 Play-back excerpt</a>
+        <a href="hanon.html" id="langLink">🇫🇷 Version française</a>
     </div>
     <div class="midi-row">
-        <div class="midi-status idle" id="midiStatus">🎛️ MIDI : recherche…</div>
-        <select id="midiSel" title="Entrée MIDI écoutée" style="display:none"></select>
+        <div class="midi-status idle" id="midiStatus">🎛️ MIDI: searching…</div>
+        <select id="midiSel" title="MIDI input being listened to" style="display:none"></select>
     </div>
 
     <div class="daily">
-        <button class="btn daily-btn" id="dailyBtn">🗓️ Séance du jour — 30 min</button>
-        <div class="segmented" id="levelSeg" title="Exigence pour qu'un passage compte comme propre">
-            <button data-level="souple" class="active">Souple</button>
-            <button data-level="normal">Normal</button>
+        <button class="btn daily-btn" id="dailyBtn">🗓️ Daily session — 30 min</button>
+        <div class="segmented" id="levelSeg" title="How demanding a pass must be to count as clean">
+            <button data-level="souple" class="active">Lenient</button>
+            <button data-level="normal">Standard</button>
             <button data-level="strict">Strict</button>
         </div>
         <span class="daily-last" id="dailyLast"></span>
@@ -326,15 +326,15 @@
 
     <div class="routine" id="routine" hidden>
         <div class="routine-head">
-            <div><span class="k">Temps restant</span><span class="v" id="rtTime">30:00</span></div>
-            <div><span class="k">Exercice</span><span class="v" id="rtEx">n°1</span></div>
-            <div><span class="k">Passages propres</span><span class="v" id="rtStreak">○ ○</span></div>
+            <div><span class="k">Time left</span><span class="v" id="rtTime">30:00</span></div>
+            <div><span class="k">Exercise</span><span class="v" id="rtEx">no. 1</span></div>
+            <div><span class="k">Clean passes</span><span class="v" id="rtStreak">○ ○</span></div>
         </div>
         <div class="control-row" style="margin-top:12px;">
-            <div class="segmented" id="rtHandSeg" title="Change les mains travaillées pendant la séance">
-                <button data-h="both" class="active">Les deux mains</button>
-                <button data-h="R">Main droite</button>
-                <button data-h="L">Main gauche</button>
+            <div class="segmented" id="rtHandSeg" title="Switch which hands the session drills">
+                <button data-h="both" class="active">Both hands</button>
+                <button data-h="R">Right hand</button>
+                <button data-h="L">Left hand</button>
             </div>
         </div>
         <div class="rt-state" id="rtState">…</div>
@@ -345,9 +345,9 @@
 
     <div class="gauges">
         <div class="gauge" id="gTempo"><div class="label">Tempo</div><div class="value" id="vTempo">—</div><div class="bar"><i></i></div></div>
-        <div class="gauge" id="gEven"><div class="label">Égalité</div><div class="value" id="vEven">—</div><div class="bar"><i></i></div></div>
-        <div class="gauge" id="gHands"><div class="label">Mains</div><div class="value" id="vHands">—</div><div class="bar"><i></i></div></div>
-        <div class="gauge" id="gProg"><div class="label">Avancement</div><div class="value" id="vProg">—</div><div class="bar"><i></i></div></div>
+        <div class="gauge" id="gEven"><div class="label">Evenness</div><div class="value" id="vEven">—</div><div class="bar"><i></i></div></div>
+        <div class="gauge" id="gHands"><div class="label">Hands</div><div class="value" id="vHands">—</div><div class="bar"><i></i></div></div>
+        <div class="gauge" id="gProg"><div class="label">Progress</div><div class="value" id="vProg">—</div><div class="bar"><i></i></div></div>
     </div>
 
     <div class="staff-wrap">
@@ -355,7 +355,7 @@
     </div>
     <p class="motif-caption" id="motifCaption"></p>
 
-    <div class="coach" id="coach"><span class="ic">💬</span> Lance une session, les conseils arrivent en jouant</div>
+    <div class="coach" id="coach"><span class="ic">💬</span> Start a run — coaching appears as you play</div>
 
     <div class="piano-scaler" id="pianoScaler">
         <div class="piano" id="piano"></div>
@@ -363,65 +363,65 @@
 
     <div class="controls">
         <div class="control-row">
-            <select id="exSel" title="Exercice"></select>
+            <select id="exSel" title="Exercise"></select>
             <div class="bpm-box">
                 <span class="cap">♩ =</span><span class="n" id="bpmN">60</span>
                 <input type="range" id="bpm" min="40" max="144" step="2" value="60">
             </div>
         </div>
 
-        <div class="control-row"><span class="seg-label">Référence de tempo</span></div>
+        <div class="control-row"><span class="seg-label">Tempo reference</span></div>
         <div class="control-row">
             <div class="segmented" id="modeSeg">
-                <button data-mode="metro" class="active">Métronome</button>
-                <button data-mode="free">Libre</button>
+                <button data-mode="metro" class="active">Metronome</button>
+                <button data-mode="free">Free</button>
             </div>
         </div>
 
-        <div class="control-row"><span class="seg-label">Clic — Hanon est en doubles croches, soit 4 notes par temps</span></div>
+        <div class="control-row"><span class="seg-label">Click — Hanon is in sixteenth notes, i.e. 4 notes per beat</span></div>
         <div class="control-row">
             <div class="segmented" id="clickSeg">
-                <button data-click="sub" class="active">🔊 Chaque note</button>
-                <button data-click="beat">Sur le temps</button>
-                <button data-click="off">Muet</button>
+                <button data-click="sub" class="active">🔊 Every note</button>
+                <button data-click="beat">On the beat</button>
+                <button data-click="off">Silent</button>
             </div>
         </div>
 
-        <div class="control-row"><span class="seg-label">Mains</span></div>
+        <div class="control-row"><span class="seg-label">Hands</span></div>
         <div class="control-row">
             <div class="segmented" id="handSeg">
-                <button data-h="both" class="active">Les deux</button>
-                <button data-h="R">Main droite</button>
-                <button data-h="L">Main gauche</button>
+                <button data-h="both" class="active">Both</button>
+                <button data-h="R">Right hand</button>
+                <button data-h="L">Left hand</button>
             </div>
         </div>
 
-        <div class="control-row"><span class="seg-label">Longueur</span></div>
+        <div class="control-row"><span class="seg-label">Length</span></div>
         <div class="control-row">
             <div class="segmented" id="lenSeg">
-                <button data-len="4">4 groupes</button>
-                <button data-len="8" class="active">8 groupes</button>
-                <button data-len="up">Montée</button>
-                <button data-len="all">Complet</button>
-                <button data-len="loop">∞ Boucle</button>
-                <button data-len="frag">✂ Fragment</button>
+                <button data-len="4">4 groups</button>
+                <button data-len="8" class="active">8 groups</button>
+                <button data-len="up">Ascending</button>
+                <button data-len="all">Complete</button>
+                <button data-len="loop">∞ Loop</button>
+                <button data-len="frag">✂ Excerpt</button>
             </div>
         </div>
 
         <div class="control-row" id="fragRow" hidden>
-            <span class="frag-lab">Groupes</span>
+            <span class="frag-lab">Groups</span>
             <input type="number" id="fragFrom" min="1" value="1">
-            <span class="frag-lab">à</span>
+            <span class="frag-lab">to</span>
             <input type="number" id="fragTo" min="1" value="2">
             <span class="frag-lab" id="fragInfo"></span>
         </div>
 
         <div class="control-row" style="margin-top:4px;">
-            <button class="btn" id="startBtn">▶ Démarrer</button>
-            <label class="toggle"><input type="checkbox" id="showNames"> Noms des touches</label>
-            <label class="toggle"><input type="checkbox" id="coachOn" checked> 💬 Conseils en direct</label>
-            <label class="toggle" title="Deux touches voisines enfoncées en même temps comptent pour une seule"><input type="checkbox" id="mergeOn" checked> 🤏 Fusionner les touches voisines</label>
-            <label class="toggle" title="Une fausse note interrompt le passage, qui repart du début"><input type="checkbox" id="trainOn" checked> 🎯 Mode entraînement</label>
+            <button class="btn" id="startBtn">▶ Start</button>
+            <label class="toggle"><input type="checkbox" id="showNames"> Key names</label>
+            <label class="toggle"><input type="checkbox" id="coachOn" checked> 💬 Live coaching</label>
+            <label class="toggle" title="Two adjacent keys struck together count as one"><input type="checkbox" id="mergeOn" checked> 🤏 Merge adjacent keys</label>
+            <label class="toggle" title="A wrong note aborts the pass, which restarts from the top"><input type="checkbox" id="trainOn" checked> 🎯 Drill mode</label>
         </div>
         <div class="control-row" id="recordRow"></div>
     </div>
@@ -430,9 +430,9 @@
 
     <div class="recaps" id="recaps" hidden>
         <div class="recaps-head">
-            <h2>Passages de cette séance</h2>
+            <h2>Passes this session</h2>
             <span class="n" id="recapCount"></span>
-            <button id="clearRecaps">Vider</button>
+            <button id="clearRecaps">Clear</button>
         </div>
         <div id="recapList"></div>
     </div>
@@ -441,9 +441,9 @@
     <div id="selftest"></div>
 
     <p class="hint">
-        Les doigtés sont issus d'une transcription recoupée avec deux sources indépendantes.
-        Joue <b>pianissimo</b> une fois sur deux : c'est le filtre le plus dur, un doigt faible n'y sonne
-        simplement pas. Ajoute <code>?selftest=1</code> à l'URL pour vérifier le moteur de mesure lui-même.
+        The fingerings come from a transcription cross-checked against two independent sources.
+        Play <b>pianissimo</b> every other time: it is the harshest filter — a weak finger simply
+        will not sound. Append <code>?selftest=1</code> to the URL to verify the measurement engine itself.
     </p>
 
     <script>
@@ -904,7 +904,7 @@ const HANON = {
             });
 
             const cap = svgEl('text', { x: 92, y: 24, 'font-size': 13, fill: '#666' });
-            cap.textContent = 'Groupe ' + (start / MOTIF + 1 + S.groupOffset) + ' — doigtés sous les notes';
+            cap.textContent = 'Group ' + (start / MOTIF + 1 + S.groupOffset) + ' — fingering under each note';
             staff.appendChild(cap);
         }
 
@@ -1062,15 +1062,15 @@ const HANON = {
             const total = S.seq ? S.seq.R.length : 0;
             const el = document.getElementById('motifCaption');
             const perNote = Math.round(60000 / S.bpm / 4);
-            el.innerHTML = `Exercice <b>n°${S.exNum}</b> — ${total / MOTIF | 0} groupes de ${MOTIF} doubles croches, `
-                + `<b>${total}</b> notes par main`
+            el.innerHTML = `Exercise <b>no. ${S.exNum}</b> — ${total / MOTIF | 0} groups of ${MOTIF} sixteenth notes, `
+                + `<b>${total}</b> notes per hand`
                 + (S.len === 'frag'
-                    ? ` — <b>groupes ${S.fragFrom} à ${S.fragTo}</b>, soit les notes `
-                      + `<b>${(S.fragFrom - 1) * MOTIF + 1} à ${S.fragTo * MOTIF}</b>, répétés sans fin.`
-                    : S.loop ? `, <b>répétés sans fin</b> jusqu'à ce que tu arrêtes.` : '.') + '<br>'
-                + `À ♩=${S.bpm} : <b>4 notes par temps</b>, une note toutes les <b>${perNote} ms</b>, `
-                + `soit ${(S.bpm * 4 / 60).toFixed(1)} notes par seconde. `
-                + `Le clic bat chaque note, l'aigu marque le temps.`;
+                    ? ` — <b>groups ${S.fragFrom} to ${S.fragTo}</b>, i.e. notes `
+                      + `<b>${(S.fragFrom - 1) * MOTIF + 1} to ${S.fragTo * MOTIF}</b>, looping endlessly.`
+                    : S.loop ? `, <b>looping endlessly</b> until you stop.` : '.') + '<br>'
+                + `At ♩=${S.bpm}: <b>4 notes per beat</b>, one note every <b>${perNote} ms</b>, `
+                + `i.e. ${(S.bpm * 4 / 60).toFixed(1)} notes per second. `
+                + `The click marks every note; the higher pitch marks the beat.`;
         }
 
         function start() {
@@ -1086,12 +1086,12 @@ const HANON = {
             S.running = true;
             S.gridT0 = null;
             document.getElementById('report').classList.remove('on');
-            document.getElementById('startBtn').textContent = '⏹ Arrêter';
+            document.getElementById('startBtn').textContent = '⏹ Stop';
             document.getElementById('startBtn').classList.add('stop');
             clearKeyStates();
             markNext();
             resetGauges();
-            resetCoach('Joue — les conseils arrivent au bout de quelques notes');
+            resetCoach('Play — coaching starts after a few notes');
             // après resetGauges, sinon le décompte est effacé dès sa première image
             if (S.mode === 'metro') S.gridT0 = startMetronome(S.bpm, 4);
         }
@@ -1101,10 +1101,10 @@ const HANON = {
             S.running = false;
             stopMetronome();
             clearPending();
-            document.getElementById('startBtn').textContent = '▶ Démarrer';
+            document.getElementById('startBtn').textContent = '▶ Start';
             document.getElementById('startBtn').classList.remove('stop');
             clearKeyStates();
-            resetCoach('Session terminée — le détail est dans le rapport ci-dessous');
+            resetCoach('Run finished — the detail is in the report below');
             const A = S.events.length >= 8 ? analyze(S.events, {
                 subMs: S.subMs, mode: S.mode, gridT0: S.gridT0, hands: S.hands,
                 pedal: S.pedal, merged: S.merged
@@ -1341,8 +1341,8 @@ const HANON = {
                 const io = iois(w9), m = mean(io);
                 const rel = (m - target) / target;
                 const se = Math.max(0.008, (sd(io) / Math.sqrt(io.length)) / target);
-                if (rel <= -0.03) add('rush', Math.abs(rel) / se, '⏩', 'Tu accélères — reste sur le clic', 'bad');
-                else if (rel >= 0.03) add('drag', Math.abs(rel) / se, '⏪', 'Tu ralentis — relance', 'bad');
+                if (rel <= -0.03) add('rush', Math.abs(rel) / se, '⏩', 'Rushing — stay with the click', 'bad');
+                else if (rel >= 0.03) add('drag', Math.abs(rel) / se, '⏪', 'Dragging — pick it back up', 'bad');
             }
 
             // --- régularité et legato : fenêtre moyenne
@@ -1350,7 +1350,7 @@ const HANON = {
             if (w17.length >= 12) {
                 const io = iois(w17), m = mean(io);
                 const cv = m ? sd(io) / m * 100 : 0;
-                if (cv > 8) add('cv', cv / 4, '〰️', 'Irrégulier — place chaque note', 'bad');
+                if (cv > 8) add('cv', cv / 4, '〰️', 'Uneven — place every note', 'bad');
 
                 const rat = [];
                 for (let i = 0; i < w17.length - 1; i++) {
@@ -1359,8 +1359,8 @@ const HANON = {
                 }
                 if (rat.length >= 6) {
                     const r = mean(rat), se = Math.max(0.02, sd(rat) / Math.sqrt(rat.length));
-                    if (r < 0.95) add('legato-court', (0.95 - r) / se, '🔗', 'Notes trop courtes — tiens-les jusqu\'à la suivante', 'warn');
-                    else if (r > 1.15) add('legato-long', (r - 1.15) / se, '✂️', 'Tu lies trop — relâche un peu plus tôt', 'warn');
+                    if (r < 0.95) add('legato-court', (0.95 - r) / se, '🔗', 'Notes too short — hold each until the next sounds', 'warn');
+                    else if (r > 1.15) add('legato-long', (r - 1.15) / se, '✂️', 'Over-connected — release a little sooner', 'warn');
                 }
             }
 
@@ -1376,7 +1376,7 @@ const HANON = {
                     if (Math.abs(d) >= 4 && (!bestF || sev > bestF.sev)) bestF = { f, d, sev };
                 }
                 if (bestF) add('doigt' + bestF.f, bestF.sev, '🖐️',
-                    bestF.d > 0 ? `Doigt ${bestF.f} trop fort — allège` : `Doigt ${bestF.f} trop faible — appuie plus`, 'warn');
+                    bestF.d > 0 ? `Finger ${bestF.f} too strong — lighten it` : `Finger ${bestF.f} too weak — press more`, 'warn');
 
                 // accent sur une position du motif : on l'ignore s'il s'explique
                 // déjà par le doigt signalé au-dessus, pour ne pas dire deux fois
@@ -1390,14 +1390,14 @@ const HANON = {
                 if (bestP) {
                     const fingerAt = w32.find(e => posOf(e) === bestP.p);
                     if (!bestF || !fingerAt || fingerAt.finger !== bestF.f)
-                        add('pos' + bestP.p, bestP.sev, '🎯', `Tu accentues la note ${bestP.p + 1} du groupe`, 'warn');
+                        add('pos' + bestP.p, bestP.sev, '🎯', `You accent note ${bestP.p + 1} of the group`, 'warn');
                 }
 
                 if (w32.length >= 20) {
                     const sl = crescPerOctave(w32, MOTIF);
                     if (Math.abs(sl) >= 6) add('cresc', Math.abs(sl) / 3, sl > 0 ? '📈' : '📉',
-                        sl > 0 ? 'Tu forces en montant — même volume partout'
-                            : 'Tu faiblis en montant — même volume partout', 'warn');
+                        sl > 0 ? 'Getting louder as you ascend — keep one level'
+                            : 'Getting softer as you ascend — keep one level', 'warn');
                 }
             }
 
@@ -1412,7 +1412,7 @@ const HANON = {
                 for (const [, p] of byIdx) if (p.R != null && p.L != null) dd.push(Math.abs(p.R - p.L));
                 if (dd.length >= 6) {
                     const m = mean(dd), se = Math.max(2, sd(dd) / Math.sqrt(dd.length));
-                    if (m > 20) add('sync', (m - 20) / se, '🤝', 'Mains décalées — écoute-les ensemble', 'bad');
+                    if (m > 20) add('sync', (m - 20) / se, '🤝', 'Hands out of sync — listen to them together', 'bad');
                 }
             }
 
@@ -1449,7 +1449,7 @@ const HANON = {
             coachState.since = now;
             el.className = 'coach ' + (a ? a.cls : 'ok');
             el.innerHTML = a ? `<span class="ic">${a.icon}</span> ${a.text}`
-                : '<span class="ic">✓</span> Ça tient — continue';
+                : '<span class="ic">✓</span> Holding up — keep going';
         }
 
         // =====================================================================
@@ -1536,7 +1536,7 @@ const HANON = {
                 c.beginPath(); c.moveTo(padL, Y(target)); c.lineTo(w - padR, Y(target)); c.stroke();
                 c.setLineDash([]);
                 c.fillStyle = '#ffb14d'; c.font = '10px system-ui'; c.textAlign = 'left';
-                c.fillText('cible ' + target, padL + 4, Y(target) - 4);
+                c.fillText('target ' + target, padL + 4, Y(target) - 4);
             }
             for (const s of series) {
                 if (s.data.length < 2) continue;
@@ -1545,15 +1545,15 @@ const HANON = {
                 c.stroke();
             }
             c.fillStyle = COL.text; c.font = '10px system-ui'; c.textAlign = 'center';
-            c.fillText('secondes', padL + iw / 2, h - 7);
+            c.fillText('seconds', padL + iw / 2, h - 7);
         }
 
         // =====================================================================
         //  11. Rapport
         // =====================================================================
-        const HN = { R: 'Main droite', L: 'Main gauche' };
+        const HN = { R: 'Right hand', L: 'Left hand' };
         const HS = { R: 'MD', L: 'MG' };
-        const FING = ['1 (pouce)', '2 (index)', '3 (majeur)', '4 (annulaire)', '5 (auriculaire)'];
+        const FING = ['1 (thumb)', '2 (index)', '3 (middle)', '4 (ring)', '5 (little)'];
         const s1 = v => (v >= 0 ? '+' : '') + v.toFixed(1);
         const ms = v => v == null ? '—' : s1(v) + ' ms';
         const num = (v, d) => v == null ? '—' : v.toFixed(d == null ? 1 : d);
@@ -1579,47 +1579,47 @@ const HANON = {
             const cvCls = primary.cv < 4 ? 'good' : primary.cv < 8 ? 'warn' : 'bad';
             const velCls = primary.velSD < 6 ? 'good' : primary.velSD < 11 ? 'warn' : 'bad';
 
-            let html = `<h2>${finished ? 'Exercice terminé' : 'Session interrompue'}</h2>`
-                + `<p class="when">Hanon n°${S.exNum} — ${A.notes} notes — ♩=${S.bpm} — `
-                + `mode ${S.mode === 'metro' ? 'Métronome' : 'Libre'}`
-                + (S.loop ? ` — ${lapOf(S.hands[0]) - 1} tours complets` : '')
+            let html = `<h2>${finished ? 'Exercise completed' : 'Run interrupted'}</h2>`
+                + `<p class="when">Hanon no. ${S.exNum} — ${A.notes} notes — ♩=${S.bpm} — `
+                + `${S.mode === 'metro' ? 'Metronome' : 'Free'} mode`
+                + (S.loop ? ` — ${lapOf(S.hands[0]) - 1} complete laps` : '')
                 + `</p><div class="cards">`;
 
-            html += card('Égalité (CV)', primary.cv.toFixed(1), '%',
-                'Écart-type des intervalles entre attaques, rapporté à leur moyenne. Sous 4 % c\'est propre.', cvCls);
-            html += card('Irrégularité', primary.resSD.toFixed(1), 'ms',
-                'Écart-type des retards par rapport à une grille ajustée localement.', cvCls);
-            html += card('Tempo réel', primary.bpm.toFixed(0), '♩',
-                `Visé : ${S.bpm}. Dérive ${s1(primary.drift)} ♩/min.`,
+            html += card('Evenness (CV)', primary.cv.toFixed(1), '%',
+                'Standard deviation of inter-onset intervals over their mean. Under 4% is clean.', cvCls);
+            html += card('Unevenness', primary.resSD.toFixed(1), 'ms',
+                'Standard deviation of timing deviations from a locally fitted grid.', cvCls);
+            html += card('Actual tempo', primary.bpm.toFixed(0), '♩',
+                `Target: ${S.bpm}. Drift ${s1(primary.drift)} ♩/min.`,
                 Math.abs(primary.drift) < 3 ? 'good' : Math.abs(primary.drift) < 8 ? 'warn' : 'bad');
-            html += card('Vélocité', primary.velMean.toFixed(0), '',
-                `Écart-type ${primary.velSD.toFixed(1)} — c'est lui qui compte, pas la moyenne.`, velCls);
+            html += card('Key velocity', primary.velMean.toFixed(0), '',
+                `Standard deviation ${primary.velSD.toFixed(1)} — that is what matters, not the mean.`, velCls);
             html += card('Crescendo', s1(primary.cresc), '/oct',
-                'Dérive de vélocité par octave montée. Proche de 0 = pas de crescendo involontaire.',
+                'Velocity drift per octave ascended. Near 0 means no unintended crescendo.',
                 Math.abs(primary.cresc) < 3 ? 'good' : Math.abs(primary.cresc) < 7 ? 'warn' : 'bad');
-            html += card('Fausses notes', A.wrong, '',
-                'Comptées mais exclues du diagnostic : le doigt reste attribué correctement.',
+            html += card('Wrong notes', A.wrong, '',
+                'Counted but excluded from the diagnosis: the finger is still attributed correctly.',
                 A.wrong === 0 ? 'good' : '');
 
             if (A.merged)
-                html += card('Touches voisines', A.merged, '',
-                    'Attaques à un ton ou moins et à moins de ' + MERGE_MS + ' ms d\'écart, comptées '
-                    + 'pour une seule. C\'est un doigt qui ripe — position de main ou courbure à revoir.', 'warn');
+                html += card('Adjacent-key hits', A.merged, '',
+                    'Onsets a whole tone or less apart and within ' + MERGE_MS + ' ms, counted '
+                    + 'as one. That is a finger slipping — review hand position and finger curve.', 'warn');
 
             if (A.sync)
-                html += card('Écart des mains', A.sync.meanAbs.toFixed(1), 'ms',
-                    `Biais ${s1(A.sync.bias)} ms (${A.sync.bias > 0 ? 'droite en retard' : 'gauche en retard'}), dispersion ${A.sync.sd.toFixed(1)} ms.`,
+                html += card('Hand asynchrony', A.sync.meanAbs.toFixed(1), 'ms',
+                    `Bias ${s1(A.sync.bias)} ms (${A.sync.bias > 0 ? 'right hand late' : 'left hand late'}), spread ${A.sync.sd.toFixed(1)} ms.`,
                     A.sync.meanAbs < 12 ? 'good' : A.sync.meanAbs < 25 ? 'warn' : 'bad');
 
             if (primary.grid)
-                html += card('Écart au clic', primary.grid.sd.toFixed(1), 'ms',
-                    `Dispersion autour du métronome, latence de sortie (${primary.grid.lat.toFixed(0)} ms) retirée.`,
+                html += card('Sync to click', primary.grid.sd.toFixed(1), 'ms',
+                    `Spread around the metronome, output latency (${primary.grid.lat.toFixed(0)} ms) removed.`,
                     primary.grid.sd < 15 ? 'good' : primary.grid.sd < 30 ? 'warn' : 'bad');
 
             if (primary.artMean != null)
                 html += card('Legato', primary.artMean.toFixed(2), '×',
-                    A.pedal ? '⚠️ Pédale détectée : mesure faussée.'
-                        : `Durée / intervalle. > 1 = notes liées. Régularité ${primary.artSD.toFixed(2)}.`,
+                    A.pedal ? '⚠️ Sustain pedal detected: measurement invalid.'
+                        : `Duration over interval. > 1 means overlapping notes. Consistency ${primary.artSD.toFixed(2)}.`,
                     A.pedal ? 'warn' : '');
 
             html += '</div>';
@@ -1640,70 +1640,70 @@ const HANON = {
 
             // --- tableau 1 : retard par doigt
             const tFinger = tbl(
-                ['Doigt'].concat(...A.order.map(H => [HS[H] + ' retard', HS[H] + ' notes'])),
+                ['Finger'].concat(...A.order.map(H => [HS[H] + ' lag', HS[H] + ' notes'])),
                 FING.map((lb, k) => [lb].concat(...A.order.map(H => {
                     const b = A.hands[H].byFinger[k + 1];
                     return [ms(b.res), b.n || '—'];
                 })))
             );
 
-            html += `<div class="chart-block"><h3>Profil par doigt</h3>
-                <p>Retard moyen de chaque doigt, en millisecondes, une fois le tempo local retiré.
-                Au-dessus de zéro le doigt traîne, en dessous il anticipe. ${legend}</p>
+            html += `<div class="chart-block"><h3>Timing by finger</h3>
+                <p>Mean lag of each finger, in milliseconds, once the local tempo is removed.
+                Above zero the finger drags, below it anticipates. ${legend}</p>
                 <canvas id="cFinger"></canvas>${tFinger}</div>`;
 
             // --- tableau 2 : vélocité par doigt
             const tVel = tbl(
-                ['Doigt'].concat(...A.order.map(H => [HS[H] + ' vélocité', HS[H] + ' écart'])),
+                ['Finger'].concat(...A.order.map(H => [HS[H] + ' velocity', HS[H] + ' deviation'])),
                 FING.map((lb, k) => [lb].concat(...A.order.map(H => {
                     const v = A.hands[H].byFinger[k + 1].vel;
                     return [num(v, 0), v == null ? '—' : s1(v - A.hands[H].velMean)];
                 })))
             );
 
-            html += `<div class="chart-block"><h3>Force par doigt</h3>
-                <p>Écart de vélocité de chaque doigt à ta moyenne. Le schéma classique : pouce trop fort,
-                4 et 5 trop faibles. ${legend}</p>
+            html += `<div class="chart-block"><h3>Velocity by finger</h3>
+                <p>Each finger's velocity deviation from your mean. The classic pattern: thumb too strong,
+                ring and little too weak. ${legend}</p>
                 <canvas id="cVel"></canvas>${tVel}</div>`;
 
             // --- tableau 3 : retard par position, avec le doigté correspondant
             const firstGroup = H => (S.seq && S.seq[H] ? S.seq[H].slice(0, MOTIF) : []);
             const tPos = tbl(
-                ['Note du groupe'].concat(...A.order.map(H => [HS[H] + ' doigt', HS[H] + ' retard'])),
-                Array.from({ length: MOTIF }, (_, p) => [`n° ${p + 1}`].concat(...A.order.map(H => {
+                ['Note in group'].concat(...A.order.map(H => [HS[H] + ' finger', HS[H] + ' lag'])),
+                Array.from({ length: MOTIF }, (_, p) => [`no. ${p + 1}`].concat(...A.order.map(H => {
                     const g = firstGroup(H)[p];
                     return [g ? g.finger : '—', ms(A.hands[H].byPos[p])];
                 })))
             );
 
-            html += `<div class="chart-block"><h3>Profil par position dans le motif</h3>
-                <p>Retard moyen selon le rang de la note dans le groupe de 8. Un pic isolé signale un
-                accident mécanique récurrent — changement de position, passage du pouce.
-                Le doigté indiqué est celui du premier groupe. ${legend}</p>
+            html += `<div class="chart-block"><h3>Timing by position in the pattern</h3>
+                <p>Mean lag by rank of the note within the group of 8. An isolated spike signals a
+                recurring mechanical accident — position shift, thumb crossing.
+                The fingering shown is that of the first group. ${legend}</p>
                 <canvas id="cPos"></canvas>${tPos}</div>`;
 
             // --- tableau 4 : tenue du tempo
             const tTempo = tbl(
-                ['Mesure'].concat(A.order.map(H => HN[H])),
+                ['Measure'].concat(A.order.map(H => HN[H])),
                 [
-                    ['Tempo visé', ...A.order.map(() => S.bpm + ' ♩')],
-                    ['Tempo moyen', ...A.order.map(H => num(A.hands[H].bpm, 0) + ' ♩')],
-                    ['Écart au tempo visé', ...A.order.map(H => s1(A.hands[H].bpm - S.bpm) + ' ♩')],
-                    ['Le plus lent', ...A.order.map(H => {
+                    ['Target tempo', ...A.order.map(() => S.bpm + ' ♩')],
+                    ['Mean tempo', ...A.order.map(H => num(A.hands[H].bpm, 0) + ' ♩')],
+                    ['Deviation from target', ...A.order.map(H => s1(A.hands[H].bpm - S.bpm) + ' ♩')],
+                    ['Slowest', ...A.order.map(H => {
                         const c = A.hands[H].curve;
                         return c.length ? num(Math.min(...c.map(x => x.bpm)), 0) + ' ♩' : '—';
                     })],
-                    ['Le plus rapide', ...A.order.map(H => {
+                    ['Fastest', ...A.order.map(H => {
                         const c = A.hands[H].curve;
                         return c.length ? num(Math.max(...c.map(x => x.bpm)), 0) + ' ♩' : '—';
                     })],
-                    ['Dérive', ...A.order.map(H => s1(A.hands[H].drift) + ' ♩/min')],
-                    ['Intervalle moyen', ...A.order.map(H => num(A.hands[H].ioiMean, 0) + ' ms')]
+                    ['Drift', ...A.order.map(H => s1(A.hands[H].drift) + ' ♩/min')],
+                    ['Mean interval', ...A.order.map(H => num(A.hands[H].ioiMean, 0) + ' ms')]
                 ]
             );
 
-            html += `<div class="chart-block"><h3>Tenue du tempo</h3>
-                <p>Tempo local au fil de la session. ${legend}</p>
+            html += `<div class="chart-block"><h3>Tempo stability</h3>
+                <p>Local tempo over the course of the run. ${legend}</p>
                 <canvas id="cTempo"></canvas>${tTempo}</div>`;
 
             html += verdict(A, primary);
@@ -1711,7 +1711,7 @@ const HANON = {
             R.classList.add('on');
 
             barChart(document.getElementById('cFinger'), fingers, resSeries, 'ms', v => v.toFixed(0));
-            barChart(document.getElementById('cVel'), fingers, velSeries, 'vélocité', v => v.toFixed(0));
+            barChart(document.getElementById('cVel'), fingers, velSeries, 'velocity', v => v.toFixed(0));
             barChart(document.getElementById('cPos'), ['1', '2', '3', '4', '5', '6', '7', '8'], posSeries, 'ms', v => v.toFixed(0));
             lineChart(document.getElementById('cTempo'),
                 A.order.map(H => ({ color: COL[H], data: A.hands[H].curve })), S.bpm);
@@ -1722,9 +1722,9 @@ const HANON = {
 
         function verdict(A, p) {
             const li = [];
-            if (p.cv < 4) li.push('<span class="ok">Égalité propre</span> — CV sous 4 %, on est dans les clous.');
-            else if (p.cv < 8) li.push(`Égalité moyenne (${p.cv.toFixed(1)} %). Redescends de 10 ♩ et vise 4 %.`);
-            else li.push(`<span class="no">Égalité insuffisante (${p.cv.toFixed(1)} %)</span> — ce tempo est trop rapide pour ton contrôle actuel.`);
+            if (p.cv < 4) li.push('<span class="ok">Clean evenness</span> — CV under 4%, well within range.');
+            else if (p.cv < 8) li.push(`Middling evenness (${p.cv.toFixed(1)}%). Drop 10 ♩ and aim for 4%.`);
+            else li.push(`<span class="no">Insufficient evenness (${p.cv.toFixed(1)}%)</span> — this tempo is beyond your current control.`);
 
             // doigt le plus en retard / le plus faible
             let worstF = null, worstV = 0, weakF = null, weakV = 0;
@@ -1734,27 +1734,27 @@ const HANON = {
                 if (b.vel != null && (b.vel - p.velMean) < weakV) { weakV = b.vel - p.velMean; weakF = f; }
             }
             if (worstF && Math.abs(worstV) > 6)
-                li.push(`Le <b>doigt ${worstF}</b> ${worstV > 0 ? 'traîne' : 'anticipe'} de ${Math.abs(worstV).toFixed(0)} ms en moyenne. Travaille le groupe au ralenti en ne pensant qu'à lui.`);
+                li.push(`<b>Finger ${worstF}</b> ${worstV > 0 ? 'drags' : 'anticipates'} by ${Math.abs(worstV).toFixed(0)} ms on average. Work the group slowly, thinking only about it.`);
             if (weakF && weakV < -6)
-                li.push(`Le <b>doigt ${weakF}</b> sort ${Math.abs(weakV).toFixed(0)} points de vélocité sous la moyenne. Essaie l'exercice en pianissimo : c'est là que ça se verra le plus.`);
+                li.push(`<b>Finger ${weakF}</b> comes out ${Math.abs(weakV).toFixed(0)} velocity points below the mean. Try the exercise pianissimo — that is where it shows most.`);
 
             // pic de position
             let pk = -1, pv = 0;
             p.byPos.forEach((v, i) => { if (v != null && Math.abs(v) > Math.abs(pv)) { pv = v; pk = i; } });
             if (pk >= 0 && Math.abs(pv) > 8)
-                li.push(`Accident récurrent sur la <b>note ${pk + 1}</b> du groupe (${s1(pv)} ms). C'est mécanique, pas musical.`);
+                li.push(`Recurring accident on <b>note ${pk + 1}</b> of the group (${s1(pv)} ms). Mechanical, not musical.`);
 
             if (Math.abs(p.cresc) > 4)
-                li.push(`Tu ${p.cresc > 0 ? 'montes' : 'descends'} en volume de ${Math.abs(p.cresc).toFixed(0)} points par octave sans le vouloir.`);
+                li.push(`You ${p.cresc > 0 ? 'get louder' : 'get softer'} by ${Math.abs(p.cresc).toFixed(0)} points per octave without meaning to.`);
             if (Math.abs(p.drift) > 5)
-                li.push(`Le tempo ${p.drift > 0 ? 'accélère' : 'ralentit'} de ${Math.abs(p.drift).toFixed(0)} ♩ par minute.`);
+                li.push(`The tempo ${p.drift > 0 ? 'speeds up' : 'slows down'} by ${Math.abs(p.drift).toFixed(0)} ♩ per minute.`);
             if (A.sync && A.sync.meanAbs > 20)
-                li.push(`Les mains sont décalées de ${A.sync.meanAbs.toFixed(0)} ms en moyenne — au-delà de 30 ms ça s'entend nettement.`);
+                li.push(`Hands are ${A.sync.meanAbs.toFixed(0)} ms apart on average — beyond 30 ms it is clearly audible.`);
             if (A.pedal)
-                li.push('Pédale de sustain détectée pendant la session : la mesure de legato est à ignorer.');
-            if (li.length === 1) li.push('<span class="ok">Rien à signaler ailleurs.</span> Monte de 4 à 8 ♩ à la prochaine session.');
+                li.push('Sustain pedal detected during the run: ignore the legato measurement.');
+            if (li.length === 1) li.push('<span class="ok">Nothing else to report.</span> Add 4 to 8 ♩ next run.');
 
-            return `<div class="verdict"><b>Ce que disent les chiffres</b><ul>${li.map(x => `<li>${x}</li>`).join('')}</ul></div>`;
+            return `<div class="verdict"><b>What the numbers say</b><ul>${li.map(x => `<li>${x}</li>`).join('')}</ul></div>`;
         }
 
         // =====================================================================
@@ -1779,8 +1779,8 @@ const HANON = {
         function updateRecordLine() {
             const r = loadRec()[S.exNum];
             document.getElementById('recordRow').innerHTML = r
-                ? `<span class="record-line">Record de tempo propre sur le n°${S.exNum} : <b>♩=${r.bpm}</b> <span style="opacity:.7">(${r.date})</span></span>`
-                : `<span class="record-line">Pas encore de tempo propre enregistré sur le n°${S.exNum} — il faut CV &lt; 5 %, vélocité régulière et zéro fausse note.</span>`;
+                ? `<span class="record-line">Clean-tempo record on no. ${S.exNum}: <b>♩=${r.bpm}</b> <span style="opacity:.7">(${r.date})</span></span>`
+                : `<span class="record-line">No clean tempo recorded yet on no. ${S.exNum} — needs CV &lt; 5%, steady velocity and zero wrong notes.</span>`;
         }
 
         // =====================================================================
@@ -1818,7 +1818,7 @@ const HANON = {
             midiAccess = access;
             const inputs = [...access.inputs.values()];
             const sel = document.getElementById('midiSel');
-            const nameOf = i => i.name || 'appareil sans nom';
+            const nameOf = i => i.name || 'unnamed device';
 
             let saved = null;
             try { saved = localStorage.getItem(LS_MIDI); } catch (e) { }
@@ -1847,27 +1847,27 @@ const HANON = {
             }
             const oAll = document.createElement('option');
             oAll.value = '*';
-            oAll.textContent = 'Toutes les entrées (doublons)';
+            oAll.textContent = 'All inputs (duplicates)';
             sel.appendChild(oAll);
             sel.value = all ? '*' : (target ? nameOf(target) : '*');
             sel.style.display = inputs.length > 1 ? '' : 'none';
 
             const n = inputs.length;
-            if (!n) setMidiStatus('off', '🎛️ MIDI : aucun clavier détecté (branche-le puis rejoue une note)');
-            else if (all) setMidiStatus('off', `⚠️ ${n} entrées écoutées — chaque note sera comptée ${n} fois`);
-            else if (n > 1) setMidiStatus('on', `🎹 ${nameOf(target)} — ${n - 1} autre${n > 2 ? 's' : ''} entrée${n > 2 ? 's' : ''} ignorée${n > 2 ? 's' : ''}`);
-            else setMidiStatus('on', '🎹 MIDI connecté : ' + nameOf(target));
+            if (!n) setMidiStatus('off', '🎛️ MIDI: no keyboard detected (plug it in, then play a note)');
+            else if (all) setMidiStatus('off', `⚠️ ${n} inputs listened to — every note will be counted ${n} times`);
+            else if (n > 1) setMidiStatus('on', `🎹 ${nameOf(target)} — ${n - 1} other input${n > 2 ? 's' : ''} ignored`);
+            else setMidiStatus('on', '🎹 MIDI connected: ' + nameOf(target));
         }
 
         function initMIDI() {
             if (!navigator.requestMIDIAccess) {
-                setMidiStatus('idle', '🎛️ Web MIDI non supporté — utilise Chrome ou Edge');
+                setMidiStatus('idle', '🎛️ Web MIDI not supported — use Chrome or Edge');
                 return;
             }
             navigator.requestMIDIAccess().then(access => {
                 refreshMidiInputs(access);
                 access.onstatechange = () => refreshMidiInputs(access);
-            }).catch(() => setMidiStatus('idle', '🎛️ MIDI : accès refusé'));
+            }).catch(() => setMidiStatus('idle', '🎛️ MIDI: access denied'));
         }
 
         // =====================================================================
@@ -1875,8 +1875,8 @@ const HANON = {
         // =====================================================================
         // exercices dont les sources consultées ne concordent pas parfaitement
         const A_VERIFIER = {
-            5: 'doigté de la descente', 6: 'doigté de la descente',
-            15: 'une note de la main gauche', 20: 'une note en fin de descente'
+            5: 'the fingering of the descent', 6: 'the fingering of the descent',
+            15: 'one left-hand note', 20: 'one note near the end of the descent'
         };
 
         function wireSeg(id, after) {
@@ -1894,7 +1894,7 @@ const HANON = {
         for (let i = 1; i <= 20; i++) {
             const o = document.createElement('option');
             o.value = i;
-            o.textContent = 'Hanon n°' + i + (A_VERIFIER[i] ? ' ⚠' : '');
+            o.textContent = 'Hanon no. ' + i + (A_VERIFIER[i] ? ' ⚠' : '');
             exSel.appendChild(o);
         }
 
@@ -1903,8 +1903,8 @@ const HANON = {
             const n = +exSel.value;
             if (A_VERIFIER[n]) {
                 w.style.display = '';
-                w.innerHTML = `⚠️ Sur le n°${n}, les deux sources croisées divergent sur <b>${A_VERIFIER[n]}</b>. `
-                    + `Les autres exercices sont concordants — vérifie ce passage contre ton édition papier.`;
+                w.innerHTML = `⚠️ On no. ${n}, the two cross-checked sources disagree on <b>${A_VERIFIER[n]}</b>. `
+                    + `The other exercises agree — check this spot against your printed edition.`;
             } else w.style.display = 'none';
         }
 
@@ -1924,7 +1924,7 @@ const HANON = {
             a.value = Math.min(Math.max(1, +a.value || 1), total);
             b.value = Math.min(Math.max(+a.value, +b.value || +a.value), total);
             document.getElementById('fragInfo').textContent =
-                'sur ' + total + ' groupes · ' + ((+b.value - +a.value + 1) * MOTIF) + ' notes par tour';
+                'of ' + total + ' groups · ' + ((+b.value - +a.value + 1) * MOTIF) + ' notes per lap';
         }
 
         for (const id of ['fragFrom', 'fragTo'])
@@ -1999,15 +1999,15 @@ const HANON = {
         const EVEN_FLOOR_MS = 10;
 
         const DAILY_LEVELS = {
-            souple: { label: 'Souple', even: 8, finger: 5,   tempo: 5, grid: 45, minBpm: 0,  artSD: null, art: null },
-            normal: { label: 'Normal', even: 6, finger: 3.5, tempo: 3, grid: 30, minBpm: 60, artSD: 0.15, art: null },
+            souple: { label: 'Lenient', even: 8, finger: 5,   tempo: 5, grid: 45, minBpm: 0,  artSD: null, art: null },
+            normal: { label: 'Standard', even: 6, finger: 3.5, tempo: 3, grid: 30, minBpm: 60, artSD: 0.15, art: null },
             strict: { label: 'Strict', even: 4, finger: 2.5, tempo: 2, grid: 20, minBpm: 80, artSD: 0.12, art: 0.95 }
         };
 
         const evenTolerance = (L, ioi) => Math.max(EVEN_FLOOR_MS, L.even / 100 * ioi);
 
         const LS_RTHANDS = 'hanon.routineHands';
-        const RT_HAND_LABEL = { both: 'les deux mains', R: 'main droite seule', L: 'main gauche seule' };
+        const RT_HAND_LABEL = { both: 'both hands', R: 'right hand alone', L: 'left hand alone' };
 
         const routine = {
             on: false, endsAt: 0, ex: 1, streak: 0, log: [], level: 'souple',
@@ -2024,7 +2024,7 @@ const HANON = {
             routine.streak = 0;
             if (routine.next) clearTimeout(routine.next);
             if (S.running) stop(false, 'mains');
-            setRtState('↻ Passage relancé en ' + RT_HAND_LABEL[h], '');
+            setRtState('↻ Pass restarted with ' + RT_HAND_LABEL[h], '');
             updateRoutineHead();
             applyRoutineConfig();
             routine.next = setTimeout(routineNextRun, 900);
@@ -2055,11 +2055,11 @@ const HANON = {
         function evaluateRun(A, finished) {
             const L = DAILY_LEVELS[routine.level];
             const c = [];
-            c.push({ label: 'Exercice terminé', ok: !!finished, val: finished ? 'oui' : 'non' });
-            c.push({ label: 'Fausses notes', ok: !!A && A.wrong === 0, val: A ? String(A.wrong) : '—', lim: '0' });
+            c.push({ label: 'Exercise completed', ok: !!finished, val: finished ? 'yes' : 'no' });
+            c.push({ label: 'Wrong notes', ok: !!A && A.wrong === 0, val: A ? String(A.wrong) : '—', lim: '0' });
             if (L.minBpm)
                 c.push({
-                    label: 'Tempo minimum', ok: S.bpm >= L.minBpm,
+                    label: 'Minimum tempo', ok: S.bpm >= L.minBpm,
                     val: '♩=' + S.bpm, lim: '≥ ♩=' + L.minBpm
                 });
             if (A) for (const H of A.order) {
@@ -2067,25 +2067,25 @@ const HANON = {
 
                 const tol = evenTolerance(L, h.ioiMean);
                 c.push({
-                    label: 'Égalité' + n, ok: h.resSD <= tol,
+                    label: 'Evenness' + n, ok: h.resSD <= tol,
                     val: h.resSD.toFixed(1) + ' ms', lim: '≤ ' + tol.toFixed(0) + ' ms'
                 });
 
                 if (h.fingerSD != null) c.push({
-                    label: 'Doigts' + n, ok: h.fingerSD <= L.finger,
+                    label: 'Finger balance' + n, ok: h.fingerSD <= L.finger,
                     val: h.fingerSD.toFixed(1), lim: '≤ ' + L.finger
                 });
 
                 const dt = S.bpm ? Math.abs(h.bpm - S.bpm) / S.bpm * 100 : 0;
-                c.push({ label: 'Tempo' + n, ok: dt <= L.tempo, val: dt.toFixed(1) + ' %', lim: '±' + L.tempo + ' %' });
+                c.push({ label: 'Tempo' + n, ok: dt <= L.tempo, val: dt.toFixed(1) + '%', lim: '±' + L.tempo + '%' });
 
-                if (h.grid) c.push({ label: 'Clic' + n, ok: h.grid.sd <= L.grid, val: h.grid.sd.toFixed(0) + ' ms', lim: '≤ ' + L.grid + ' ms' });
+                if (h.grid) c.push({ label: 'Click' + n, ok: h.grid.sd <= L.grid, val: h.grid.sd.toFixed(0) + ' ms', lim: '≤ ' + L.grid + ' ms' });
 
                 // la pédale fausse complètement la mesure : on n'exige rien plutôt
                 // que d'exiger sur un chiffre qui ne veut rien dire
                 if (!A.pedal && h.artSD != null) {
                     if (L.artSD != null) c.push({
-                        label: 'Legato régulier' + n, ok: h.artSD <= L.artSD,
+                        label: 'Legato consistency' + n, ok: h.artSD <= L.artSD,
                         val: '±' + h.artSD.toFixed(2), lim: '≤ ±' + L.artSD.toFixed(2)
                     });
                     if (L.art != null) c.push({
@@ -2118,18 +2118,18 @@ const HANON = {
             showVerifWarn();
             const L = DAILY_LEVELS[routine.level];
             document.getElementById('rtCfg').innerHTML =
-                'Exercice complet · ' + RT_HAND_LABEL[routine.hands] + ' · métronome ♩='
+                'Complete exercise · ' + RT_HAND_LABEL[routine.hands] + ' · metronome ♩='
                 + document.getElementById('bpm').value
-                + '<br>Niveau <b>' + L.label + '</b> — zéro fausse note, irrégularité ≤ '
-                + evenTolerance(L, 60000 / S.bpm / 4).toFixed(0) + ' ms, doigts ≤ ' + L.finger
-                + ', tempo ±' + L.tempo + ' %, clic ≤ ' + L.grid + ' ms'
-                + (L.artSD ? ', legato régulier à ±' + L.artSD.toFixed(2) : '')
-                + (L.art ? ' et ≥ ' + L.art.toFixed(2) + '×' : '')
-                + (L.minBpm ? ', à partir de ♩=' + L.minBpm : '');
+                + '<br><b>' + L.label + '</b> level — zero wrong notes, unevenness ≤ '
+                + evenTolerance(L, 60000 / S.bpm / 4).toFixed(0) + ' ms, finger balance ≤ ' + L.finger
+                + ', tempo ±' + L.tempo + '%, click ≤ ' + L.grid + ' ms'
+                + (L.artSD ? ', legato consistency within ±' + L.artSD.toFixed(2) : '')
+                + (L.art ? ' and ≥ ' + L.art.toFixed(2) + '×' : '')
+                + (L.minBpm ? ', from ♩=' + L.minBpm + ' upwards' : '');
         }
 
         function updateRoutineHead() {
-            document.getElementById('rtEx').textContent = 'n°' + routine.ex;
+            document.getElementById('rtEx').textContent = 'no. ' + routine.ex;
             document.getElementById('rtStreak').textContent =
                 ('● '.repeat(routine.streak) + '○ '.repeat(DAILY_PERFECT - routine.streak)).trim();
         }
@@ -2137,7 +2137,7 @@ const HANON = {
         function renderRoutineLog() {
             document.getElementById('rtLog').innerHTML = routine.log.map(r =>
                 `<li class="${r.clean ? 'ok' : 'no'}"><span class="ex">n°${r.ex}</span>`
-                + `<span class="res">${r.clean ? '✓ propre' : '✗ ' + r.why}</span></li>`
+                + `<span class="res">${r.clean ? '✓ clean' : '✗ ' + r.why}</span></li>`
             ).reverse().join('');
         }
 
@@ -2158,8 +2158,8 @@ const HANON = {
             applyRoutineConfig();
             updateRoutineHead();
             renderChecks([]);
-            setRtState('▶ Exercice n°' + routine.ex + ' — passage ' + (routine.streak + 1)
-                + ' sur ' + DAILY_PERFECT, '');
+            setRtState('▶ Exercise no. ' + routine.ex + ' — pass ' + (routine.streak + 1)
+                + ' of ' + DAILY_PERFECT, '');
             start();
         }
 
@@ -2186,15 +2186,15 @@ const HANON = {
                 if (routine.streak >= DAILY_PERFECT) {
                     routine.ex++; routine.streak = 0;
                     if (routine.ex > 20) { finishRoutine(); return; }
-                    setRtState('✓ Validé — on passe au n°' + routine.ex, 'ok');
+                    setRtState('✓ Passed — moving on to no. ' + routine.ex, 'ok');
                 } else {
-                    setRtState('✓ Propre — encore un passage pour valider', 'ok');
+                    setRtState('✓ Clean — one more pass to validate', 'ok');
                 }
             } else {
                 routine.streak = 0;
                 const f = ev.failed[0];
-                setRtState('✗ ' + f.label + ' : ' + f.val + (f.lim ? ' (il faut ' + f.lim + ')' : '')
-                    + ' — on recommence', 'bad');
+                setRtState('✗ ' + f.label + ': ' + f.val + (f.lim ? ' (needs ' + f.lim + ')' : '')
+                    + ' — starting over', 'bad');
             }
             updateRoutineHead();
             routine.next = setTimeout(routineNextRun, DAILY_PAUSE);
@@ -2208,7 +2208,7 @@ const HANON = {
             document.getElementById('rtLog').innerHTML = '';
 
             clearRecaps();              // seul moment où les passages précédents disparaissent
-            document.getElementById('dailyBtn').textContent = '⏹ Terminer la séance';
+            document.getElementById('dailyBtn').textContent = '⏹ End session';
             document.getElementById('report').classList.remove('on');
             routine.tick = setInterval(routineTick, 500);
             routineTick();
@@ -2220,16 +2220,16 @@ const HANON = {
             if (routine.tick) clearInterval(routine.tick);
             routine.next = routine.tick = null;
             routine.on = false;                       // avant stop(), sinon on reboucle
-            document.getElementById('dailyBtn').textContent = '🗓️ Séance du jour — 30 min';
+            document.getElementById('dailyBtn').textContent = '🗓️ Daily session — 30 min';
 
             if (S.running) stop(false);               // rend le rapport du dernier passage
             else if (routine.lastA) renderReport(routine.lastA, true);
 
             const validated = routine.ex - 1;
             const used = Math.min(DAILY_MS, DAILY_MS - (routine.endsAt - Date.now()));
-            setRtState(`Séance terminée — ${fmtClock(used)} de jeu, ${validated} exercice`
-                + `${validated > 1 ? 's validés' : ' validé'}, ${routine.log.length} passage`
-                + `${routine.log.length > 1 ? 's' : ''}`, 'ok');
+            setRtState(`Session over — ${fmtClock(used)} played, ${validated} exercise`
+                + `${validated > 1 ? 's passed' : ' passed'}, ${routine.log.length} pass`
+                + `${routine.log.length > 1 ? 'es' : ''}`, 'ok');
             try {
                 localStorage.setItem(LS_DAILY, JSON.stringify({
                     date: new Date().toISOString().slice(0, 10), level: routine.level,
@@ -2247,8 +2247,8 @@ const HANON = {
             let d = null;
             try { d = JSON.parse(localStorage.getItem(LS_DAILY)); } catch (e) { }
             document.getElementById('dailyLast').textContent = d
-                ? `Dernière séance : ${d.date} (${d.level || ''}) — ${d.validated} validé${d.validated > 1 ? 's' : ''}, arrêté au n°${d.reached}`
-                : 'Chaque exercice dans l\'ordre, deux passages propres pour le valider, 30 minutes chrono.';
+                ? `Last session: ${d.date} (${d.level || ''}) — ${d.validated} passed, stopped at no. ${d.reached}`
+                : 'Every exercise in order, two clean passes to validate each, 30 minutes on the clock.';
         }
 
         wireSeg('levelSeg', b => {
@@ -2314,7 +2314,7 @@ const HANON = {
                     return;
                 }
                 el.className = 'coach bad';
-                el.innerHTML = '<span class="ic">✗</span> Fausse note — reprise du passage dans '
+                el.innerHTML = '<span class="ic">✗</span> Wrong note — pass restarts in '
                     + Math.ceil(left / 1000) + ' s';
                 setTimeout(tick, 200);
             })();
@@ -2327,7 +2327,7 @@ const HANON = {
         // jeux de courbes empilés seraient illisibles.
         const RECAP_MAX = 40;
         const LS_RECAPS = 'hanon.passes';
-        const SHARP_FR = ['Do', 'Do♯', 'Ré', 'Ré♯', 'Mi', 'Fa', 'Fa♯', 'Sol', 'Sol♯', 'La', 'La♯', 'Si'];
+        const SHARP_FR = ['C', 'C♯', 'D', 'D♯', 'E', 'F', 'F♯', 'G', 'G♯', 'A', 'A♯', 'B'];
         const fullName = m => SHARP_FR[mod(m, 12)] + (Math.floor(m / 12) - 1);
 
         let recaps = [];
@@ -2387,41 +2387,41 @@ const HANON = {
             const box = document.getElementById('recaps');
             box.hidden = !recaps.length;
             document.getElementById('recapCount').textContent =
-                recaps.length + (recaps.length > 1 ? ' passages' : ' passage');
+                recaps.length + (recaps.length > 1 ? ' passes' : ' pass');
 
             const num = (v, d, u) => v == null ? null : v.toFixed(d) + (u || '');
             document.getElementById('recapList').innerHTML = recaps.map((r, i) => {
                 const verdict = r.clean
-                    ? (r.validated ? '✓ propre, exercice validé' : '✓ propre')
-                    : r.reason === 'fausse' ? '✗ fausse note'
+                    ? (r.validated ? '✓ clean, exercise passed' : '✓ clean')
+                    : r.reason === 'fausse' ? '✗ wrong note'
                         : r.why ? '✗ ' + r.why
-                            : r.wrong ? '✗ ' + r.wrong + ' fausse' + (r.wrong > 1 ? 's' : '')
-                                : '✗ interrompu';
+                            : r.wrong ? '✗ ' + r.wrong + ' wrong note' + (r.wrong > 1 ? 's' : '')
+                                : '✗ interrupted';
                 const why = r.fail
-                    ? `À la note ${r.fail.idx + 1} sur ${r.fail.total} (${HN[r.fail.hand].toLowerCase()}) : `
-                      + `<b>${fullName(r.fail.played)}</b> au lieu de <b>${fullName(r.fail.expected)}</b>.`
+                    ? `At note ${r.fail.idx + 1} of ${r.fail.total} (${HN[r.fail.hand].toLowerCase()}): `
+                      + `<b>${fullName(r.fail.played)}</b> instead of <b>${fullName(r.fail.expected)}</b>.`
                     : '';
                 const perHand = (r.hands || []).map(h => {
                     const cells = [
-                        ['irrég.', num(h.res, 1, ' ms')], ['CV', num(h.cv, 1, ' %')],
-                        ['doigts', num(h.fingerSD, 1)], ['force', num(h.vel, 1)],
-                        ['tempo', num(h.tempo, 0, ' ♩')], ['clic', num(h.grid, 0, ' ms')],
+                        ['uneven', num(h.res, 1, ' ms')], ['CV', num(h.cv, 1, '%')],
+                        ['fingers', num(h.fingerSD, 1)], ['velocity', num(h.vel, 1)],
+                        ['tempo', num(h.tempo, 0, ' ♩')], ['click', num(h.grid, 0, ' ms')],
                         ['legato', h.art == null ? null : h.art.toFixed(2) + (h.artSD != null ? ' ±' + h.artSD.toFixed(2) : '')]
                     ].filter(x => x[1] != null).map(x => `<span>${x[0]} <b>${x[1]}</b></span>`).join('');
                     const fv = h.fv.map(v => v == null ? '–' : Math.round(v)).join(' · ');
                     return `<div class="rc-hand"><span class="h">${HS[h.H]}</span>`
                         + `<div class="rc-nums">${cells}</div>`
-                        + `<div class="rc-fingers">force par doigt <b>${fv}</b></div></div>`;
+                        + `<div class="rc-fingers">velocity by finger <b>${fv}</b></div></div>`;
                 }).join('');
                 const nums = [
-                    ['notes', r.notes], ['mains', num(r.sync, 1, ' ms')],
-                    ['voisines', r.merged || null], ['pédale', r.pedal ? 'oui' : null]
+                    ['notes', r.notes], ['hands', num(r.sync, 1, ' ms')],
+                    ['adjacent', r.merged || null], ['pedal', r.pedal ? 'yes' : null]
                 ].filter(x => x[1] != null).map(x => `<span>${x[0]} <b>${x[1]}</b></span>`).join('');
                 const d = new Date(r.ts);
                 const L = r.level ? DAILY_LEVELS[r.level] : null;
                 return `<div class="recap ${r.clean ? 'ok' : 'no'}">`
-                    + `<div class="rc-head"><span class="ex">n°${r.ex}</span>`
-                    + `<span class="when">passage ${i + 1} · `
+                    + `<div class="rc-head"><span class="ex">no. ${r.ex}</span>`
+                    + `<span class="when">pass ${i + 1} · `
                     + `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}:`
                     + `${String(d.getSeconds()).padStart(2, '0')}</span>`
                     + `<span class="verdict">${verdict}</span></div>`
@@ -2429,7 +2429,7 @@ const HANON = {
                     + (r.checks ? `<div class="rt-checks">${checksHtml(r.checks)}</div>` : '')
                     + perHand
                     + `<div class="rc-nums rc-tot">${nums}</div>`
-                    + (L ? `<div class="rc-note">Niveau ${L.label} · ♩=${r.bpm}</div>` : '')
+                    + (L ? `<div class="rc-note">${L.label} level · ♩=${r.bpm}</div>` : '')
                     + `</div>`;
             }).reverse().join('');
         }
@@ -2479,43 +2479,43 @@ const HANON = {
 
             const check = (name, cond, got) => {
                 (cond ? pass++ : fail++);
-                out.push(`${cond ? '  OK  ' : ' ÉCHEC'} │ ${name.padEnd(46)} │ ${got}`);
+                out.push(`${cond ? '  OK  ' : ' FAIL '} │ ${name.padEnd(46)} │ ${got}`);
             };
 
             // 1. exécution parfaite -> tout doit être à zéro
             let A = analyze(synth(seq, {}), base);
-            check('jeu parfait : CV ≈ 0', A.hands.R.cv < 0.01, A.hands.R.cv.toFixed(4) + ' %');
-            check('jeu parfait : irrégularité ≈ 0', A.hands.R.resSD < 0.01, A.hands.R.resSD.toFixed(4) + ' ms');
-            check('jeu parfait : mains synchrones', A.sync.meanAbs < 0.01, A.sync.meanAbs.toFixed(4) + ' ms');
-            check('jeu parfait : vélocité constante', A.hands.R.velSD < 0.01, A.hands.R.velSD.toFixed(4));
+            check('perfect playing: CV ≈ 0', A.hands.R.cv < 0.01, A.hands.R.cv.toFixed(4) + '%');
+            check('perfect playing: unevenness ≈ 0', A.hands.R.resSD < 0.01, A.hands.R.resSD.toFixed(4) + ' ms');
+            check('perfect playing: hands in sync', A.sync.meanAbs < 0.01, A.sync.meanAbs.toFixed(4) + ' ms');
+            check('perfect playing: constant velocity', A.hands.R.velSD < 0.01, A.hands.R.velSD.toFixed(4));
 
             // 2. doigt 4 en retard de 20 ms -> doit ressortir sur ce doigt et lui seul
             A = analyze(synth(seq, { lateFinger: 4, lateMs: 20 }), base);
             const bf = A.hands.R.byFinger;
             const others = [1, 2, 3, 5].map(f => bf[f].res).filter(v => v != null);
             const gap = bf[4].res - median(others);
-            check('retard de 20 ms sur le doigt 4 → détecté', gap > 15 && gap < 25, gap.toFixed(1) + ' ms d\'écart');
-            check('… et les autres doigts restent groupés', sd(others) < 6, 'dispersion ' + sd(others).toFixed(1) + ' ms');
+            check('20 ms lag on finger 4 → detected', gap > 15 && gap < 25, gap.toFixed(1) + ' ms apart');
+            check('… and the other fingers stay grouped', sd(others) < 6, 'spread ' + sd(others).toFixed(1) + ' ms');
 
             // 3. mains décalées de 15 ms
             A = analyze(synth(seq, { handOffset: 15 }), base);
-            check('décalage de 15 ms entre les mains', Math.abs(A.sync.meanAbs - 15) < 1.5, A.sync.meanAbs.toFixed(1) + ' ms');
-            check('… avec le bon signe (gauche en retard)', A.sync.bias < -13, 'biais ' + A.sync.bias.toFixed(1) + ' ms');
+            check('15 ms offset between hands', Math.abs(A.sync.meanAbs - 15) < 1.5, A.sync.meanAbs.toFixed(1) + ' ms');
+            check('… with the right sign (left hand late)', A.sync.bias < -13, 'bias ' + A.sync.bias.toFixed(1) + ' ms');
 
             // 4. accélération progressive
             A = analyze(synth(seq, { accel: -0.35 }), base);
-            check('tempo qui accélère → dérive positive', A.hands.R.drift > 5, s1(A.hands.R.drift) + ' ♩/min');
+            check('accelerating tempo → positive drift', A.hands.R.drift > 5, s1(A.hands.R.drift) + ' ♩/min');
 
             // 5. crescendo involontaire en montant
             A = analyze(synth(seq, { crescPerOct: 8 }), base);
-            check('crescendo de 8 par octave → détecté', Math.abs(A.hands.R.cresc - 8) < 1.5, A.hands.R.cresc.toFixed(2) + ' /octave');
+            check('crescendo of 8 per octave → detected', Math.abs(A.hands.R.cresc - 8) < 1.5, A.hands.R.cresc.toFixed(2) + ' /octave');
 
             // 6. écart au métronome : une avance constante ne doit PAS être comptée
             //    comme de l'irrégularité (c'est de la latence de sortie audio)
             const ev = synth(seq, { hands: ['R'] }).map(e => ({ ...e, t: e.t + 40 }));
             A = analyze(ev, { subMs: 150, mode: 'metro', gridT0: 0, hands: ['R'] });
-            check('décalage constant vs clic → latence isolée', A.hands.R.grid.sd < 0.01 && Math.abs(A.hands.R.grid.lat - 40) < 1,
-                'latence ' + A.hands.R.grid.lat.toFixed(1) + ' ms, dispersion ' + A.hands.R.grid.sd.toFixed(3) + ' ms');
+            check('constant offset vs click → latency isolated', A.hands.R.grid.sd < 0.01 && Math.abs(A.hands.R.grid.lat - 40) < 1,
+                'latency ' + A.hands.R.grid.lat.toFixed(1) + ' ms, spread ' + A.hands.R.grid.sd.toFixed(3) + ' ms');
 
             // 7. cohérence des données Hanon : les deux mains à l'octave, doigtés 1-5
             let octOk = true, figOk = true, tot = 0;
@@ -2528,16 +2528,16 @@ const HANON = {
                     if (s.R[i].finger < 1 || s.R[i].finger > 5 || s.L[i].finger < 1 || s.L[i].finger > 5) figOk = false;
                 }
             }
-            check('20 exercices : mains exactement à l\'octave', octOk, tot + ' notes vérifiées');
-            check('20 exercices : doigtés tous entre 1 et 5', figOk, 'OK');
+            check('20 exercises: hands exactly an octave apart', octOk, tot + ' notes verified');
+            check('20 exercises: all fingerings between 1 and 5', figOk, 'OK');
 
             // 8. mise en page : la boîte réservée sous le clavier doit couvrir les
             //    touches, sinon le clavier recouvre les contrôles qui suivent
             if (typeof getComputedStyle === 'function') {
                 const wk = document.querySelector('.key.white');
                 const kh = wk ? parseFloat(getComputedStyle(wk).height) : 0;
-                check('hauteur des touches = hauteur réservée', Math.abs(kh - KB_H) < 0.5,
-                    `touches ${kh}px, réservé ${KB_H}px`);
+                check('key height = reserved height', Math.abs(kh - KB_H) < 0.5,
+                    `keys ${kh}px, reserved ${KB_H}px`);
             }
 
             // 8 bis. Coach temps réel. Le test le plus important est le
@@ -2546,44 +2546,44 @@ const HANON = {
             const cOpt = { hands: ['R', 'L'], targetIoi: 150, mode: 'free' };
             const adv = o => coachAdvice(synth(seq, o), Object.assign({}, cOpt, o.hands ? { hands: o.hands } : {}));
 
-            check('jeu parfait → le coach se tait', adv({ durRatio: 1.05 }) === null,
-                String((adv({ durRatio: 1.05 }) || {}).key || 'silence'));
+            check('perfect playing → the coach stays silent', adv({ durRatio: 1.05 }) === null,
+                String((adv({ durRatio: 1.05 }) || {}).key || 'silent'));
 
             let a = adv({ durRatio: 1.05, softFinger: 4, softBy: -14, hands: ['R'] });
-            check('doigt 4 trop faible → nommé correctement',
-                a && a.key === 'doigt4' && /appuie plus/.test(a.text), a ? a.key + ' : ' + a.text : 'aucun conseil');
+            check('finger 4 too weak → named correctly',
+                a && a.key === 'doigt4' && /press more/.test(a.text), a ? a.key + ': ' + a.text : 'no advice');
 
             a = adv({ durRatio: 1.05, softFinger: 1, softBy: 16, hands: ['R'] });
-            check('pouce trop fort → nommé correctement',
-                a && a.key === 'doigt1' && /allège/.test(a.text), a ? a.key + ' : ' + a.text : 'aucun conseil');
+            check('thumb too strong → named correctly',
+                a && a.key === 'doigt1' && /lighten it/.test(a.text), a ? a.key + ': ' + a.text : 'no advice');
 
             a = adv({ durRatio: 0.55, hands: ['R'] });
-            check('notes trop courtes → « tiens-les »',
-                a && a.key === 'legato-court', a ? a.key : 'aucun conseil');
+            check('notes too short → "hold them"',
+                a && a.key === 'legato-court', a ? a.key : 'no advice');
 
             a = adv({ durRatio: 1.6, hands: ['R'] });
-            check('notes trop liées → « relâche plus tôt »',
-                a && a.key === 'legato-long', a ? a.key : 'aucun conseil');
+            check('notes over-connected → "release sooner"',
+                a && a.key === 'legato-long', a ? a.key : 'no advice');
 
             a = coachAdvice(synth(seq, { durRatio: 1.05, ioi: 132 }), { hands: ['R'], targetIoi: 150, mode: 'metro' });
-            check('12 % trop rapide → « tu accélères »', a && a.key === 'rush', a ? a.key : 'aucun conseil');
+            check('12% too fast → "rushing"', a && a.key === 'rush', a ? a.key : 'no advice');
 
             a = coachAdvice(synth(seq, { durRatio: 1.05, ioi: 170 }), { hands: ['R'], targetIoi: 150, mode: 'metro' });
-            check('13 % trop lent → « tu ralentis »', a && a.key === 'drag', a ? a.key : 'aucun conseil');
+            check('13% too slow → "dragging"', a && a.key === 'drag', a ? a.key : 'no advice');
 
             a = adv({ durRatio: 1.05, handOffset: 45 });
-            check('mains décalées de 45 ms → signalé', a && a.key === 'sync', a ? a.key : 'aucun conseil');
+            check('hands 45 ms apart → flagged', a && a.key === 'sync', a ? a.key : 'no advice');
 
             // un écart réel mais sous le seuil de bruit ne doit PAS déclencher
             a = adv({ durRatio: 1.05, softFinger: 4, softBy: -3, hands: ['R'] });
-            check('écart de 3 sur un doigt → sous le bruit, ignoré', a === null, a ? a.key : 'silence');
+            check('3-point finger gap → below noise, ignored', a === null, a ? a.key : 'silent');
 
             // en mode Libre, jouer à un autre tempo que le curseur n'est pas une faute
             a = coachAdvice(synth(seq, { durRatio: 1.05, ioi: 90 }), { hands: ['R'], targetIoi: 250, mode: 'free' });
-            check('mode Libre : tempo différent du curseur → pas de reproche',
-                a === null || a.key !== 'rush', a ? a.key : 'silence');
+            check('Free mode: tempo differing from the slider → no complaint',
+                a === null || a.key !== 'rush', a ? a.key : 'silent');
             a = coachAdvice(synth(seq, { durRatio: 1.05, ioi: 90 }), { hands: ['R'], targetIoi: 250, mode: 'metro' });
-            check('mode Métronome : le même jeu est bien signalé', a && a.key === 'rush', a ? a.key : 'silence');
+            check('Metronome mode: the same playing is flagged', a && a.key === 'rush', a ? a.key : 'silent');
 
             // 8 ter. Boucle infinie. L'invariant qui compte : la longueur d'un
             //         tour est un multiple du motif, sans quoi la position dans
@@ -2595,16 +2595,16 @@ const HANON = {
                 loopLens.push(L);
                 if (!L || L % MOTIF !== 0) loopOk = false;
             }
-            check('boucle : un tour = nombre entier de groupes', loopOk,
-                'de ' + Math.min(...loopLens) + ' à ' + Math.max(...loopLens) + ' notes par tour');
+            check('loop: one lap = whole number of groups', loopOk,
+                'from ' + Math.min(...loopLens) + ' to ' + Math.max(...loopLens) + ' notes per lap');
 
             const Lp = buildSeq(1, 'loop').R.length;
             let alignOk = true;
             for (let i = 0; i < Lp * 3 + 5; i++)
                 if (mod(i, MOTIF) !== mod(mod(i, Lp), MOTIF)) alignOk = false;
-            check('boucle : position dans le motif conservée sur 3 tours', alignOk, Lp + ' notes par tour');
+            check('loop: position in pattern preserved over 3 laps', alignOk, Lp + ' notes per lap');
 
-            check('boucle : la note finale isolée est écartée',
+            check('loop: the isolated final note is dropped',
                 buildSeq(1, 'all').R.length === Lp + 1, buildSeq(1, 'all').R.length + ' → ' + Lp);
 
             // 8 quater. Réglages retenus. Le risque n'est pas d'oublier un
@@ -2612,14 +2612,14 @@ const HANON = {
             //            boutons sans bouton actif ferait planter le démarrage.
             const modeBefore = segValue('modeSeg');
             activateSeg('modeSeg', 'mode', 'reglage-qui-nexiste-pas');
-            check('réglage inconnu → le groupe garde un bouton actif',
-                segValue('modeSeg') === modeBefore, 'resté sur « ' + segValue('modeSeg') + ' »');
+            check('unknown setting → the group keeps an active button',
+                segValue('modeSeg') === modeBefore, 'stayed on "' + segValue('modeSeg') + '"');
 
             saveSettings();
             let round = null;
             try { round = JSON.parse(localStorage.getItem(LS_SET)); } catch (e) { }
-            check('les réglages sont bien écrits', !!round && round.mode === modeBefore,
-                round ? Object.keys(round).length + ' champs' : 'rien écrit');
+            check('settings are actually written', !!round && round.mode === modeBefore,
+                round ? Object.keys(round).length + ' fields' : 'nothing written');
 
             // 8 quinquies. La fenêtre de fusion doit rester très en dessous de
             //               l'intervalle entre deux notes au tempo le plus rapide
@@ -2627,22 +2627,22 @@ const HANON = {
             //               réellement jouées.
             const bpmMax = +document.getElementById('bpm').max;
             const fastest = 60000 / bpmMax / 4;
-            check('fenêtre de fusion bien en deçà du jeu le plus rapide',
-                MERGE_MS < fastest / 2, MERGE_MS + ' ms contre ' + fastest.toFixed(0) + ' ms à ♩=' + bpmMax);
+            check('merge window well below the fastest playing',
+                MERGE_MS < fastest / 2, MERGE_MS + ' ms against ' + fastest.toFixed(0) + ' ms at ♩=' + bpmMax);
 
             // 8 sexies. Mode entraînement : le verrou doit être plus long que
             //           l'intervalle entre deux notes, sinon la note suivante
             //           serait captée et relâncerait un échec en cascade.
             const slowest = 60000 / +document.getElementById('bpm').min / 4;
-            check('verrou plus long que l\'intervalle le plus lent',
-                TRAIN_LOCK_MS > slowest, TRAIN_LOCK_MS + ' ms contre ' + slowest.toFixed(0)
-                + ' ms à ♩=' + document.getElementById('bpm').min);
+            check('lockout longer than the slowest interval',
+                TRAIN_LOCK_MS > slowest, TRAIN_LOCK_MS + ' ms against ' + slowest.toFixed(0)
+                + ' ms at ♩=' + document.getElementById('bpm').min);
 
-            check('noms des touches noires corrects',
+            check('black-key names correct',
                 noteName(61) === 'C♯' && noteName(70) === 'A♯' && noteName(60) === 'C',
                 noteName(60) + ' ' + noteName(61) + ' ' + noteName(70));
 
-            check('les 3 choix de mains de la séance existent',
+            check('the 3 session hand choices exist',
                 document.querySelectorAll('#rtHandSeg button').length === 3
                 && [...document.querySelectorAll('#rtHandSeg button')].every(b => RT_HAND_LABEL[b.dataset.h]),
                 [...document.querySelectorAll('#rtHandSeg button')].map(b => b.dataset.h).join(', '));
@@ -2652,23 +2652,23 @@ const HANON = {
             //             par position devient faux.
             const full = buildSeq(1, 'all');
             const fr = buildSeq(1, 'frag', 28, 29);
-            check('fragment : 2 groupes = 16 notes', fr.R.length === 16 && fr.L.length === 16,
-                fr.R.length + ' notes par main');
-            check('fragment : découpe au bon endroit',
+            check('excerpt: 2 groups = 16 notes', fr.R.length === 16 && fr.L.length === 16,
+                fr.R.length + ' notes per hand');
+            check('excerpt: cut at the right place',
                 fr.R[0].midi === full.R[27 * MOTIF].midi && fr.L[0].midi === full.L[27 * MOTIF].midi,
-                'commence sur la note ' + (27 * MOTIF + 1));
-            check('fragment : aligné sur le motif', fr.R.length % MOTIF === 0,
+                'starts on note ' + (27 * MOTIF + 1));
+            check('excerpt: aligned to the pattern', fr.R.length % MOTIF === 0,
                 fr.R.length + ' ÷ ' + MOTIF);
-            check('fragment : bornes hors plage ramenées dans l\'exercice',
-                buildSeq(1, 'frag', 999, 999).R.length === MOTIF, 'dernier groupe seul');
+            check('excerpt: out-of-range bounds clamped into the exercise',
+                buildSeq(1, 'frag', 999, 999).R.length === MOTIF, 'last group alone');
 
             // les seuils : la tolérance d'irrégularité ne doit jamais passer sous
             // le seuil d'audibilité, quel que soit le tempo
             const tolFast = evenTolerance(DAILY_LEVELS.strict, 60000 / 144 / 4);
             const tolSlow = evenTolerance(DAILY_LEVELS.souple, 60000 / 40 / 4);
-            check('tolérance jamais sous le seuil d\'audibilité',
+            check('tolerance never below the audibility threshold',
                 tolFast === EVEN_FLOOR_MS && tolSlow > EVEN_FLOOR_MS,
-                'Strict à ♩=144 : ' + tolFast.toFixed(0) + ' ms, Souple à ♩=40 : ' + tolSlow.toFixed(0) + ' ms');
+                'Strict at ♩=144: ' + tolFast.toFixed(0) + ' ms, Lenient at ♩=40: ' + tolSlow.toFixed(0) + ' ms');
 
             // 9. entrées MIDI : un piano expose souvent plusieurs ports qui
             //    portent les mêmes notes. Un seul doit être écouté, sinon
@@ -2679,15 +2679,15 @@ const HANON = {
             const fake = { inputs: new Map(fakePorts.map((n, k) => [String(k), { id: String(k), name: n, onmidimessage: null }])) };
             refreshMidiInputs(fake);
             const live = [...fake.inputs.values()].filter(i => i.onmidimessage);
-            check('6 ports pour un piano → un seul écouté', live.length === 1, live.length + ' port(s) actif(s)');
-            check('… et c\'est bien « piano 2 » par défaut', live.length === 1 && live[0].name === 'piano 2',
+            check('6 ports for one piano → only one listened to', live.length === 1, live.length + ' active port(s)');
+            check('… and it is indeed "piano 2" by default', live.length === 1 && live[0].name === 'piano 2',
                 live.length ? '« ' + live[0].name + ' »' : 'aucun');
             try { if (keep !== null) localStorage.setItem(LS_MIDI, keep); } catch (e) { }
             initMIDI();      // on rend la main au vrai matériel
 
             document.getElementById('selftest').innerHTML =
-                `<pre>Auto-test du moteur de mesure\n${'─'.repeat(74)}\n${out.join('\n')}\n${'─'.repeat(74)}\n`
-                + `${pass} réussis, ${fail} échoués</pre>`;
+                `<pre>Measurement engine self-test\n${'─'.repeat(74)}\n${out.join('\n')}\n${'─'.repeat(74)}\n`
+                + `${pass} passed, ${fail} failed</pre>`;
         }
 
 
