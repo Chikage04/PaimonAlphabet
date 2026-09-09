@@ -1552,7 +1552,33 @@ const HANON = {
         //  11. Rapport
         // =====================================================================
         const HN = { R: 'Right hand', L: 'Left hand' };
-        const HS = { R: 'MD', L: 'MG' };
+        const HS = { R: 'RH', L: 'LH' };
+
+        // Les critères sont stockés dans les récapitulatifs, qui survivent au
+        // rechargement ET sont partagés entre la page française et l'anglaise :
+        // même origine, même localStorage. Y figer le libellé affiché revenait
+        // à rejouer du français sur la page anglaise. On ne persiste donc qu'une
+        // CLÉ, et le libellé est reconstruit à l'affichage, dans la langue de la
+        // page qui lit.
+        const CHK_LABEL = {
+            done: 'Exercise completed', wrong: 'Wrong notes', minBpm: 'Minimum tempo',
+            even: 'Timing evenness', finger: 'Force gap across fingers',
+            tempo: 'Tempo held', grid: 'Lock to the click',
+            artSD: 'Legato consistency', art: 'Notes connected'
+        };
+
+        // les entrées enregistrées avant l'introduction des clés gardent leur
+        // libellé d'origine plutôt que de disparaître
+        const YES_NO = { y: 'yes', n: 'no' };
+
+        const chkLabel = c => c.k
+            ? (CHK_LABEL[c.k] || c.k) + (c.H ? ' ' + HS[c.H] : '')
+            : (c.label || '');
+        // la valeur booléenne se rend depuis l'état, jamais depuis une chaîne
+        // stockée ; les entrées enregistrées avant ce changement sont rattrapées
+        const chkVal = c => c.val == null || c.val === 'oui' || c.val === 'non'
+            ? (c.ok ? YES_NO.y : YES_NO.n) : c.val;
+        const chkText = c => c ? chkLabel(c) + ' ' + chkVal(c) : '';
         const FING = ['1 (thumb)', '2 (index)', '3 (middle)', '4 (ring)', '5 (little)'];
         const s1 = v => (v >= 0 ? '+' : '') + v.toFixed(1);
         const ms = v => v == null ? '—' : s1(v) + ' ms';
@@ -2055,41 +2081,41 @@ const HANON = {
         function evaluateRun(A, finished) {
             const L = DAILY_LEVELS[routine.level];
             const c = [];
-            c.push({ label: 'Exercise completed', ok: !!finished, val: finished ? 'yes' : 'no' });
-            c.push({ label: 'Wrong notes', ok: !!A && A.wrong === 0, val: A ? String(A.wrong) : '—', lim: '0' });
+            c.push({ k: 'done', ok: !!finished });
+            c.push({ k: 'wrong', ok: !!A && A.wrong === 0, val: A ? String(A.wrong) : '—', lim: '0' });
             if (L.minBpm)
                 c.push({
-                    label: 'Minimum tempo', ok: S.bpm >= L.minBpm,
+                    k: 'minBpm', ok: S.bpm >= L.minBpm,
                     val: '♩=' + S.bpm, lim: '≥ ♩=' + L.minBpm
                 });
             if (A) for (const H of A.order) {
-                const h = A.hands[H], n = A.order.length > 1 ? ' ' + HS[H] : '';
+                const h = A.hands[H], n = A.order.length > 1 ? H : null;
 
                 const tol = evenTolerance(L, h.ioiMean);
                 c.push({
-                    label: 'Evenness' + n, ok: h.resSD <= tol,
+                    k: 'even', H: n, ok: h.resSD <= tol,
                     val: h.resSD.toFixed(1) + ' ms', lim: '≤ ' + tol.toFixed(0) + ' ms'
                 });
 
                 if (h.fingerSD != null) c.push({
-                    label: 'Finger balance' + n, ok: h.fingerSD <= L.finger,
+                    k: 'finger', H: n, ok: h.fingerSD <= L.finger,
                     val: h.fingerSD.toFixed(1), lim: '≤ ' + L.finger
                 });
 
                 const dt = S.bpm ? Math.abs(h.bpm - S.bpm) / S.bpm * 100 : 0;
-                c.push({ label: 'Tempo' + n, ok: dt <= L.tempo, val: dt.toFixed(1) + '%', lim: '±' + L.tempo + '%' });
+                c.push({ k: 'tempo', H: n, ok: dt <= L.tempo, val: dt.toFixed(1) + ' %', lim: '±' + L.tempo + ' %' });
 
-                if (h.grid) c.push({ label: 'Click' + n, ok: h.grid.sd <= L.grid, val: h.grid.sd.toFixed(0) + ' ms', lim: '≤ ' + L.grid + ' ms' });
+                if (h.grid) c.push({ k: 'grid', H: n, ok: h.grid.sd <= L.grid, val: h.grid.sd.toFixed(0) + ' ms', lim: '≤ ' + L.grid + ' ms' });
 
                 // la pédale fausse complètement la mesure : on n'exige rien plutôt
                 // que d'exiger sur un chiffre qui ne veut rien dire
                 if (!A.pedal && h.artSD != null) {
                     if (L.artSD != null) c.push({
-                        label: 'Legato consistency' + n, ok: h.artSD <= L.artSD,
+                        k: 'artSD', H: n, ok: h.artSD <= L.artSD,
                         val: '±' + h.artSD.toFixed(2), lim: '≤ ±' + L.artSD.toFixed(2)
                     });
                     if (L.art != null) c.push({
-                        label: 'Legato' + n, ok: h.artMean >= L.art,
+                        k: 'art', H: n, ok: h.artMean >= L.art,
                         val: h.artMean.toFixed(2) + '×', lim: '≥ ' + L.art.toFixed(2) + '×'
                     });
                 }
@@ -2099,7 +2125,7 @@ const HANON = {
 
         function checksHtml(checks) {
             return (checks || []).map(x =>
-                `<span class="rt-chip ${x.ok ? 'ok' : 'no'}">${x.ok ? '✓' : '✗'} ${x.label} ${x.val}`
+                `<span class="rt-chip ${x.ok ? 'ok' : 'no'}">${x.ok ? '✓' : '✗'} ${chkLabel(x)} ${chkVal(x)}`
                 + `${x.lim && !x.ok ? ' <span style="opacity:.75">(' + x.lim + ')</span>' : ''}</span>`).join('');
         }
 
@@ -2137,7 +2163,7 @@ const HANON = {
         function renderRoutineLog() {
             document.getElementById('rtLog').innerHTML = routine.log.map(r =>
                 `<li class="${r.clean ? 'ok' : 'no'}"><span class="ex">n°${r.ex}</span>`
-                + `<span class="res">${r.clean ? '✓ clean' : '✗ ' + r.why}</span></li>`
+                + `<span class="res">${r.clean ? '✓ clean' : '✗ ' + chkText(r.fail0)}</span></li>`
             ).reverse().join('');
         }
 
@@ -2168,8 +2194,8 @@ const HANON = {
             routine.lastA = A;
             const ev = evaluateRun(A, finished);
             renderChecks(ev.checks);
-            const why = ev.failed.length ? ev.failed[0].label + ' ' + ev.failed[0].val : '';
-            routine.log.push({ ex: routine.ex, clean: ev.clean, why });
+            const fail0 = ev.failed.length ? ev.failed[0] : null;
+            routine.log.push({ ex: routine.ex, clean: ev.clean, fail0 });
             renderRoutineLog();
 
             // Verdict d'abord à l'oreille, puis figé par écrit. Le calcul du
@@ -2177,7 +2203,7 @@ const HANON = {
             // plus bas, sinon le son du 2e passage propre serait celui du 1er.
             const validated = ev.clean && routine.streak + 1 >= DAILY_PERFECT;
             cue(!ev.clean ? 'fail' : validated ? 'validated' : 'clean');
-            attachChecks(ev, validated, why);
+            attachChecks(ev, validated, fail0);
 
             if (routine.timeUp) { finishRoutine(); return; }
 
@@ -2193,7 +2219,7 @@ const HANON = {
             } else {
                 routine.streak = 0;
                 const f = ev.failed[0];
-                setRtState('✗ ' + f.label + ': ' + f.val + (f.lim ? ' (needs ' + f.lim + ')' : '')
+                setRtState('✗ ' + chkLabel(f) + ': ' + chkVal(f) + (f.lim ? ' (needs ' + f.lim + ')' : '')
                     + ' — starting over', 'bad');
             }
             updateRoutineHead();
@@ -2247,7 +2273,7 @@ const HANON = {
             let d = null;
             try { d = JSON.parse(localStorage.getItem(LS_DAILY)); } catch (e) { }
             document.getElementById('dailyLast').textContent = d
-                ? `Last session: ${d.date} (${d.level || ''}) — ${d.validated} passed, stopped at no. ${d.reached}`
+                ? `Last session: ${d.date} (${(DAILY_LEVELS[d.level] || {}).label || ''}) — ${d.validated} passed, stopped at no. ${d.reached}`
                 : 'Every exercise in order, two clean passes to validate each, 30 minutes on the clock.';
         }
 
@@ -2374,11 +2400,11 @@ const HANON = {
 
         // Le relévé critère par critère n'est connu qu'après coup, quand la
         // séance a évalué le passage : on complète la dernière entrée.
-        function attachChecks(ev, validated, why) {
+        function attachChecks(ev, validated, fail0) {
             const r = recaps[recaps.length - 1];
             if (!r) return;
             r.checks = ev.checks; r.level = routine.level;
-            r.validated = validated; r.why = why; r.clean = ev.clean;
+            r.validated = validated; r.fail0 = fail0; r.clean = ev.clean;
             saveRecaps();
             renderRecaps();
         }
@@ -2394,7 +2420,7 @@ const HANON = {
                 const verdict = r.clean
                     ? (r.validated ? '✓ clean, exercise passed' : '✓ clean')
                     : r.reason === 'fausse' ? '✗ wrong note'
-                        : r.why ? '✗ ' + r.why
+                        : r.fail0 ? '✗ ' + chkText(r.fail0)
                             : r.wrong ? '✗ ' + r.wrong + ' wrong note' + (r.wrong > 1 ? 's' : '')
                                 : '✗ interrupted';
                 const why = r.fail
@@ -2403,8 +2429,8 @@ const HANON = {
                     : '';
                 const perHand = (r.hands || []).map(h => {
                     const cells = [
-                        ['uneven', num(h.res, 1, ' ms')], ['CV', num(h.cv, 1, '%')],
-                        ['fingers', num(h.fingerSD, 1)], ['velocity', num(h.vel, 1)],
+                        ['unevenness', num(h.res, 1, ' ms')], ['CV', num(h.cv, 1, '%')],
+                        ['finger gap', num(h.fingerSD, 1)], ['velocity', num(h.vel, 1)],
                         ['tempo', num(h.tempo, 0, ' ♩')], ['click', num(h.grid, 0, ' ms')],
                         ['legato', h.art == null ? null : h.art.toFixed(2) + (h.artSD != null ? ' ±' + h.artSD.toFixed(2) : '')]
                     ].filter(x => x[1] != null).map(x => `<span>${x[0]} <b>${x[1]}</b></span>`).join('');
