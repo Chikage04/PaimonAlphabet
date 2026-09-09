@@ -172,6 +172,11 @@
         .rc-nums { margin-top: 6px; display: flex; flex-wrap: wrap; gap: 5px 8px; font-size: 12px; font-variant-numeric: tabular-nums; }
         .rc-nums span { color: var(--muted); background: #0a1030; border-radius: 6px; padding: 2px 8px; }
         .rc-nums b { color: var(--text); font-weight: 600; }
+        .rc-hand { margin-top: 8px; padding-left: 10px; border-left: 2px solid #1d2a5e; }
+        .rc-hand .h { font-size: 11px; font-weight: 700; color: var(--accent); letter-spacing: 1px; }
+        .rc-fingers { margin-top: 4px; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+        .rc-fingers b { color: var(--text); }
+        .rc-tot { margin-top: 9px; }
         .recap .rt-checks { justify-content: flex-start; margin-top: 8px; }
         .rc-note { margin-top: 7px; font-size: 12px; color: var(--muted); }
 
@@ -243,6 +248,13 @@
             border-radius: 10px; padding: 9px 12px; font-family: inherit; font-size: 14px; font-weight: 600;
         }
         input[type=range] { width: 190px; accent-color: var(--accent); }
+
+        #fragRow[hidden] { display: none !important; }
+        .frag-lab { color: var(--muted); font-size: 13px; }
+        #fragRow input[type=number] {
+            width: 74px; background: var(--panel); color: var(--text); border: 1px solid var(--line);
+            border-radius: 10px; padding: 8px 10px; font-family: inherit; font-size: 14px; font-weight: 600;
+        }
 
         .bpm-box { display: inline-flex; align-items: center; gap: 10px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 6px 14px; }
         .bpm-box .n { font-size: 20px; font-weight: 700; min-width: 42px; text-align: right; font-variant-numeric: tabular-nums; }
@@ -412,7 +424,16 @@
                 <button data-len="up">Montée</button>
                 <button data-len="all">Complet</button>
                 <button data-len="loop">∞ Boucle</button>
+                <button data-len="frag">✂ Fragment</button>
             </div>
+        </div>
+
+        <div class="control-row" id="fragRow" hidden>
+            <span class="frag-lab">Groupes</span>
+            <input type="number" id="fragFrom" min="1" value="1">
+            <span class="frag-lab">à</span>
+            <input type="number" id="fragTo" min="1" value="2">
+            <span class="frag-lab" id="fragInfo"></span>
         </div>
 
         <div class="control-row" style="margin-top:4px;">
@@ -525,7 +546,7 @@ const HANON = {
 
         const MOTIF = 8;   // toute la partie 1 de Hanon est en groupes de 8 doubles croches
 
-        function buildSeq(exNum, len) {
+        function buildSeq(exNum, len, fragFrom, fragTo) {
             const ex = HANON[exNum];
             const bR = midiToDeg(ex.mR), bL = midiToDeg(ex.mL);
             const R = expandHand(ex.R).map(o => ({ midi: degToMidi(bR + o.d), finger: o.f }));
@@ -538,6 +559,14 @@ const HANON = {
             // isolée décalerait la position dans le motif à chaque tour, et elle n'a
             // de toute façon pas de sens au milieu d'un enchaînement.
             else if (len === 'loop') cut = Math.floor(cut / MOTIF) * MOTIF;
+            else if (len === 'frag') {
+                // On découpe sur des groupes entiers : la position dans le motif
+                // doit rester alignée, sinon le profil par position est faux.
+                const g = Math.max(1, Math.floor(cut / MOTIF));
+                const a = Math.min(Math.max(1, fragFrom | 0 || 1), g);
+                const b = Math.min(Math.max(a, fragTo | 0 || a), g);
+                return { R: R.slice((a - 1) * MOTIF, b * MOTIF), L: L.slice((a - 1) * MOTIF, b * MOTIF) };
+            }
             return { R: R.slice(0, cut), L: L.slice(0, cut) };
         }
 
@@ -696,6 +725,18 @@ const HANON = {
                 }
                 h.artMean = arts.length ? mean(arts) : null;
                 h.artSD = arts.length ? sd(arts) : null;
+
+                // --- déséquilibre entre doigts : écart-type des cinq moyennes.
+                // Plus ciblé que l'écart-type global de vélocité, qui mélange le
+                // déséquilibre entre doigts avec la variation dynamique normale
+                // du jeu — laquelle n'est pas un défaut, les bons pianistes en
+                // ont davantage que les débutants.
+                const fmeans = [];
+                for (let f = 1; f <= 5; f++) {
+                    const b = h.byFinger[f];
+                    if (b.n >= 3 && b.vel != null) fmeans.push(b.vel);
+                }
+                h.fingerSD = fmeans.length >= 3 ? sd(fmeans) : null;
 
                 // --- écart à la grille du métronome (mode Métronome uniquement)
                 if (opts.mode === 'metro' && opts.gridT0 != null && opts.subMs > 0) {
@@ -885,7 +926,7 @@ const HANON = {
             });
 
             const cap = svgEl('text', { x: 92, y: 24, 'font-size': 13, fill: '#666' });
-            cap.textContent = 'Groupe ' + (start / MOTIF + 1) + ' — doigtés sous les notes';
+            cap.textContent = 'Groupe ' + (start / MOTIF + 1 + S.groupOffset) + ' — doigtés sous les notes';
             staff.appendChild(cap);
         }
 
@@ -996,7 +1037,8 @@ const HANON = {
             running: false, seq: null, hands: ['R', 'L'], cur: { R: 0, L: 0 },
             events: [], down: new Map(), mode: 'metro', bpm: 60, subMs: 250,
             gridT0: null, pedal: false, exNum: 1, len: '8', loop: false, merged: 0,
-            training: true, lockUntil: 0, trainPending: false, failInfo: null
+            training: true, lockUntil: 0, trainPending: false, failInfo: null,
+            fragFrom: 1, fragTo: 2, groupOffset: 0
         };
 
         // Session sans fin : on borne la mémoire. Au-delà, le rapport porte sur
@@ -1016,13 +1058,18 @@ const HANON = {
             const h = document.querySelector('#handSeg button.active').dataset.h;
             S.hands = h === 'both' ? ['R', 'L'] : [h];
             S.len = document.querySelector('#lenSeg button.active').dataset.len;
-            S.loop = S.len === 'loop';
+            S.fragFrom = Math.max(1, +document.getElementById('fragFrom').value || 1);
+            S.fragTo = Math.max(S.fragFrom, +document.getElementById('fragTo').value || S.fragFrom);
+            // un fragment se travaille en boucle : c'est tout son intérêt
+            S.loop = S.len === 'loop' || S.len === 'frag';
             S.training = document.getElementById('trainOn').checked;
         }
 
         function prepare() {
             currentSettings();
-            S.seq = buildSeq(S.exNum, S.len);
+            S.seq = buildSeq(S.exNum, S.len, S.fragFrom, S.fragTo);
+            S.groupOffset = S.len === 'frag' ? S.fragFrom - 1 : 0;
+            syncFragRow();
             let lo = Infinity, hi = -Infinity;
             for (const H of ['R', 'L'])
                 for (const n of S.seq[H]) { lo = Math.min(lo, n.midi); hi = Math.max(hi, n.midi); }
@@ -1039,7 +1086,10 @@ const HANON = {
             const perNote = Math.round(60000 / S.bpm / 4);
             el.innerHTML = `Exercice <b>n°${S.exNum}</b> — ${total / MOTIF | 0} groupes de ${MOTIF} doubles croches, `
                 + `<b>${total}</b> notes par main`
-                + (S.loop ? `, <b>répétés sans fin</b> jusqu'à ce que tu arrêtes.` : '.') + '<br>'
+                + (S.len === 'frag'
+                    ? ` — <b>groupes ${S.fragFrom} à ${S.fragTo}</b>, soit les notes `
+                      + `<b>${(S.fragFrom - 1) * MOTIF + 1} à ${S.fragTo * MOTIF}</b>, répétés sans fin.`
+                    : S.loop ? `, <b>répétés sans fin</b> jusqu'à ce que tu arrêtes.` : '.') + '<br>'
                 + `À ♩=${S.bpm} : <b>4 notes par temps</b>, une note toutes les <b>${perNote} ms</b>, `
                 + `soit ${(S.bpm * 4 / 60).toFixed(1)} notes par seconde. `
                 + `Le clic bat chaque note, l'aigu marque le temps.`;
@@ -1884,6 +1934,27 @@ const HANON = {
         wireSeg('modeSeg'); wireSeg('handSeg'); wireSeg('clickSeg');
         wireSeg('lenSeg', () => { if (!S.running) prepare(); });
 
+        // Borne les champs sur le nombre réel de groupes de l'exercice choisi et
+        // rend la ligne visible seulement en mode Fragment.
+        function syncFragRow() {
+            const frag = document.querySelector('#lenSeg button.active').dataset.len === 'frag';
+            document.getElementById('fragRow').hidden = !frag;
+            if (!frag) return;
+            const total = Math.floor(buildSeq(S.exNum, 'all').R.length / MOTIF);
+            const a = document.getElementById('fragFrom'), b = document.getElementById('fragTo');
+            a.max = b.max = total;
+            a.value = Math.min(Math.max(1, +a.value || 1), total);
+            b.value = Math.min(Math.max(+a.value, +b.value || +a.value), total);
+            document.getElementById('fragInfo').textContent =
+                'sur ' + total + ' groupes · ' + ((+b.value - +a.value + 1) * MOTIF) + ' notes par tour';
+        }
+
+        for (const id of ['fragFrom', 'fragTo'])
+            document.getElementById(id).addEventListener('change', () => {
+                if (!S.running) prepare();
+                saveSettings();
+            });
+
         document.getElementById('bpm').addEventListener('input', e => {
             document.getElementById('bpmN').textContent = e.target.value;
             if (!S.running) { currentSettings(); updateCaption(); }
@@ -1932,11 +2003,30 @@ const HANON = {
         const LS_DAILY = 'hanon.daily';
         const LS_LEVEL = 'hanon.level';
 
+        // Seuils calés sur ce qu'on trouve dans la littérature plutôt que sur des
+        // chiffres inventés :
+        //  • l'irrégularité se juge en MILLISECONDES et non en pourcentage, avec
+        //    un plancher à 10 ms — en dessous, même des experts ne l'entendent
+        //    pas. Un seuil purement relatif punit le jeu lent sans raison.
+        //  • la tolérance relative reste au-dessus du plancher aux tempos lents :
+        //    tolérance = max(10 ms, X % de l'intervalle entre notes).
+        //  • la force se juge sur le DÉSÉQUILIBRE ENTRE DOIGTS, pas sur
+        //    l'écart-type global : varier les nuances n'est pas un défaut.
+        //  • le legato est la nuance de référence du protocole scientifique de
+        //    mesure d'égalité ; on exige d'abord la régularité du relâchement,
+        //    puis la connexion elle-même.
+        //  • un tempo plancher, sinon on validerait Strict en jouant trop lentement
+        //    pour que ça veuille dire quelque chose. 60 est le plancher de Hanon
+        //    lui-même, 108 son objectif.
+        const EVEN_FLOOR_MS = 10;
+
         const DAILY_LEVELS = {
-            souple: { label: 'Souple', cv: 8, vel: 12, tempo: 5, grid: 45 },
-            normal: { label: 'Normal', cv: 6, vel: 9, tempo: 3, grid: 30 },
-            strict: { label: 'Strict', cv: 4, vel: 6, tempo: 2, grid: 20 }
+            souple: { label: 'Souple', even: 8, finger: 5,   tempo: 5, grid: 45, minBpm: 0,  artSD: null, art: null },
+            normal: { label: 'Normal', even: 6, finger: 3.5, tempo: 3, grid: 30, minBpm: 60, artSD: 0.15, art: null },
+            strict: { label: 'Strict', even: 4, finger: 2.5, tempo: 2, grid: 20, minBpm: 80, artSD: 0.12, art: 0.95 }
         };
+
+        const evenTolerance = (L, ioi) => Math.max(EVEN_FLOOR_MS, L.even / 100 * ioi);
 
         const LS_RTHANDS = 'hanon.routineHands';
         const RT_HAND_LABEL = { both: 'les deux mains', R: 'main droite seule', L: 'main gauche seule' };
@@ -1989,13 +2079,42 @@ const HANON = {
             const c = [];
             c.push({ label: 'Exercice terminé', ok: !!finished, val: finished ? 'oui' : 'non' });
             c.push({ label: 'Fausses notes', ok: !!A && A.wrong === 0, val: A ? String(A.wrong) : '—', lim: '0' });
+            if (L.minBpm)
+                c.push({
+                    label: 'Tempo minimum', ok: S.bpm >= L.minBpm,
+                    val: '♩=' + S.bpm, lim: '≥ ♩=' + L.minBpm
+                });
             if (A) for (const H of A.order) {
                 const h = A.hands[H], n = A.order.length > 1 ? ' ' + HS[H] : '';
-                c.push({ label: 'Égalité' + n, ok: h.cv <= L.cv, val: h.cv.toFixed(1) + ' %', lim: '≤ ' + L.cv + ' %' });
-                c.push({ label: 'Force' + n, ok: h.velSD <= L.vel, val: h.velSD.toFixed(1), lim: '≤ ' + L.vel });
+
+                const tol = evenTolerance(L, h.ioiMean);
+                c.push({
+                    label: 'Égalité' + n, ok: h.resSD <= tol,
+                    val: h.resSD.toFixed(1) + ' ms', lim: '≤ ' + tol.toFixed(0) + ' ms'
+                });
+
+                if (h.fingerSD != null) c.push({
+                    label: 'Doigts' + n, ok: h.fingerSD <= L.finger,
+                    val: h.fingerSD.toFixed(1), lim: '≤ ' + L.finger
+                });
+
                 const dt = S.bpm ? Math.abs(h.bpm - S.bpm) / S.bpm * 100 : 0;
                 c.push({ label: 'Tempo' + n, ok: dt <= L.tempo, val: dt.toFixed(1) + ' %', lim: '±' + L.tempo + ' %' });
+
                 if (h.grid) c.push({ label: 'Clic' + n, ok: h.grid.sd <= L.grid, val: h.grid.sd.toFixed(0) + ' ms', lim: '≤ ' + L.grid + ' ms' });
+
+                // la pédale fausse complètement la mesure : on n'exige rien plutôt
+                // que d'exiger sur un chiffre qui ne veut rien dire
+                if (!A.pedal && h.artSD != null) {
+                    if (L.artSD != null) c.push({
+                        label: 'Legato régulier' + n, ok: h.artSD <= L.artSD,
+                        val: '±' + h.artSD.toFixed(2), lim: '≤ ±' + L.artSD.toFixed(2)
+                    });
+                    if (L.art != null) c.push({
+                        label: 'Legato' + n, ok: h.artMean >= L.art,
+                        val: h.artMean.toFixed(2) + '×', lim: '≥ ' + L.art.toFixed(2) + '×'
+                    });
+                }
             }
             return { clean: c.every(x => x.ok), checks: c, failed: c.filter(x => !x.ok) };
         }
@@ -2023,8 +2142,12 @@ const HANON = {
             document.getElementById('rtCfg').innerHTML =
                 'Exercice complet · ' + RT_HAND_LABEL[routine.hands] + ' · métronome ♩='
                 + document.getElementById('bpm').value
-                + '<br>Niveau <b>' + L.label + '</b> — zéro fausse note, égalité ≤ ' + L.cv
-                + ' %, force ≤ ' + L.vel + ', tempo ±' + L.tempo + ' %, clic ≤ ' + L.grid + ' ms';
+                + '<br>Niveau <b>' + L.label + '</b> — zéro fausse note, irrégularité ≤ '
+                + evenTolerance(L, 60000 / S.bpm / 4).toFixed(0) + ' ms, doigts ≤ ' + L.finger
+                + ', tempo ±' + L.tempo + ' %, clic ≤ ' + L.grid + ' ms'
+                + (L.artSD ? ', legato régulier à ±' + L.artSD.toFixed(2) : '')
+                + (L.art ? ' et ≥ ' + L.art.toFixed(2) + '×' : '')
+                + (L.minBpm ? ', à partir de ♩=' + L.minBpm : '');
         }
 
         function updateRoutineHead() {
@@ -2251,9 +2374,20 @@ const HANON = {
                 wrong: A ? A.wrong : S.events.filter(e => !e.ok).length,
                 merged: S.merged,
                 fail: reason === 'fausse' ? S.failInfo : null,
-                cv: p ? p.cv : null, res: p ? p.resSD : null, vel: p ? p.velSD : null,
-                tempo: p ? p.bpm : null, grid: p && p.grid ? p.grid.sd : null,
-                sync: A && A.sync ? A.sync.meanAbs : null, art: p ? p.artMean : null
+                sync: A && A.sync ? A.sync.meanAbs : null,
+                pedal: !!(A && A.pedal),
+                // tout est conservé par main : le récap doit montrer ce que la
+                // séance évalue, or elle évalue chaque main séparément
+                hands: A ? A.order.map(H => {
+                    const h = A.hands[H];
+                    return {
+                        H, cv: h.cv, res: h.resSD, ioi: h.ioiMean, vel: h.velSD,
+                        fingerSD: h.fingerSD, tempo: h.bpm,
+                        grid: h.grid ? h.grid.sd : null, art: h.artMean, artSD: h.artSD,
+                        fv: [1, 2, 3, 4, 5].map(f => h.byFinger[f].vel),
+                        fr: [1, 2, 3, 4, 5].map(f => h.byFinger[f].res)
+                    };
+                }) : []
             });
             if (recaps.length > RECAP_MAX) recaps.shift();
             saveRecaps();
@@ -2289,11 +2423,21 @@ const HANON = {
                     ? `À la note ${r.fail.idx + 1} sur ${r.fail.total} (${HN[r.fail.hand].toLowerCase()}) : `
                       + `<b>${fullName(r.fail.played)}</b> au lieu de <b>${fullName(r.fail.expected)}</b>.`
                     : '';
+                const perHand = (r.hands || []).map(h => {
+                    const cells = [
+                        ['irrég.', num(h.res, 1, ' ms')], ['CV', num(h.cv, 1, ' %')],
+                        ['doigts', num(h.fingerSD, 1)], ['force', num(h.vel, 1)],
+                        ['tempo', num(h.tempo, 0, ' ♩')], ['clic', num(h.grid, 0, ' ms')],
+                        ['legato', h.art == null ? null : h.art.toFixed(2) + (h.artSD != null ? ' ±' + h.artSD.toFixed(2) : '')]
+                    ].filter(x => x[1] != null).map(x => `<span>${x[0]} <b>${x[1]}</b></span>`).join('');
+                    const fv = h.fv.map(v => v == null ? '–' : Math.round(v)).join(' · ');
+                    return `<div class="rc-hand"><span class="h">${HS[h.H]}</span>`
+                        + `<div class="rc-nums">${cells}</div>`
+                        + `<div class="rc-fingers">force par doigt <b>${fv}</b></div></div>`;
+                }).join('');
                 const nums = [
-                    ['notes', r.notes], ['CV', num(r.cv, 1, ' %')], ['irrég.', num(r.res, 1, ' ms')],
-                    ['force', num(r.vel, 1)], ['tempo', num(r.tempo, 0, ' ♩')],
-                    ['clic', num(r.grid, 1, ' ms')], ['mains', num(r.sync, 1, ' ms')],
-                    ['legato', num(r.art, 2)], ['voisines', r.merged || null]
+                    ['notes', r.notes], ['mains', num(r.sync, 1, ' ms')],
+                    ['voisines', r.merged || null], ['pédale', r.pedal ? 'oui' : null]
                 ].filter(x => x[1] != null).map(x => `<span>${x[0]} <b>${x[1]}</b></span>`).join('');
                 const d = new Date(r.ts);
                 const L = r.level ? DAILY_LEVELS[r.level] : null;
@@ -2305,7 +2449,8 @@ const HANON = {
                     + `<span class="verdict">${verdict}</span></div>`
                     + (why ? `<div class="rc-why">${why}</div>` : '')
                     + (r.checks ? `<div class="rt-checks">${checksHtml(r.checks)}</div>` : '')
-                    + `<div class="rc-nums">${nums}</div>`
+                    + perHand
+                    + `<div class="rc-nums rc-tot">${nums}</div>`
                     + (L ? `<div class="rc-note">Niveau ${L.label} · ♩=${r.bpm}</div>` : '')
                     + `</div>`;
             }).reverse().join('');
@@ -2524,6 +2669,29 @@ const HANON = {
                 && [...document.querySelectorAll('#rtHandSeg button')].every(b => RT_HAND_LABEL[b.dataset.h]),
                 [...document.querySelectorAll('#rtHandSeg button')].map(b => b.dataset.h).join(', '));
 
+            // 8 septies. Fragment : découper au milieu d'un exercice ne doit pas
+            //             décaler la position dans le motif, sinon tout le profil
+            //             par position devient faux.
+            const full = buildSeq(1, 'all');
+            const fr = buildSeq(1, 'frag', 28, 29);
+            check('fragment : 2 groupes = 16 notes', fr.R.length === 16 && fr.L.length === 16,
+                fr.R.length + ' notes par main');
+            check('fragment : découpe au bon endroit',
+                fr.R[0].midi === full.R[27 * MOTIF].midi && fr.L[0].midi === full.L[27 * MOTIF].midi,
+                'commence sur la note ' + (27 * MOTIF + 1));
+            check('fragment : aligné sur le motif', fr.R.length % MOTIF === 0,
+                fr.R.length + ' ÷ ' + MOTIF);
+            check('fragment : bornes hors plage ramenées dans l\'exercice',
+                buildSeq(1, 'frag', 999, 999).R.length === MOTIF, 'dernier groupe seul');
+
+            // les seuils : la tolérance d'irrégularité ne doit jamais passer sous
+            // le seuil d'audibilité, quel que soit le tempo
+            const tolFast = evenTolerance(DAILY_LEVELS.strict, 60000 / 144 / 4);
+            const tolSlow = evenTolerance(DAILY_LEVELS.souple, 60000 / 40 / 4);
+            check('tolérance jamais sous le seuil d\'audibilité',
+                tolFast === EVEN_FLOOR_MS && tolSlow > EVEN_FLOOR_MS,
+                'Strict à ♩=144 : ' + tolFast.toFixed(0) + ' ms, Souple à ♩=40 : ' + tolSlow.toFixed(0) + ' ms');
+
             // 9. entrées MIDI : un piano expose souvent plusieurs ports qui
             //    portent les mêmes notes. Un seul doit être écouté, sinon
             //    chaque frappe est comptée autant de fois qu'il y a de ports.
@@ -2572,7 +2740,9 @@ const HANON = {
                     names: document.getElementById('showNames').checked,
                     coach: document.getElementById('coachOn').checked,
                     merge: document.getElementById('mergeOn').checked,
-                    train: document.getElementById('trainOn').checked
+                    train: document.getElementById('trainOn').checked,
+                    fragFrom: document.getElementById('fragFrom').value,
+                    fragTo: document.getElementById('fragTo').value
                 }));
             } catch (e) { }
         }
@@ -2599,6 +2769,8 @@ const HANON = {
             }
             if (o.merge != null) document.getElementById('mergeOn').checked = !!o.merge;
             if (o.train != null) document.getElementById('trainOn').checked = !!o.train;
+            if (o.fragFrom) document.getElementById('fragFrom').value = o.fragFrom;
+            if (o.fragTo) document.getElementById('fragTo').value = o.fragTo;
         }
 
         // =====================================================================
