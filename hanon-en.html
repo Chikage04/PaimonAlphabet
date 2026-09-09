@@ -218,6 +218,9 @@
             padding: 11px 22px; font-family: inherit; font-size: 15px; font-weight: 700; cursor: pointer;
         }
         button.btn.stop { background: var(--bad); }
+        button.btn.pause { background: #4a5382; }
+        button.btn.pause.resume { background: var(--good); }
+        button.btn.pause[hidden] { display: none !important; }
         button.btn:active { transform: translateY(1px); }
         button.btn:disabled { opacity: .45; cursor: default; }
 
@@ -331,6 +334,7 @@
             <div><span class="k">Clean passes</span><span class="v" id="rtStreak">○ ○</span></div>
         </div>
         <div class="control-row" style="margin-top:12px;">
+            <select id="rtExSel" title="Switch which exercise the session drills"></select>
             <div class="segmented" id="rtHandSeg" title="Switch which hands the session drills">
                 <button data-h="both" class="active">Both hands</button>
                 <button data-h="R">Right hand</button>
@@ -418,6 +422,7 @@
 
         <div class="control-row" style="margin-top:4px;">
             <button class="btn" id="startBtn">▶ Start</button>
+            <button class="btn pause" id="pauseBtn" hidden>⏸ Pause</button>
             <label class="toggle"><input type="checkbox" id="showNames"> Key names</label>
             <label class="toggle"><input type="checkbox" id="coachOn" checked> 💬 Live coaching</label>
             <label class="toggle" title="Two adjacent keys struck together count as one"><input type="checkbox" id="mergeOn" checked> 🤏 Merge adjacent keys</label>
@@ -582,7 +587,7 @@ const HANON = {
         // apparaître l'irrégularité locale — c'est ça qu'on veut voir.
         const RES_WIN = 17;
 
-        function residuals(ts) {
+        function residSeg(ts) {
             const n = ts.length, res = new Array(n).fill(0);
             if (n < 4) return res;
             const half = RES_WIN >> 1;
@@ -594,6 +599,23 @@ const HANON = {
                 for (let j = lo; j < hi; j++) { xs.push(j); ys.push(ts[j]); }
                 const { a, b } = linreg(xs, ys);
                 res[i] = ts[i] - (a * i + b);
+            }
+            return res;
+        }
+
+        // Une pause coupe la chaîne : l'intervalle qui l'enjambe n'a pas été
+        // joué. La grille locale est donc ajustée SEGMENT PAR SEGMENT, sinon une
+        // seule pause de trente secondes fausserait les résidus de tout le
+        // passage — et le passage entier serait à refaire.
+        function residuals(ts, brk) {
+            const n = ts.length;
+            const cuts = [0];
+            for (let i = 1; i < n; i++) if (brk && brk[i]) cuts.push(i);
+            cuts.push(n);
+            const res = new Array(n).fill(0);
+            for (let s = 0; s < cuts.length - 1; s++) {
+                const r = residSeg(ts.slice(cuts[s], cuts[s + 1]));
+                for (let i = 0; i < r.length; i++) res[cuts[s] + i] = r[i];
             }
             const m = mean(res);
             return res.map(r => r - m);      // centré : seuls les écarts relatifs ont un sens
@@ -649,9 +671,9 @@ const HANON = {
                 if (ev.length < 4) continue;
                 const ts = ev.map(e => e.t);
                 const iois = [];
-                for (let i = 1; i < ts.length; i++) iois.push(ts[i] - ts[i - 1]);
+                for (let i = 1; i < ts.length; i++) if (!ev[i].brk) iois.push(ts[i] - ts[i - 1]);
 
-                const res = residuals(ts);
+                const res = residuals(ts, ev.map(e => !!e.brk));
                 const mIoi = mean(iois);
                 const h = {
                     n: ev.length,
@@ -687,6 +709,7 @@ const HANON = {
                 // --- courbe de tempo local + dérive
                 const W = 16, curve = [];
                 for (let i = 0; i + W < ts.length; i += 4) {
+                    if (ev.slice(i + 1, i + W + 1).some(e => e.brk)) continue;   // fenêtre à cheval sur une pause
                     const seg = ts.slice(i, i + W + 1);
                     const dt = (seg[seg.length - 1] - seg[0]) / (seg.length - 1);
                     if (dt > 0) curve.push({ t: (seg[0] - ts[0]) / 1000, bpm: 60000 / (dt * 4) });
@@ -698,6 +721,7 @@ const HANON = {
                 // --- articulation (durée / IOI) ; faussée si la pédale est tenue
                 const arts = [];
                 for (let i = 0; i < ev.length - 1; i++) {
+                    if (ev[i + 1].brk) continue;
                     const d = ev[i].dur, gap = ts[i + 1] - ts[i];
                     if (d > 0 && gap > 0 && d < gap * 6) arts.push(d / gap);
                 }
@@ -718,7 +742,7 @@ const HANON = {
 
                 // --- écart à la grille du métronome (mode Métronome uniquement)
                 if (opts.mode === 'metro' && opts.gridT0 != null && opts.subMs > 0) {
-                    const dev = ev.map(e => e.t - (opts.gridT0 + e.idx * opts.subMs));
+                    const dev = ev.map(e => e.t - ((e.g0 != null ? e.g0 : opts.gridT0) + e.idx * opts.subMs));
                     const lat = median(dev);              // latence de sortie audio : constante, on la retire
                     const c = dev.map(d => d - lat);
                     h.grid = { lat, meanAbs: mean(c.map(Math.abs)), sd: sd(c) };
@@ -1016,7 +1040,8 @@ const HANON = {
             events: [], down: new Map(), mode: 'metro', bpm: 60, subMs: 250,
             gridT0: null, pedal: false, exNum: 1, len: '8', loop: false, merged: 0,
             training: true, lockUntil: 0, trainPending: false, failInfo: null,
-            fragFrom: 1, fragTo: 2, groupOffset: 0
+            fragFrom: 1, fragTo: 2, groupOffset: 0,
+            paused: false, pausedAt: 0, brkNext: false
         };
 
         // Session sans fin : on borne la mémoire. Au-delà, le rapport porte sur
@@ -1093,14 +1118,19 @@ const HANON = {
             resetGauges();
             resetCoach('Play — coaching starts after a few notes');
             // après resetGauges, sinon le décompte est effacé dès sa première image
+            S.paused = false;
+            S.brkNext = false;
             if (S.mode === 'metro') S.gridT0 = startMetronome(S.bpm, 4);
+            setPauseUI();
         }
 
         function stop(finished, reason) {
             if (!S.running) return;
             S.running = false;
+            S.paused = false;
             stopMetronome();
             clearPending();
+            setPauseUI();
             document.getElementById('startBtn').textContent = '▶ Start';
             document.getElementById('startBtn').classList.remove('stop');
             clearKeyStates();
@@ -1115,6 +1145,54 @@ const HANON = {
             pushRecap(A, finished, reason);
             if (routine.on) { routineRunEnded(A, finished, reason); return; }
             if (A) renderReport(A, finished || S.loop);
+        }
+
+        function setPauseUI() {
+            const b = document.getElementById('pauseBtn');
+            b.hidden = !S.running;
+            b.textContent = S.paused ? '▶ Resume' : '⏸ Pause';
+            b.classList.toggle('resume', S.paused);
+            const el = document.getElementById('coach');
+            if (S.paused) {
+                el.classList.remove('off');
+                el.className = 'coach warn';
+                el.innerHTML = '<span class="ic">⏸</span> Paused — you will pick up where you left off';
+            } else {
+                el.classList.toggle('off', !document.getElementById('coachOn').checked);
+            }
+        }
+
+        function pauseRun() {
+            if (!S.running || S.paused) return;
+            S.paused = true;
+            S.pausedAt = performance.now();
+            S.trainPending = false;        // annule une reprise automatique en attente
+            stopMetronome();
+            clearPending();
+            if (routine.tick) { clearInterval(routine.tick); routine.tick = null; }
+            setPauseUI();
+        }
+
+        function resumeRun() {
+            if (!S.running || !S.paused) return;
+            const away = performance.now() - S.pausedAt;
+            S.paused = false;
+            // l'intervalle qui enjambe la pause n'est pas un intervalle joué
+            S.brkNext = true;
+            S.lockUntil = 0;
+            if (routine.on) {
+                routine.endsAt += away;    // le chrono de séance ne tourne pas pendant la pause
+                routine.tick = setInterval(routineTick, 500);
+                routineTick();
+            }
+            if (S.mode === 'metro') {
+                // on ré-ancre la grille sur la note où l'on reprend, sinon tout ce
+                // qui suit serait mesuré contre un décompte vieux de la pause
+                const first = startMetronome(S.bpm, 4);
+                S.gridT0 = first - S.cur[S.hands[0]] * S.subMs;
+            }
+            markNext();
+            setPauseUI();
         }
 
         function pickHand(pitch) {
@@ -1197,7 +1275,7 @@ const HANON = {
 
         function rawNoteOn(pitch, vel, t) {
             // verrou qui suit une fausse note : plus rien n'est capté
-            if (performance.now() < S.lockUntil) return;
+            if (performance.now() < S.lockUntil || S.paused) return;
             if (!S.running) { flash(pitch, true); return; }
             const H = pickHand(pitch);
             const i = S.cur[H];
@@ -1205,8 +1283,9 @@ const HANON = {
             const exp = seqAt(H, i);
             const ev = {
                 t, pitch, vel, hand: H, idx: i, pos: mod(i, MOTIF), finger: exp.finger,
-                expected: exp.midi, ok: pitch === exp.midi, dur: 0
+                expected: exp.midi, ok: pitch === exp.midi, dur: 0, g0: S.gridT0
             };
+            if (S.brkNext) { ev.brk = true; S.brkNext = false; }
             S.events.push(ev);
             if (S.events.length > EVENT_CAP) S.events.splice(0, EVENT_CAP / 5);
             S.down.set(H + ':' + pitch, ev);
@@ -1316,7 +1395,7 @@ const HANON = {
 
         function iois(ev) {
             const o = [];
-            for (let i = 1; i < ev.length; i++) o.push(ev[i].t - ev[i - 1].t);
+            for (let i = 1; i < ev.length; i++) if (!ev[i].brk) o.push(ev[i].t - ev[i - 1].t);
             return o;
         }
 
@@ -1922,6 +2001,7 @@ const HANON = {
             o.value = i;
             o.textContent = 'Hanon no. ' + i + (A_VERIFIER[i] ? ' ⚠' : '');
             exSel.appendChild(o);
+            document.getElementById('rtExSel').appendChild(o.cloneNode(true));
         }
 
         function showVerifWarn() {
@@ -1975,6 +2055,9 @@ const HANON = {
             try { localStorage.setItem(LS_MIDI, e.target.value); } catch (err) { }
             if (midiAccess) refreshMidiInputs(midiAccess);
         });
+        document.getElementById('pauseBtn').addEventListener('click',
+            () => S.paused ? resumeRun() : pauseRun());
+
         document.getElementById('startBtn').addEventListener('click', () => {
             S.trainPending = false;          // un arrêt manuel annule la reprise
             S.lockUntil = 0;
@@ -1984,6 +2067,10 @@ const HANON = {
         window.addEventListener('orientationchange', fitKeyboard);
         document.addEventListener('keydown', e => {
             if (e.code === 'Space' && e.target === document.body) { e.preventDefault(); S.running ? stop(false) : start(); }
+            if (e.code === 'KeyP' && e.target === document.body && S.running) {
+                e.preventDefault();
+                S.paused ? resumeRun() : pauseRun();
+            }
         });
 
 
@@ -2043,6 +2130,20 @@ const HANON = {
         // Changer de mains en pleine séance remet le compteur à zéro : deux
         // passages propres doivent porter sur la MÊME configuration, sinon
         // « validé » ne voudrait rien dire. Le passage en cours repart aussitôt.
+        // Même raisonnement que pour les mains : deux passages propres doivent
+        // porter sur le MÊME exercice, donc en changer remet le compteur à zéro.
+        function routineSetExercise(n) {
+            if (!routine.on || n === routine.ex) return;
+            routine.ex = n;
+            routine.streak = 0;
+            if (routine.next) clearTimeout(routine.next);
+            if (S.running) stop(false, 'mains');
+            setRtState('↻ Pass restarted on no. ' + n, '');
+            updateRoutineHead();
+            applyRoutineConfig();
+            routine.next = setTimeout(routineNextRun, 900);
+        }
+
         function routineSetHands(h) {
             routine.hands = h;
             try { localStorage.setItem(LS_RTHANDS, h); } catch (e) { }
@@ -2137,6 +2238,7 @@ const HANON = {
         // réglages, et on les affiche pour que ce ne soit pas une surprise.
         function applyRoutineConfig() {
             document.getElementById('exSel').value = routine.ex;
+            document.getElementById('rtExSel').value = routine.ex;
             activateSeg('modeSeg', 'mode', 'metro');
             activateSeg('handSeg', 'h', routine.hands);
             activateSeg('rtHandSeg', 'h', routine.hands);
@@ -2284,6 +2386,8 @@ const HANON = {
         });
 
         wireSeg('rtHandSeg', b => routineSetHands(b.dataset.h));
+        document.getElementById('rtExSel').addEventListener('change',
+            e => routineSetExercise(+e.target.value));
 
         document.getElementById('dailyBtn').addEventListener('click', () => {
             if (routine.on) finishRoutine(); else startRoutine();

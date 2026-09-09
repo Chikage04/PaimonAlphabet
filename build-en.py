@@ -129,6 +129,17 @@ T = [
 ('<label class="toggle" title="Une fausse note interrompt le passage, qui repart du début"><input type="checkbox" id="trainOn" checked> 🎯 Mode entraînement</label>',
  '<label class="toggle" title="A wrong note aborts the pass, which restarts from the top"><input type="checkbox" id="trainOn" checked> 🎯 Drill mode</label>'),
 
+("<button class=\"btn pause\" id=\"pauseBtn\" hidden>⏸ Pause</button>",
+ "<button class=\"btn pause\" id=\"pauseBtn\" hidden>⏸ Pause</button>"),
+("<select id=\"rtExSel\" title=\"Change l'exercice travaillé pendant la séance\"></select>",
+ "<select id=\"rtExSel\" title=\"Switch which exercise the session drills\"></select>"),
+("b.textContent = S.paused ? '▶ Reprendre' : '⏸ Pause';",
+ "b.textContent = S.paused ? '▶ Resume' : '⏸ Pause';"),
+("el.innerHTML = '<span class=\"ic\">⏸</span> En pause — tu repartiras où tu en étais';",
+ "el.innerHTML = '<span class=\"ic\">⏸</span> Paused — you will pick up where you left off';"),
+("setRtState('↻ Passage relancé sur le n°' + n, '');",
+ "setRtState('↻ Pass restarted on no. ' + n, '');"),
+
 # -------------------------------------------------------------- aide -------
 ("Les doigtés sont issus d'une transcription recoupée avec deux sources indépendantes.",
  "The fingerings come from a transcription cross-checked against two independent sources."),
