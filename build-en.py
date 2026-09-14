@@ -386,10 +386,10 @@ T = [
 # ------------------------------------------------------------- niveaux -----
 ("souple: { label: 'Souple', even: 8, finger: 5,   tempo: 5, grid: 45, minBpm: 0,  artSD: null, art: null },",
  "souple: { label: 'Lenient', even: 8, finger: 5,   tempo: 5, grid: 45, minBpm: 0,  artSD: null, art: null },"),
-("normal: { label: 'Normal', even: 6, finger: 3.5, tempo: 3, grid: 30, minBpm: 60, artSD: 0.15, art: null },",
- "normal: { label: 'Standard', even: 6, finger: 3.5, tempo: 3, grid: 30, minBpm: 60, artSD: 0.15, art: null },"),
-("strict: { label: 'Strict', even: 4, finger: 2.5, tempo: 2, grid: 20, minBpm: 80, artSD: 0.12, art: 0.95 }",
- "strict: { label: 'Strict', even: 4, finger: 2.5, tempo: 2, grid: 20, minBpm: 80, artSD: 0.12, art: 0.95 }"),
+("normal: { label: 'Normal', even: 7, finger: 3,   tempo: 3, grid: 30, minBpm: 60, artSD: 0.15, art: null },",
+ "normal: { label: 'Standard', even: 7, finger: 3,   tempo: 3, grid: 30, minBpm: 60, artSD: 0.15, art: null },"),
+("strict: { label: 'Strict', even: 4.5, finger: 2, tempo: 2, grid: 20, minBpm: 80, artSD: 0.12, art: 0.95 }",
+ "strict: { label: 'Strict', even: 4.5, finger: 2, tempo: 2, grid: 20, minBpm: 80, artSD: 0.12, art: 0.95 }"),
 ("const RT_HAND_LABEL = { both: 'les deux mains', R: 'main droite seule', L: 'main gauche seule' };",
  "const RT_HAND_LABEL = { both: 'both hands', R: 'right hand alone', L: 'left hand alone' };"),
 
