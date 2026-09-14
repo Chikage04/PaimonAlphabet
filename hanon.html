@@ -427,6 +427,7 @@
             <label class="toggle"><input type="checkbox" id="coachOn" checked> 💬 Conseils en direct</label>
             <label class="toggle" title="Deux touches voisines enfoncées en même temps comptent pour une seule"><input type="checkbox" id="mergeOn" checked> 🤏 Fusionner les touches voisines</label>
             <label class="toggle" title="Une fausse note interrompt le passage, qui repart du début"><input type="checkbox" id="trainOn" checked> 🎯 Mode entraînement</label>
+            <label class="toggle" title="Les conseils sont dits à voix haute, avec les seuils du niveau choisi"><input type="checkbox" id="voiceOn"> 🔊 Conseils à voix haute</label>
         </div>
         <div class="control-row" id="recordRow"></div>
     </div>
@@ -1128,6 +1129,7 @@ const HANON = {
             if (!S.running) return;
             S.running = false;
             S.paused = false;
+            if (speechOK()) speechSynthesis.cancel();
             stopMetronome();
             clearPending();
             setPauseUI();
@@ -1399,11 +1401,20 @@ const HANON = {
             return o;
         }
 
+        //  Les conseils sont calés sur le NIVEAU choisi : à Strict on est repris
+        //  sur des écarts que Souple laisse passer. Sans ça le coach dirait autre
+        //  chose que ce que la séance exige, et on travaillerait à côté.
+        //  Le filtre à deux erreurs types reste par-dessus : dépasser un seuil ne
+        //  suffit pas, il faut que le dépassement ne soit pas du bruit.
         function coachAdvice(events, opts) {
             const H = opts.hands[0];
+            const L = DAILY_LEVELS[opts.level] || DAILY_LEVELS.souple;
             const found = [];
-            const add = (key, sev, icon, text, cls) => {
-                if (isFinite(sev) && sev >= COACH_MIN_SEV) found.push({ key, sev: Math.min(sev, 10), icon, text, cls });
+            // `say` est la version courte, dite à voix haute : on ne peut pas
+            // écouter une phrase entière en jouant des doubles croches
+            const add = (key, sev, icon, text, cls, say) => {
+                if (isFinite(sev) && sev >= COACH_MIN_SEV)
+                    found.push({ key, sev: Math.min(sev, 10), icon, text, cls, say: say || text });
             };
 
             // --- tempo : fenêtre courte, on veut réagir vite.
@@ -1420,16 +1431,20 @@ const HANON = {
                 const io = iois(w9), m = mean(io);
                 const rel = (m - target) / target;
                 const se = Math.max(0.008, (sd(io) / Math.sqrt(io.length)) / target);
-                if (rel <= -0.03) add('rush', Math.abs(rel) / se, '⏩', 'Tu accélères — reste sur le clic', 'bad');
-                else if (rel >= 0.03) add('drag', Math.abs(rel) / se, '⏪', 'Tu ralentis — relance', 'bad');
+                const tolTempo = L.tempo / 100;
+                if (rel <= -tolTempo) add('rush', Math.abs(rel) / se, '⏩', 'Tu accélères — reste sur le clic', 'bad', 'Trop vite');
+                else if (rel >= tolTempo) add('drag', Math.abs(rel) / se, '⏪', 'Tu ralentis — relance', 'bad', 'Trop lent');
             }
 
             // --- régularité et legato : fenêtre moyenne
             const w17 = tailOf(events, H, 17);
             if (w17.length >= 12) {
                 const io = iois(w17), m = mean(io);
-                const cv = m ? sd(io) / m * 100 : 0;
-                if (cv > 8) add('cv', cv / 4, '〰️', 'Irrégulier — place chaque note', 'bad');
+                // on compare à la tolérance du niveau, pas à un pourcentage fixe
+                const res = residuals(w17.map(e => e.t), w17.map(e => !!e.brk));
+                const rSD = sd(res), tolMs = evenTolerance(L, m || 250);
+                if (rSD > tolMs) add('cv', (rSD - tolMs) / (rSD / Math.sqrt(2 * (res.length - 1))),
+                    '〰️', `Irrégulier — ${rSD.toFixed(0)} ms pour ${tolMs.toFixed(0)} autorisés`, 'bad', 'Irrégulier');
 
                 const rat = [];
                 for (let i = 0; i < w17.length - 1; i++) {
@@ -1437,9 +1452,14 @@ const HANON = {
                     if (w17[i].dur > 0 && gap > 0 && w17[i].dur < gap * 6) rat.push(w17[i].dur / gap);
                 }
                 if (rat.length >= 6) {
-                    const r = mean(rat), se = Math.max(0.02, sd(rat) / Math.sqrt(rat.length));
-                    if (r < 0.95) add('legato-court', (0.95 - r) / se, '🔗', 'Notes trop courtes — tiens-les jusqu\'à la suivante', 'warn');
-                    else if (r > 1.15) add('legato-long', (r - 1.15) / se, '✂️', 'Tu lies trop — relâche un peu plus tôt', 'warn');
+                    const r = mean(rat), rs = sd(rat), se = Math.max(0.02, rs / Math.sqrt(rat.length));
+                    const minArt = L.art != null ? L.art : 0.95;
+                    if (r < minArt) add('legato-court', (minArt - r) / se, '🔗', 'Notes trop courtes — tiens-les jusqu\'à la suivante', 'warn', 'Trop court');
+                    else if (r > 1.15) add('legato-long', (r - 1.15) / se, '✂️', 'Tu lies trop — relâche un peu plus tôt', 'warn', 'Trop lié');
+                    // la régularité du relâchement est un critère à tous les niveaux
+                    if (L.artSD != null && rs > L.artSD)
+                        add('legato-sd', (rs - L.artSD) / (rs / Math.sqrt(2 * (rat.length - 1))),
+                            '🎚️', `Relâchements irréguliers — ±${rs.toFixed(2)} pour ±${L.artSD.toFixed(2)}`, 'warn', 'Relâchements irréguliers');
                 }
             }
 
@@ -1452,10 +1472,11 @@ const HANON = {
                 for (const [f, arr] of groupBy(w32, e => e.finger, e => e.vel)) {
                     if (arr.length < 3) continue;
                     const d = mean(arr) - mAll, sev = Math.abs(d) / (sAll / Math.sqrt(arr.length));
-                    if (Math.abs(d) >= 4 && (!bestF || sev > bestF.sev)) bestF = { f, d, sev };
+                    if (Math.abs(d) >= L.finger && (!bestF || sev > bestF.sev)) bestF = { f, d, sev };
                 }
                 if (bestF) add('doigt' + bestF.f, bestF.sev, '🖐️',
-                    bestF.d > 0 ? `Doigt ${bestF.f} trop fort — allège` : `Doigt ${bestF.f} trop faible — appuie plus`, 'warn');
+                    bestF.d > 0 ? `Doigt ${bestF.f} trop fort — allège` : `Doigt ${bestF.f} trop faible — appuie plus`, 'warn',
+                    `Doigt ${bestF.f} trop ${bestF.d > 0 ? 'fort' : 'faible'}`);
 
                 // accent sur une position du motif : on l'ignore s'il s'explique
                 // déjà par le doigt signalé au-dessus, pour ne pas dire deux fois
@@ -1469,14 +1490,16 @@ const HANON = {
                 if (bestP) {
                     const fingerAt = w32.find(e => posOf(e) === bestP.p);
                     if (!bestF || !fingerAt || fingerAt.finger !== bestF.f)
-                        add('pos' + bestP.p, bestP.sev, '🎯', `Tu accentues la note ${bestP.p + 1} du groupe`, 'warn');
+                        add('pos' + bestP.p, bestP.sev, '🎯', `Tu accentues la note ${bestP.p + 1} du groupe`, 'warn',
+                            `Accent sur la note ${bestP.p + 1}`);
                 }
 
                 if (w32.length >= 20) {
                     const sl = crescPerOctave(w32, MOTIF);
                     if (Math.abs(sl) >= 6) add('cresc', Math.abs(sl) / 3, sl > 0 ? '📈' : '📉',
                         sl > 0 ? 'Tu forces en montant — même volume partout'
-                            : 'Tu faiblis en montant — même volume partout', 'warn');
+                            : 'Tu faiblis en montant — même volume partout', 'warn',
+                        sl > 0 ? 'Tu forces en montant' : 'Tu faiblis en montant');
                 }
             }
 
@@ -1491,13 +1514,50 @@ const HANON = {
                 for (const [, p] of byIdx) if (p.R != null && p.L != null) dd.push(Math.abs(p.R - p.L));
                 if (dd.length >= 6) {
                     const m = mean(dd), se = Math.max(2, sd(dd) / Math.sqrt(dd.length));
-                    if (m > 20) add('sync', (m - 20) / se, '🤝', 'Mains décalées — écoute-les ensemble', 'bad');
+                    if (m > 20) add('sync', (m - 20) / se, '🤝', 'Mains décalées — écoute-les ensemble', 'bad', 'Mains décalées');
                 }
             }
 
             if (!found.length) return null;
             found.sort((a, b) => b.sev - a.sev);
             return found[0];
+        }
+
+        // =====================================================================
+        //  Conseils à voix haute
+        // =====================================================================
+        //  La voix doit être BEAUCOUP plus rare que le texte : une phrase dure
+        //  environ deux secondes, et on joue quatre notes par seconde. On ne dit
+        //  donc qu'un message qui vient de changer, jamais deux de suite à moins
+        //  de six secondes, et on n'empile rien dans la file d'attente.
+        const VOICE_GAP = 6000;
+        const voiceState = { last: 0, voice: null, picked: false };
+
+        const speechOK = () => typeof speechSynthesis !== 'undefined' && typeof SpeechSynthesisUtterance !== 'undefined';
+
+        function pickVoice() {
+            if (!speechOK() || voiceState.picked) return;
+            const want = (document.documentElement.lang || 'fr').slice(0, 2);
+            const all = speechSynthesis.getVoices();
+            if (!all.length) return;                 // la liste arrive de façon asynchrone
+            voiceState.voice = all.find(v => v.lang.toLowerCase().startsWith(want)) || null;
+            voiceState.picked = true;
+        }
+
+        function speak(text) {
+            if (!speechOK() || !text) return;
+            const now = performance.now();
+            if (now - voiceState.last < VOICE_GAP) return;
+            pickVoice();
+            try {
+                speechSynthesis.cancel();            // jamais de file d'attente : l'info serait périmée
+                const u = new SpeechSynthesisUtterance(text);
+                if (voiceState.voice) u.voice = voiceState.voice;
+                u.lang = document.documentElement.lang || 'fr-FR';
+                u.rate = 1.1;
+                speechSynthesis.speak(u);
+                voiceState.last = now;
+            } catch (e) { }
         }
 
         const coachState = { key: null, since: 0 };
@@ -1518,7 +1578,9 @@ const HANON = {
             // dès la première note serait une affirmation sans donnée
             if (tailOf(S.events, S.hands[0], 12).length < 12) return;
 
-            const a = coachAdvice(S.events, { hands: S.hands, targetIoi: S.subMs, mode: S.mode });
+            const a = coachAdvice(S.events, {
+                hands: S.hands, targetIoi: S.subMs, mode: S.mode, level: routine.level
+            });
             const now = performance.now();
             const key = a ? a.key : 'ok';
             if (key === coachState.key) return;
@@ -1526,6 +1588,7 @@ const HANON = {
 
             coachState.key = key;
             coachState.since = now;
+            if (a && document.getElementById('voiceOn').checked && !S.paused) speak(a.say);
             el.className = 'coach ' + (a ? a.cls : 'ok');
             el.innerHTML = a ? `<span class="ic">${a.icon}</span> ${a.text}`
                 : '<span class="ic">✓</span> Ça tient — continue';
@@ -2051,6 +2114,12 @@ const HANON = {
         });
         document.getElementById('mergeOn').addEventListener('change', saveSettings);
         document.getElementById('trainOn').addEventListener('change', saveSettings);
+        document.getElementById('voiceOn').addEventListener('change', e => {
+            saveSettings();
+            if (e.target.checked) { voiceState.last = 0; speak('Conseils à voix haute activés'); }
+            else if (speechOK()) speechSynthesis.cancel();
+        });
+        if (speechOK()) speechSynthesis.addEventListener('voiceschanged', () => { voiceState.picked = false; pickVoice(); });
         document.getElementById('midiSel').addEventListener('change', e => {
             try { localStorage.setItem(LS_MIDI, e.target.value); } catch (err) { }
             if (midiAccess) refreshMidiInputs(midiAccess);
@@ -2112,7 +2181,7 @@ const HANON = {
         const EVEN_FLOOR_MS = 10;
 
         const DAILY_LEVELS = {
-            souple: { label: 'Souple', even: 8, finger: 5,   tempo: 5, grid: 45, minBpm: 0,  artSD: null, art: null },
+            souple: { label: 'Souple', even: 8, finger: 5,   tempo: 5, grid: 45, minBpm: 0,  artSD: 0.20, art: null },
             normal: { label: 'Normal', even: 7, finger: 3,   tempo: 3, grid: 30, minBpm: 60, artSD: 0.15, art: null },
             strict: { label: 'Strict', even: 4.5, finger: 2, tempo: 2, grid: 20, minBpm: 80, artSD: 0.12, art: 0.95 }
         };
@@ -2800,6 +2869,40 @@ const HANON = {
                 tolFast === EVEN_FLOOR_MS && tolSlow > EVEN_FLOOR_MS,
                 'Strict à ♩=144 : ' + tolFast.toFixed(0) + ' ms, Souple à ♩=40 : ' + tolSlow.toFixed(0) + ' ms');
 
+            // 8 octies. Les seuils doivent se resserrer de Souple à Strict sur
+            //            CHAQUE critère. Un niveau « plus dur » qui serait plus
+            //            permissif quelque part rendrait l'échelle absurde, et
+            //            c'est invisible à la lecture d'un tableau de nombres.
+            const ordre = ['souple', 'normal', 'strict'];
+            let mono = true, ou = '';
+            for (let i = 1; i < ordre.length; i++) {
+                const a = DAILY_LEVELS[ordre[i - 1]], b = DAILY_LEVELS[ordre[i]];
+                const pire = (n, va, vb) => { if (!mono) return; mono = false; ou = n + ' : ' + va + ' → ' + vb; };
+                if (b.even > a.even) pire('rythme', a.even, b.even);
+                if (b.finger > a.finger) pire('doigts', a.finger, b.finger);
+                if (b.tempo > a.tempo) pire('tempo', a.tempo, b.tempo);
+                if (b.grid > a.grid) pire('clic', a.grid, b.grid);
+                if (b.minBpm < a.minBpm) pire('tempo mini', a.minBpm, b.minBpm);
+                if (a.artSD != null && (b.artSD == null || b.artSD > a.artSD)) pire('legato régulier', a.artSD, b.artSD);
+                if (a.art != null && (b.art == null || b.art < a.art)) pire('notes liées', a.art, b.art);
+            }
+            check('les niveaux se resserrent bien de Souple à Strict', mono, mono ? 'échelle cohérente' : 'relâché sur ' + ou);
+
+            // 8 nonies. Le coach doit parler la langue du niveau choisi : un
+            //            même jeu doit être repris à Strict et laissé passer à
+            //            Souple, sinon le conseil dirait autre chose que ce que
+            //            la séance exige.
+            const evNeutre = synth(seq, { durRatio: 1.05, softFinger: 4, softBy: -3.2, hands: ['R'] });
+            const advL = coachAdvice(evNeutre, { hands: ['R'], targetIoi: 150, mode: 'free', level: 'souple' });
+            const advS = coachAdvice(evNeutre, { hands: ['R'], targetIoi: 150, mode: 'free', level: 'strict' });
+            check('un écart de 3,2 passe à Souple', advL === null || advL.key !== 'doigt4',
+                advL ? advL.key : 'silence');
+            check('… et est repris à Strict', advS && advS.key === 'doigt4',
+                advS ? advS.key + ' : ' + advS.say : 'silence');
+
+            check('chaque conseil a une version courte à dire',
+                !!(advS && advS.say && advS.say.length <= 40), advS ? '« ' + advS.say + ' »' : 'aucun');
+
             // 9. entrées MIDI : un piano expose souvent plusieurs ports qui
             //    portent les mêmes notes. Un seul doit être écouté, sinon
             //    chaque frappe est comptée autant de fois qu'il y a de ports.
@@ -2849,6 +2952,7 @@ const HANON = {
                     coach: document.getElementById('coachOn').checked,
                     merge: document.getElementById('mergeOn').checked,
                     train: document.getElementById('trainOn').checked,
+                    voice: document.getElementById('voiceOn').checked,
                     fragFrom: document.getElementById('fragFrom').value,
                     fragTo: document.getElementById('fragTo').value
                 }));
@@ -2877,6 +2981,7 @@ const HANON = {
             }
             if (o.merge != null) document.getElementById('mergeOn').checked = !!o.merge;
             if (o.train != null) document.getElementById('trainOn').checked = !!o.train;
+            if (o.voice != null) document.getElementById('voiceOn').checked = !!o.voice;
             if (o.fragFrom) document.getElementById('fragFrom').value = o.fragFrom;
             if (o.fragTo) document.getElementById('fragTo').value = o.fragTo;
         }
