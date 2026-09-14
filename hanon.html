@@ -1406,9 +1406,7 @@ const HANON = {
         //  chose que ce que la séance exige, et on travaillerait à côté.
         //  Le filtre à deux erreurs types reste par-dessus : dépasser un seuil ne
         //  suffit pas, il faut que le dépassement ne soit pas du bruit.
-        function coachAdvice(events, opts) {
-            const H = opts.hands[0];
-            const L = DAILY_LEVELS[opts.level] || DAILY_LEVELS.souple;
+        function handAdvice(events, H, opts, L) {
             const found = [];
             // `say` est la version courte, dite à voix haute : on ne peut pas
             // écouter une phrase entière en jouant des doubles croches
@@ -1503,6 +1501,39 @@ const HANON = {
                 }
             }
 
+            return found;
+        }
+
+        const deCap = t => t ? t.charAt(0).toLowerCase() + t.slice(1) : t;
+
+        //  Chaque main est analysée séparément. Un défaut présent des DEUX côtés
+        //  se dit sans nommer de main ; un défaut d'un seul côté NOMME la main,
+        //  sinon on corrigerait la mauvaise. Jusqu'ici le coach ne lisait que
+        //  opts.hands[0] : la main gauche n'était jamais commentée en direct.
+        function coachAdvice(events, opts) {
+            const L = DAILY_LEVELS[opts.level] || DAILY_LEVELS.souple;
+            const solo = opts.hands.length < 2;
+
+            const byKey = new Map();
+            for (const H of opts.hands)
+                for (const c of handAdvice(events, H, opts, L)) {
+                    if (!byKey.has(c.key)) byKey.set(c.key, []);
+                    byKey.get(c.key).push(Object.assign({}, c, { H }));
+                }
+
+            const found = [];
+            for (const [, list] of byKey) {
+                const best = list.reduce((a, b) => b.sev > a.sev ? b : a);
+                if (solo || list.length > 1) { found.push(best); continue; }
+                found.push(Object.assign({}, best, {
+                    // la clé porte la main : passer d'un défaut commun à un défaut
+                    // d'un seul côté doit compter comme un message different
+                    key: best.key + ':' + best.H,
+                    text: HN[best.H] + ' : ' + deCap(best.text),
+                    say: HN[best.H] + ', ' + deCap(best.say)
+                }));
+            }
+
             // --- mains
             if (opts.hands.length === 2) {
                 const byIdx = new Map();
@@ -1514,7 +1545,12 @@ const HANON = {
                 for (const [, p] of byIdx) if (p.R != null && p.L != null) dd.push(Math.abs(p.R - p.L));
                 if (dd.length >= 6) {
                     const m = mean(dd), se = Math.max(2, sd(dd) / Math.sqrt(dd.length));
-                    if (m > 20) add('sync', (m - 20) / se, '🤝', 'Mains décalées — écoute-les ensemble', 'bad', 'Mains décalées');
+                    const sev = (m - 20) / se;
+                    if (m > 20 && isFinite(sev) && sev >= COACH_MIN_SEV)
+                        found.push({
+                            key: 'sync', sev: Math.min(sev, 10), icon: '🤝',
+                            text: 'Mains décalées — écoute-les ensemble', cls: 'bad', say: 'Mains décalées'
+                        });
                 }
             }
 
@@ -2646,7 +2682,7 @@ const HANON = {
         //      Un chiffre affiché sans moteur vérifié ne veut rien dire.
         // =====================================================================
         function synth(seq, opts) {
-            const o = Object.assign({ ioi: 150, vel: 64, lateFinger: 0, lateMs: 0, handOffset: 0, accel: 0, crescPerOct: 0, durRatio: 1, softFinger: 0, softBy: 0 }, opts);
+            const o = Object.assign({ ioi: 150, vel: 64, lateFinger: 0, lateMs: 0, handOffset: 0, accel: 0, crescPerOct: 0, durRatio: 1, softFinger: 0, softBy: 0, softHand: null }, opts);
             const ev = [];
             for (const H of ['R', 'L']) {
                 if (opts.hands && !opts.hands.includes(H)) continue;
@@ -2658,7 +2694,8 @@ const HANON = {
                     ev.push({
                         t: t + jitter + off, pitch: n.midi,
                         vel: o.vel + o.crescPerOct * (n.midi - seq[H][0].midi) / 12
-                            + (o.softFinger && n.finger === o.softFinger ? o.softBy : 0),
+                            + (o.softFinger && n.finger === o.softFinger
+                                && (!o.softHand || o.softHand === H) ? o.softBy : 0),
                         hand: H, idx: i, pos: mod(i, MOTIF),
                         finger: n.finger, expected: n.midi, ok: true, dur: o.ioi * o.durRatio
                     });
@@ -2905,6 +2942,27 @@ const HANON = {
 
             check('la voix reste plus rare que le texte', VOICE_GAP > COACH_HOLD,
                 VOICE_GAP + ' ms entre deux phrases, ' + COACH_HOLD + ' ms de tenue du message');
+
+            // 8 decies. Le coach doit distinguer les mains. Un défaut d'un seul
+            //            côté doit nommer la main : sans ça on corrige la mauvaise.
+            const deuxMains = { hands: ['R', 'L'], targetIoi: 150, mode: 'free', level: 'souple' };
+
+            a = coachAdvice(synth(seq, { durRatio: 1.05, softFinger: 4, softBy: -14, softHand: 'L' }), deuxMains);
+            check('défaut à gauche seulement → la main est nommée',
+                a && /gauche/i.test(a.say) && /doigt 4/i.test(a.say), a ? '« ' + a.say + ' »' : 'silence');
+
+            a = coachAdvice(synth(seq, { durRatio: 1.05, softFinger: 4, softBy: -14, softHand: 'R' }), deuxMains);
+            check('défaut à droite seulement → la main est nommée',
+                a && /droite/i.test(a.say), a ? '« ' + a.say + ' »' : 'silence');
+
+            a = coachAdvice(synth(seq, { durRatio: 1.05, softFinger: 4, softBy: -14 }), deuxMains);
+            check('défaut des deux côtés → aucune main nommée',
+                a && !/gauche|droite/i.test(a.say), a ? '« ' + a.say + ' »' : 'silence');
+
+            a = coachAdvice(synth(seq, { durRatio: 1.05, softFinger: 4, softBy: -14, softHand: 'L', hands: ['L'] }),
+                { hands: ['L'], targetIoi: 150, mode: 'free', level: 'souple' });
+            check('une seule main jouée → on ne la nomme pas inutilement',
+                a && !/gauche|droite/i.test(a.say), a ? '« ' + a.say + ' »' : 'silence');
 
             // 9. entrées MIDI : un piano expose souvent plusieurs ports qui
             //    portent les mêmes notes. Un seul doit être écouté, sinon
