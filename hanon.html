@@ -1530,7 +1530,7 @@ const HANON = {
         //  environ deux secondes, et on joue quatre notes par seconde. On ne dit
         //  donc qu'un message qui vient de changer, jamais deux de suite à moins
         //  de six secondes, et on n'empile rien dans la file d'attente.
-        const VOICE_GAP = 6000;
+        const VOICE_GAP = 4500;
         const voiceState = { last: 0, voice: null, picked: false };
 
         const speechOK = () => typeof speechSynthesis !== 'undefined' && typeof SpeechSynthesisUtterance !== 'undefined';
@@ -1554,7 +1554,7 @@ const HANON = {
                 const u = new SpeechSynthesisUtterance(text);
                 if (voiceState.voice) u.voice = voiceState.voice;
                 u.lang = document.documentElement.lang || 'fr-FR';
-                u.rate = 1.1;
+                u.rate = 1.25;
                 speechSynthesis.speak(u);
                 voiceState.last = now;
             } catch (e) { }
@@ -2902,6 +2902,9 @@ const HANON = {
 
             check('chaque conseil a une version courte à dire',
                 !!(advS && advS.say && advS.say.length <= 40), advS ? '« ' + advS.say + ' »' : 'aucun');
+
+            check('la voix reste plus rare que le texte', VOICE_GAP > COACH_HOLD,
+                VOICE_GAP + ' ms entre deux phrases, ' + COACH_HOLD + ' ms de tenue du message');
 
             // 9. entrées MIDI : un piano expose souvent plusieurs ports qui
             //    portent les mêmes notes. Un seul doit être écouté, sinon

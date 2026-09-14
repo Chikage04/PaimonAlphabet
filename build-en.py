@@ -226,6 +226,11 @@ T = [
 ("bestF.d > 0 ? `Doigt ${bestF.f} trop fort — allège` : `Doigt ${bestF.f} trop faible — appuie plus`, 'warn',",
  "bestF.d > 0 ? `Finger ${bestF.f} too strong — lighten it` : `Finger ${bestF.f} too weak — press more`, 'warn',"),
 
+("check('la voix reste plus rare que le texte', VOICE_GAP > COACH_HOLD,",
+ "check('the voice stays rarer than the text', VOICE_GAP > COACH_HOLD,"),
+("VOICE_GAP + ' ms entre deux phrases, ' + COACH_HOLD + ' ms de tenue du message');",
+ "VOICE_GAP + ' ms between phrases, ' + COACH_HOLD + ' ms message hold');"),
+
 # --------------------------------------------------------------- coach -----
 ("sl > 0 ? 'Tu forces en montant — même volume partout'",
  "sl > 0 ? 'Getting louder as you ascend — keep one level'"),
