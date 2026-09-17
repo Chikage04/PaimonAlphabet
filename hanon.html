@@ -370,7 +370,7 @@
             <select id="exSel" title="Exercice"></select>
             <div class="bpm-box">
                 <span class="cap">♩ =</span><span class="n" id="bpmN">60</span>
-                <input type="range" id="bpm" min="40" max="144" step="2" value="60">
+                <input type="range" id="bpm" min="30" max="144" step="2" value="60">
             </div>
         </div>
 
@@ -2928,11 +2928,16 @@ const HANON = {
 
             // les seuils : la tolérance d'irrégularité ne doit jamais passer sous
             // le seuil d'audibilité, quel que soit le tempo
-            const tolFast = evenTolerance(DAILY_LEVELS.strict, 60000 / 144 / 4);
-            const tolSlow = evenTolerance(DAILY_LEVELS.souple, 60000 / 40 / 4);
+            // les bornes viennent du curseur : l'assertion reste vraie si la
+            // plage de tempo change, au lieu de tester des chiffres recopies
+            const bpmLo = +document.getElementById('bpm').min;
+            const bpmHi = +document.getElementById('bpm').max;
+            const tolFast = evenTolerance(DAILY_LEVELS.strict, 60000 / bpmHi / 4);
+            const tolSlow = evenTolerance(DAILY_LEVELS.souple, 60000 / bpmLo / 4);
             check('tolérance jamais sous le seuil d\'audibilité',
                 tolFast === EVEN_FLOOR_MS && tolSlow > EVEN_FLOOR_MS,
-                'Strict à ♩=144 : ' + tolFast.toFixed(0) + ' ms, Souple à ♩=40 : ' + tolSlow.toFixed(0) + ' ms');
+                'Strict à ♩=' + bpmHi + ' : ' + tolFast.toFixed(0) + ' ms, Souple à ♩='
+                + bpmLo + ' : ' + tolSlow.toFixed(0) + ' ms');
 
             // 8 octies. Les seuils doivent se resserrer de Souple à Strict sur
             //            CHAQUE critère. Un niveau « plus dur » qui serait plus
