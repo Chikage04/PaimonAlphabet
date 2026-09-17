@@ -1617,7 +1617,7 @@ const HANON = {
                 const u = new SpeechSynthesisUtterance(text);
                 if (voiceState.voice) u.voice = voiceState.voice;
                 u.lang = document.documentElement.lang || 'fr-FR';
-                u.rate = 1.25;
+                u.rate = 1.4;
                 speechSynthesis.speak(u);
                 voiceState.last = now;
             } catch (e) { }
