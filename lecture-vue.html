@@ -289,7 +289,7 @@
             piece: null, tl: null, sys: 0,
             played: [],            // { t, midi }
             taps: [],
-            itemIndex: 0, items: [],
+            itemIndex: 0, items: [], early: 0,
             sessionEnd: 0, phaseEnd: 0,
             gridT0: null, cursor: 0,
             upStreak: 0, downStreak: 0,
@@ -438,6 +438,11 @@
             const t = e.timeStamp || performance.now();
             if (S.phase === 'tap') { S.taps.push(t); tone(880, 0.05, 0.08); return; }
             if (S.phase !== 'read') return;                // pre-lecture : le piano est muet
+            // Taper le decompte pour sentir le pulse est un reflexe de
+            // musicien, pas une faute : ces notes-la ne font pas partie de
+            // la lecture. On les compte pour pouvoir le dire, sans les
+            // melanger a ce qui est joue sur la partition.
+            if (S.gridT0 && t < S.gridT0 - 120) { S.early++; return; }
             S.played.push({ t, midi: pitch, vel });
             liveUpdate();
         }
@@ -657,23 +662,27 @@
         // Regroupe les notes appariees par instant ATTENDU distinct. Sans ce
         // regroupement, un arret qui tombe sur un accord passe inapercu :
         // l'ecart attendu y vaut zero, et la paire est ecartee.
+        // Les instants sont ranges par temps ATTENDU, jamais par ordre
+        // d'arrivee : anticiper une note suffit a inverser deux notes
+        // justes, et une serie rangee a l'arrivee produit alors des
+        // intervalles negatifs qui faussent tout ce qui en decoule.
         function gapSeries(good) {
-            const at = [];
+            const byMs = new Map();
             for (const g of good) {
-                const last = at[at.length - 1];
                 const hot = !!(g.exp.leap || g.exp.acc || g.exp.shift);
-                if (last && last.ems === g.exp.ms) {
-                    last.t = Math.min(last.t, g.played.t);
-                    last.hot = last.hot || hot;
-                } else at.push({ ems: g.exp.ms, t: g.played.t, hot: hot, exp: g.exp });
+                const cur = byMs.get(g.exp.ms);
+                if (cur) { cur.t = Math.min(cur.t, g.played.t); cur.hot = cur.hot || hot; }
+                else byMs.set(g.exp.ms, { ems: g.exp.ms, t: g.played.t, hot: hot, exp: g.exp });
             }
-            const out = [];
+            const at = [...byMs.values()].sort((a, b) => a.ems - b.ems);
+            const gaps = [];
             for (let i = 1; i < at.length; i++) {
                 const ge = at[i].ems - at[i - 1].ems;
                 const ga = at[i].t - at[i - 1].t;
-                if (ge > 0 && ga > 0) out.push({ ge, ga, r: ga / ge, hot: at[i].hot, exp: at[i].exp });
+                if (ge > 0 && ga > 0) gaps.push({ ge, ga, r: ga / ge, hot: at[i].hot, exp: at[i].exp });
             }
-            return out;
+            gaps.at = at;
+            return gaps;
         }
 
         // Ecart moyen au temps, en millisecondes. On ajuste une droite
@@ -681,16 +690,17 @@
         // puis on prend l'ecart-type des residus. Jouer tres lentement mais
         // regulierement donne zero : c'est la pente qui absorbe le tempo,
         // pas les residus.
-        function gridResidual(gaps, stops) {
-            if (gaps.length < 4) return 0;
+        // On ajuste sur les temps ABSOLUS, attendu contre joue. Accumuler
+        // les intervalles retenus reviendrait a ignorer ceux qui ont ete
+        // ecartes, et les deux echelles se decaleraient silencieusement.
+        function gridResidual(at, stops) {
+            if (!at || at.length < 4) return 0;
             const cut = new Set(stops.map(s => s.at && s.at.ms));
             const segs = [];
-            let cur = [{ e: gaps[0].exp.ms - gaps[0].ge, t: 0 }];
-            let t = 0;
-            for (const g of gaps) {
-                t += g.ga;
-                if (cut.has(g.exp.ms)) { segs.push(cur); cur = []; }
-                cur.push({ e: g.exp.ms, t: t });
+            let cur = [];
+            for (const p of at) {
+                if (cut.has(p.ems) && cur.length) { segs.push(cur); cur = []; }
+                cur.push(p);
             }
             segs.push(cur);
 
@@ -698,14 +708,27 @@
             for (const seg of segs) {
                 if (seg.length < 4) continue;
                 let se = 0, st = 0, see = 0, set = 0;
-                for (const p of seg) { se += p.e; st += p.t; }
+                for (const p of seg) { se += p.ems; st += p.t; }
                 const me = se / seg.length, mt = st / seg.length;
-                for (const p of seg) { see += (p.e - me) * (p.e - me); set += (p.e - me) * (p.t - mt); }
+                for (const p of seg) {
+                    see += (p.ems - me) * (p.ems - me);
+                    set += (p.ems - me) * (p.t - mt);
+                }
                 if (see <= 0) continue;
                 const a = set / see, b = mt - a * me;
-                for (const p of seg) res.push(p.t - (a * p.e + b));
+                for (const p of seg) res.push(p.t - (a * p.ems + b));
             }
-            return res.length > 2 ? sd(res) : 0;
+            if (res.length < 3) return 0;
+            // Rejet d'aberrants pilote par les donnees, et non par une
+            // proportion fixe : ce qui depasse trois fois l'ecart median
+            // est un accident isole, pas du jeu. Sur des residus
+            // ordinaires rien n'est retire, donc le chiffre reste sincere.
+            // Et si le rejet emporte plus d'un quart des notes, c'est que
+            // le jeu est vraiment disperse : on garde alors tout.
+            const med = median(res.map(Math.abs));
+            const lim = Math.max(3 * med, 60);
+            const keep = res.filter(r => Math.abs(r) <= lim);
+            return sd(keep.length >= res.length * 0.75 ? keep : res);
         }
 
         function analyse(piece, tl, played) {
@@ -736,7 +759,7 @@
             // residus. Segment par segment : un arret decale tout ce qui
             // suit, et il a deja son propre critere.
             const clean = ratios.filter(r => r < rate * STOP_FACTOR);
-            const offMs = gridResidual(gaps, stops);
+            const offMs = gridResidual(gaps.at, stops);
             const cv = rate > 0 && clean.length > 2 ? sd(clean) / mean(clean) * 100 : 0;
 
             // --- derive : la seconde moitie est-elle jouee au meme tempo ?
@@ -836,7 +859,7 @@
             S.itemIndex++;
             S.piece = nextPiece(S.level);
             S.tl = SightGen.timeline(S.piece, S.piece.bpm);
-            S.played = []; S.taps = []; S.cursor = 0;
+            S.played = []; S.taps = []; S.cursor = 0; S.early = 0;
             $('verdict').hidden = true;
             $('cItem').textContent = S.itemIndex;
             $('cLevel').textContent = S.level;
@@ -969,6 +992,7 @@
                 ['Tempo réellement tenu', '♩≈ ' + Math.round(a.bpmPlayed), ''],
                 ['Pièce menée au bout', a.covered.toFixed(0) + ' %', a.covered > 95 ? 'g' : 'w']
             ];
+            if (S.early) rows.push(['Notes jouées pendant le décompte (ignorées)', S.early, 'w']);
             if (a.errors) rows.push(['Notes perdues après une faute', a.recovery.toFixed(1),
                 a.recovery < 1 ? 'g' : a.recovery < 3 ? 'w' : 'b']);
             if (a.hesitation !== null) rows.push(['Ralentissement devant les difficultés',

@@ -156,8 +156,17 @@ section('2. Le piano est muet pendant la pre-lecture');
     until('read', 0);
     check('les reperes sont effaces au moment de lire',
         $('score').querySelectorAll('.sr-hot').length === 0);
+    // avant l'entree : compte a part, pas melange a la lecture
     midi(CLOCK, S().tl[0].midi);
-    check('les notes comptent une fois la lecture commencee', S().played.length === 1);
+    check('une note frappee pendant le decompte ne compte pas comme jouee',
+        S().played.length === 0, S().played.length);
+    check('elle est comptee a part', S().early === 1, S().early);
+    // une fois l'entree passee, tout compte
+    CLOCK = S().gridT0 + 10;
+    w.tick();
+    midi(CLOCK, S().tl[0].midi);
+    check('les notes comptent une fois l\'entree passee', S().played.length === 1,
+        S().played.length);
     w.endSession();
 }
 
@@ -349,13 +358,16 @@ section('8. Le premier temps n\'arrive pas par surprise');
         $('phase').className.indexOf('read') >= 0, $('phase').className);
     check('le decompte disparait', $('phaseCd').textContent === '', '[' + $('phaseCd').textContent + ']');
 
-    // une note jouee pendant le decompte compte quand meme : entrer trop
-    // tot est une erreur de lecture, pas un evenement a ignorer
+    // Taper le decompte pour sentir le pulse est un reflexe de musicien.
+    // Ces notes-la ne font pas partie de la lecture : melangees a elle,
+    // elles comptaient comme notes en trop et tiraient la grille de temps.
     CLOCK = t0 - beat;
-    const before = S().played.length;
-    midi(CLOCK, st.tl[0].midi);
-    check('une entree trop tot est enregistree, pas ignoree',
-        S().played.length === before + 1);
+    const before = S().played.length, earlyBefore = S().early;
+    for (let i = 0; i < 4; i++) midi(CLOCK - i * beat, st.tl[0].midi);
+    check('taper le decompte ne pollue pas la lecture',
+        S().played.length === before, S().played.length - before + ' notes retenues');
+    check('ces notes sont comptees a part, pas perdues',
+        S().early === earlyBefore + 4, S().early - earlyBefore);
     w.endSession();
 }
 

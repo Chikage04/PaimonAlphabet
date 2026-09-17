@@ -218,6 +218,8 @@ T = [
  "['Tempo actually held', '♩≈ ' + Math.round(a.bpmPlayed), ''],"),
 ("['Pièce menée au bout', a.covered.toFixed(0) + ' %', a.covered > 95 ? 'g' : 'w']",
  "['Piece carried to the end', a.covered.toFixed(0) + ' %', a.covered > 95 ? 'g' : 'w']"),
+("if (S.early) rows.push(['Notes jouées pendant le décompte (ignorées)', S.early, 'w']);",
+ "if (S.early) rows.push(['Notes played during the count-in (ignored)', S.early, 'w']);"),
 ("if (a.errors) rows.push(['Notes perdues après une faute', a.recovery.toFixed(1),",
  "if (a.errors) rows.push(['Notes lost after a slip', a.recovery.toFixed(1),"),
 ("if (a.hesitation !== null) rows.push(['Ralentissement devant les difficultés',",
