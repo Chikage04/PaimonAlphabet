@@ -384,12 +384,30 @@
             return bars;
         }
         var base = ctx.bassD;      // tonique grave
+
+        // Plafond : la main gauche doit rester SOUS la main droite. Sans
+        // lui, une quinte d'accompagnement pouvait atteindre la note que
+        // la main droite jouait au meme instant — deux notes identiques au
+        // meme moment, ce qu'un clavier ne peut pas produire.
+        var ceil = 99;
+        for (var m0 = 0; m0 < rhNotes.length; m0++)
+            for (var i0 = 0; i0 < rhNotes[m0].length; i0++)
+                if (!rhNotes[m0][i0].rest && rhNotes[m0][i0].d < ceil)
+                    ceil = rhNotes[m0][i0].d;
+        var floor = base - 7;
+        function under(d) {
+            while (d >= ceil) d -= 7;
+            while (d < floor) d += 7;
+            return d;
+        }
         for (var m = 0; m < plan.length; m++) {
             var deg = plan[m], notes = [];
             var root = base + deg;
             while (root - base > 6) root -= 7;
             var third = root + 2, fifth = root + 4;
             var lastBar = m === plan.length - 1;
+
+            root = under(root); third = under(third); fifth = under(fifth);
 
             if (lvl.lh === 'drone') {
                 notes.push(mkNote(root, 0, barTicks, ctx));
@@ -398,7 +416,8 @@
                 for (var h = 0; h < halves.length; h++) {
                     var dur = barTicks / halves.length;
                     notes.push(mkNote(root, halves[h], dur, ctx));
-                    notes.push(mkNote(r() < 0.5 ? fifth : third, halves[h], dur, ctx));
+                    var other = r() < 0.5 ? fifth : third;
+                    if (other !== root) notes.push(mkNote(other, halves[h], dur, ctx));
                 }
             } else if (lvl.lh === 'alberti') {
                 if (lastBar) { notes.push(mkNote(root, 0, barTicks, ctx)); }
@@ -414,9 +433,10 @@
                 var hits = lastBar ? [0] : (barTicks >= 144 ? [0, barTicks / 2] : [0]);
                 for (var q = 0; q < hits.length; q++) {
                     var d2 = barTicks / hits.length;
-                    notes.push(mkNote(root, hits[q], d2, ctx));
-                    notes.push(mkNote(fifth, hits[q], d2, ctx));
-                    if (lvl.lh === 'chord3') notes.push(mkNote(third, hits[q], d2, ctx));
+                    var set = lvl.lh === 'chord3' ? [root, third, fifth] : [root, fifth];
+                    for (var z2 = 0; z2 < set.length; z2++)
+                        if (set.indexOf(set[z2]) === z2)   // jamais deux fois la meme
+                            notes.push(mkNote(set[z2], hits[q], d2, ctx));
                 }
             } else if (lvl.lh === 'counter') {
                 // voix independante : note d'accord sur le temps, mouvement
@@ -426,7 +446,7 @@
                 for (var s = 0; s < slots.length; s++) {
                     var tones = [deg, (deg + 2) % 7, (deg + 4) % 7];
                     var want = slots[s].on % beatTicks === 0;
-                    var tgt = pickBassStep(r, cur, want ? tones : null, base, ctx.tonicD);
+                    var tgt = under(pickBassStep(r, cur, want ? tones : null, base, ctx.tonicD));
                     notes.push(mkNote(tgt, slots[s].on, slots[s].dur, ctx));
                     cur = tgt;
                 }

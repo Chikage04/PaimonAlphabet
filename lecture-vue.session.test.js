@@ -68,6 +68,8 @@ function playCurrent(mode) {
     if (mode === 'abandon') {                 // on ne joue rien du tout
         CLOCK = t0 + w.SightGen.durationMs(st.piece, st.piece.bpm) * 3 + 16000;
         w.tick();
+        let g0 = 0;
+        while (S().phase === 'read' && g0++ < 200) { CLOCK += 500; w.tick(); }
         return;
     }
     const k = mode === 'lent' ? 1.7 : 1;
@@ -80,8 +82,10 @@ function playCurrent(mode) {
         const pitch = (mode === 'faux' && i % 5 === 2) ? tl[i].midi + 1 : tl[i].midi;
         midi(t, pitch);
     }
-    CLOCK += 50;
-    w.tick();
+    // On ne coupe pas quelqu'un qui joue encore : la lecture se termine
+    // apres un silence, il faut donc le laisser passer.
+    let quiet = 0;
+    while (S().phase === 'read' && quiet++ < 200) { CLOCK += 200; w.tick(); }
 }
 
 // Avance jusqu'a ce que la phase demandee soit atteinte (ou echoue).
@@ -125,9 +129,14 @@ section('1. Une seance complete s\'enchaine toute seule');
     check('le temps restant est bien epuise',
         $('cTime').textContent === '0:00', $('cTime').textContent);
     check('le bilan de seance s\'affiche', !$('report').hidden);
-    check('le bilan liste toutes les pieces',
-        ($('rTable').querySelectorAll('tr').length - 2) === items,
-        ($('rTable').querySelectorAll('tr').length - 2) + ' lignes pour ' + items + ' pieces');
+    // une derniere piece peut etre commencee sans etre terminee quand le
+    // quart d'heure s'epuise : le bilan liste les lectures ACHEVEES
+    const faites = S().items.length;
+    check('le bilan liste toutes les lectures achevees',
+        ($('rTable').querySelectorAll('tr').length - 2) === faites,
+        ($('rTable').querySelectorAll('tr').length - 2) + ' lignes pour ' + faites + ' achevees');
+    check('presque toutes les pieces commencees sont achevees',
+        faites >= items - 1, faites + ' achevees sur ' + items + ' commencees');
     check('des lectures parfaites font monter le niveau',
         Math.max(...levels) > Math.min(...levels),
         'niveaux ' + Math.min(...levels) + ' a ' + Math.max(...levels));

@@ -101,6 +101,45 @@ for (const lvl of G.LEVELS) {
 }
 
 // ------------------------------------------------------------------
+section('1 bis. La partition est JOUABLE a deux mains');
+
+for (const lvl of G.LEVELS) {
+    let unisson = 0, croise = 0, tropLarge = 0, n = 0;
+    for (let i = 0; i < 400; i++) {
+        const p = G.generate(lvl.n, 7000 + i * 617);
+        const tl = G.timeline(p, p.bpm);
+        n++;
+        // une touche ne s'enfonce pas deux fois a la fois
+        const vus = new Set();
+        for (const e of tl) {
+            const key = e.tick + ':' + e.midi;
+            if (vus.has(key)) unisson++;
+            vus.add(key);
+        }
+        // les mains ne se croisent pas
+        const parTick = new Map();
+        for (const e of tl) {
+            if (!parTick.has(e.tick)) parTick.set(e.tick, []);
+            parTick.get(e.tick).push(e);
+        }
+        for (const [, es] of parTick) {
+            const rh = es.filter(e => e.hand === 'R'), lh = es.filter(e => e.hand === 'L');
+            if (rh.length && lh.length
+                && Math.max(...lh.map(e => e.midi)) >= Math.min(...rh.map(e => e.midi))) croise++;
+            // un accord d'une seule main doit tenir sous les doigts
+            for (const h of ['R', 'L']) {
+                const v = es.filter(e => e.hand === h).map(e => e.midi);
+                if (v.length > 1 && Math.max(...v) - Math.min(...v) > 12) tropLarge++;
+            }
+        }
+    }
+    const L = 'niveau ' + lvl.n;
+    check(L + ' : jamais deux fois la meme note au meme instant', unisson === 0, unisson);
+    check(L + ' : les mains ne se croisent jamais', croise === 0, croise);
+    check(L + ' : aucun accord ne depasse l\'octave sous une main', tropLarge === 0, tropLarge);
+}
+
+// ------------------------------------------------------------------
 section('2. La difficulte ne recule jamais d\'un niveau au suivant');
 
 for (let i = 1; i < G.LEVELS.length; i++) {

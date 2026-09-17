@@ -74,7 +74,10 @@ check('ces notes sont comptees a part', S().early === 2 * bpb, S().early);
 
 // puis la piece, jouee juste, avec 25 ms d'imprecision
 for (const e of st.tl) { w.__T.now = t0 + e.ms + gauss(25); midi(w.__T.now, e.midi); }
-w.__T.now += 60; w.tick();
+// le clavier se tait : c'est cela, desormais, qui termine la lecture
+let g2 = 0;
+while (S().phase === 'read' && g2++ < 200) { w.__T.now += 200; w.tick(); }
+check('la lecture se conclut quand le clavier se tait', S().phase !== 'read', S().phase);
 
 const a = S().items[S().items.length - 1].a;
 console.log('');

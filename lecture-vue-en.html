@@ -289,7 +289,7 @@
             piece: null, tl: null, sys: 0,
             played: [],            // { t, midi }
             taps: [],
-            itemIndex: 0, items: [], early: 0,
+            itemIndex: 0, items: [], early: 0, dupes: 0, lastOn: new Map(),
             sessionEnd: 0, phaseEnd: 0,
             gridT0: null, cursor: 0,
             upStreak: 0, downStreak: 0,
@@ -432,10 +432,22 @@
             }).catch(() => setMidiStatus('idle', '🎛️ MIDI: access denied'));
         }
 
+        // Deux touches ne peuvent pas compter pour quatre notes. Un piano
+        // en son superpose emet la meme note sur deux canaux, et certains
+        // la repetent sur plusieurs ports : choisir un port unique ne
+        // suffit pas. Une meme hauteur reattaquee en moins de 35 ms n'est
+        // pas jouable a la main — c'est un doublon.
+        const DUP_MS = 35;
         function onMIDIMessage(e) {
             const [st, pitch, vel] = e.data;
             if ((st & 0xf0) !== 0x90 || !vel) return;      // seules les attaques comptent
             const t = e.timeStamp || performance.now();
+            const prev = S.lastOn.get(pitch);
+            // en valeur absolue : deux messages peuvent arriver dans le
+            // desordre de quelques millisecondes, et un ecart negatif
+            // ferait passer une note legitime pour un doublon
+            if (prev !== undefined && Math.abs(t - prev) < DUP_MS) { S.dupes++; return; }
+            S.lastOn.set(pitch, Math.max(t, prev === undefined ? t : prev));
             if (S.phase === 'tap') { S.taps.push(t); tone(880, 0.05, 0.08); return; }
             if (S.phase !== 'read') return;                // pre-lecture : le piano est muet
             // Taper le decompte pour sentir le pulse est un reflexe de
@@ -860,6 +872,7 @@
             S.piece = nextPiece(S.level);
             S.tl = SightGen.timeline(S.piece, S.piece.bpm);
             S.played = []; S.taps = []; S.cursor = 0; S.early = 0;
+            S.dupes = 0; S.lastOn = new Map();
             $('verdict').hidden = true;
             $('cItem').textContent = S.itemIndex;
             $('cLevel').textContent = S.level;
@@ -913,15 +926,20 @@
                 : 'Come in on the next beat 1';
         }
 
+        // On avance d'une note par note jouee. Deduire la position de la
+        // HAUTEUR faisait bondir le curseur des qu'une hauteur revenait —
+        // et aux premiers niveaux il n'y en a qu'une poignee. Compter ne
+        // peut ni sauter en avant ni reculer.
         function liveUpdate() {
+            S.cursor = Math.min(S.tl.length, S.played.length);
+            maybeTurnPage();
+            // le bilan complet coute cher : en direct on l'espace
+            const now = performance.now();
+            if (now - (S.lastGauge || 0) < 200) return;
+            S.lastGauge = now;
             const a = analyse(S.piece, S.tl, S.played);
-            // en direct on se contente du glouton : il faut une reponse a
-            // chaque touche, et seule la position approximative sert ici
-            S.cursor = matchGreedy(S.tl, S.played).cursor;
             $('cStops').textContent = a.stops;
             $('cAcc').textContent = Math.round(a.accuracy) + ' %';
-            maybeTurnPage();
-            if (S.cursor >= S.tl.length) finishReading();
         }
 
         function finishReading() {
@@ -993,6 +1011,7 @@
                 ['Piece carried to the end', a.covered.toFixed(0) + ' %', a.covered > 95 ? 'g' : 'w']
             ];
             if (S.early) rows.push(['Notes played during the count-in (ignored)', S.early, 'w']);
+            if (S.dupes) rows.push(['Notes received twice (ignored)', S.dupes, 'w']);
             if (a.errors) rows.push(['Notes lost after a slip', a.recovery.toFixed(1),
                 a.recovery < 1 ? 'g' : a.recovery < 3 ? 'w' : 'b']);
             if (a.hesitation !== null) rows.push(['Slowing down before difficulties',
@@ -1046,10 +1065,17 @@
                 }
             }
             if (S.phase === 'read' && S.gridT0) showLeadIn(now);
-            // garde-fou : une lecture abandonnee ne doit pas bloquer la seance
-            if (S.phase === 'read' && S.gridT0) {
+            if (S.phase === 'read' && S.gridT0 && now > S.gridT0) {
+                // On ne coupe jamais quelqu'un qui joue encore : la lecture
+                // se termine quand le clavier se tait, pas quand une
+                // hauteur coincide avec la derniere note attendue.
+                const beat = 60000 / S.piece.bpm;
+                const last = S.played.length ? S.played[S.played.length - 1].t : S.gridT0;
+                const quiet = now - last;
                 const budget = SightGen.durationMs(S.piece, S.piece.bpm) * 3 + 15000;
-                if (now > S.gridT0 && now - S.gridT0 > budget) finishReading();
+                if (S.played.length >= S.tl.length && quiet > 1.2 * beat) finishReading();
+                else if (quiet > 4 * beat && S.played.length >= S.tl.length * 0.6) finishReading();
+                else if (now - S.gridT0 > budget) finishReading();
             }
             if (now >= S.sessionEnd && S.phase !== 'read') endSession();
         }
