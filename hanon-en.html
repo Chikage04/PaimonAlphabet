@@ -627,7 +627,12 @@ const HANON = {
         // note à note. Chaque groupe contient exactement les mêmes doigts, donc
         // un doigt systématiquement faible ne peut plus se lire comme un
         // crescendo — c'est un faux positif que la mesure note à note produisait.
-        function crescPerOctave(ev, motif) {
+        //  On renvoie aussi l'erreur type de la pente et la portee en octaves.
+        //  Les deux sont indispensables : une pente estimee sur un demi-octave de
+        //  clavier n'a presque aucune precision, parce qu'on divise un petit
+        //  ecart de velocite par un petit ecart de hauteur. Sans ces garde-fous
+        //  le conseil « tu forces en montant » se declenchait en permanence.
+        function crescFit(ev, motif) {
             const g = new Map();
             for (const e of ev) {
                 const k = Math.floor(e.idx / motif);
@@ -637,8 +642,24 @@ const HANON = {
             const xs = [], ys = [];
             for (const [, o] of g)
                 if (o.v.length >= motif - 2) { xs.push(mean(o.p)); ys.push(mean(o.v)); }
-            return xs.length < 3 ? 0 : linreg(xs, ys).a * 12;
+            if (xs.length < 4) return null;
+
+            const { a, b } = linreg(xs, ys);
+            const mx = mean(xs);
+            let ss = 0, sxx = 0;
+            for (let i = 0; i < xs.length; i++) {
+                const r = ys[i] - (a * xs[i] + b);
+                ss += r * r; sxx += (xs[i] - mx) * (xs[i] - mx);
+            }
+            if (sxx === 0) return null;
+            return {
+                slope: a * 12,                                                   // par octave
+                se: Math.sqrt(ss / (xs.length - 2)) / Math.sqrt(sxx) * 12,
+                span: (Math.max(...xs) - Math.min(...xs)) / 12                   // octaves couvertes
+            };
         }
+
+        const crescPerOctave = (ev, motif) => { const f = crescFit(ev, motif); return f ? f.slope : 0; };
 
         // La position dans le motif est portée par l'événement : en boucle, l'index
         // est absolu et croît sans fin, il ne peut plus la donner à lui seul.
@@ -1492,13 +1513,19 @@ const HANON = {
                             `Accent on note ${bestP.p + 1}`);
                 }
 
-                if (w32.length >= 20) {
-                    const sl = crescPerOctave(w32, MOTIF);
-                    if (Math.abs(sl) >= 6) add('cresc', Math.abs(sl) / 3, sl > 0 ? '📈' : '📉',
-                        sl > 0 ? 'Getting louder as you ascend — keep one level'
+                // Fenêtre longue : sur 32 notes le clavier ne monte que d'un
+                // demi-octave, et une dérive de 2,5 points de vélocité suffisait
+                // alors à produire une pente de 6 par octave. Il faut un vrai bras
+                // de levier, et une sévérité divisée par l'erreur type de la pente
+                // comme tous les autres conseils — ici elle ne l'était pas, donc le
+                // filtre à deux erreurs types était inopérant.
+                const w64 = tailOf(events, H, 64);
+                const cf = w64.length >= 40 ? crescFit(w64, MOTIF) : null;
+                if (cf && cf.span >= 0.75 && cf.se > 0 && Math.abs(cf.slope) >= 6)
+                    add('cresc', Math.abs(cf.slope) / cf.se, cf.slope > 0 ? '📈' : '📉',
+                        cf.slope > 0 ? 'Getting louder as you ascend — keep one level'
                             : 'Getting softer as you ascend — keep one level', 'warn',
-                        sl > 0 ? 'Louder going up' : 'Softer going up');
-                }
+                        cf.slope > 0 ? 'Louder going up' : 'Softer going up');
             }
 
             return found;
@@ -2682,7 +2709,7 @@ const HANON = {
         //      Un chiffre affiché sans moteur vérifié ne veut rien dire.
         // =====================================================================
         function synth(seq, opts) {
-            const o = Object.assign({ ioi: 150, vel: 64, lateFinger: 0, lateMs: 0, handOffset: 0, accel: 0, crescPerOct: 0, durRatio: 1, softFinger: 0, softBy: 0, softHand: null }, opts);
+            const o = Object.assign({ ioi: 150, vel: 64, lateFinger: 0, lateMs: 0, handOffset: 0, accel: 0, crescPerOct: 0, durRatio: 1, softFinger: 0, softBy: 0, softHand: null, velJitter: 0 }, opts);
             const ev = [];
             for (const H of ['R', 'L']) {
                 if (opts.hands && !opts.hands.includes(H)) continue;
@@ -2695,7 +2722,8 @@ const HANON = {
                         t: t + jitter + off, pitch: n.midi,
                         vel: o.vel + o.crescPerOct * (n.midi - seq[H][0].midi) / 12
                             + (o.softFinger && n.finger === o.softFinger
-                                && (!o.softHand || o.softHand === H) ? o.softBy : 0),
+                                && (!o.softHand || o.softHand === H) ? o.softBy : 0)
+                            + (o.velJitter ? (Math.floor(i / MOTIF) % 2 ? o.velJitter : -o.velJitter) : 0),
                         hand: H, idx: i, pos: mod(i, MOTIF),
                         finger: n.finger, expected: n.midi, ok: true, dur: o.ioi * o.durRatio
                     });
@@ -2963,6 +2991,24 @@ const HANON = {
                 { hands: ['L'], targetIoi: 150, mode: 'free', level: 'souple' });
             check('only one hand played → no pointless naming',
                 a && !/left|right/i.test(a.say), a ? '"' + a.say + '"' : 'silent');
+
+            // 8 undecies. Le conseil de crescendo ne doit se déclencher que sur
+            //              une vraie pente. Une ondulation de volume d'un groupe à
+            //              l'autre n'en est pas une, et c'est elle qui faisait
+            //              parler le coach 90 % du temps.
+            const optR = { hands: ['R'], targetIoi: 150, mode: 'free', level: 'souple' };
+
+            a = coachAdvice(synth(seq, { durRatio: 1.05, velJitter: 5 }), optR);
+            check('volume wobble → no crescendo announced',
+                !a || a.key !== 'cresc', a ? a.key + ': ' + a.say : 'silent');
+
+            a = coachAdvice(synth(seq, { durRatio: 1.05, crescPerOct: 14 }), optR);
+            check('real crescendo of 14 per octave → announced',
+                a && a.key === 'cresc', a ? a.key + ': ' + a.say : 'silent');
+
+            const fitCourt = crescFit(synth(seq, { durRatio: 1.05 }).filter(e => e.hand === 'R').slice(0, 32), MOTIF);
+            check('over 32 notes the pitch span is too short to conclude',
+                fitCourt && fitCourt.span < 0.75, fitCourt ? fitCourt.span.toFixed(2) + ' octave' : 'not measurable');
 
             // 9. entrées MIDI : un piano expose souvent plusieurs ports qui
             //    portent les mêmes notes. Un seul doit être écouté, sinon
