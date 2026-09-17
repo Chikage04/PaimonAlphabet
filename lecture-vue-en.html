@@ -527,6 +527,27 @@
             return { pairs: out, cursor: cur };
         }
 
+        // Les notes d'un accord ne sont jamais frappees exactement ensemble.
+        // Comparees dans l'ordre d'arrivee, deux notes simultanees jouees a
+        // trois millisecondes d'ecart arrivent dans l'ordre inverse de la
+        // partition. L'alignement ne sait pas transposer deux voisines : il
+        // les jette toutes les deux, et l'ecart de temps qui les separe
+        // pollue ensuite toute la mesure du pulse. A l'interieur d'un
+        // accord, l'ordre n'a aucun sens musical : on le normalise.
+        const CHORD_MS = 60;
+        function canonical(played) {
+            const out = [];
+            let i = 0;
+            while (i < played.length) {
+                let j = i + 1;
+                while (j < played.length && played[j].t - played[i].t <= CHORD_MS) j++;
+                const grp = played.slice(i, j).sort((a, b) => a.midi - b.midi);
+                for (const g of grp) out.push(g);
+                i = j;
+            }
+            return out;
+        }
+
         // Version ALIGNEE : on cherche la lecture qui explique le jeu avec le
         // moins de fautes possible, en alignant globalement les deux suites
         // de hauteurs. Une substitution coute moins cher qu'un oubli suivi
@@ -534,7 +555,8 @@
         // decaler tout ce qui suit. Trop couteux pour tourner a chaque
         // touche : reserve au bilan, la ou l'exactitude compte.
         const C_SUB = 3, C_GAP = 2;
-        function matchAligned(tl, played) {
+        function matchAligned(tl, playedRaw) {
+            const played = canonical(playedRaw);
             const n = tl.length, m = played.length;
             if (!n || !m || n * m > 600000) return matchGreedy(tl, played);
 
@@ -571,15 +593,59 @@
                 else j--;
             }
 
+            repair(tl, played, byPlayed);
+
             const out = [];
             let cur = 0;
             for (let k = 0; k < m; k++) {
                 const b = byPlayed[k];
                 if (!b) { out.push({ played: played[k], exp: null, missed: 0 }); continue; }
                 out.push({ played: played[k], exp: b.exp, idx: b.idx, missed: Math.max(0, b.idx - cur) });
-                cur = b.idx + 1;
+                cur = Math.max(cur, b.idx + 1);
             }
             return { pairs: out, cursor: cur };
+        }
+
+        // Une note jouee juste mais dans le desordre ne doit pas compter pour
+        // une faute. On situe d'abord le jeu sur la partition — une pente et
+        // un decalage tires des notes deja appariees — puis on redonne a
+        // chaque note orpheline l'attendue de meme hauteur restee libre au
+        // meme endroit du temps. Cela ne depend d'aucune fenetre d'accord,
+        // donc cela tient meme quand le jeu s'etale.
+        const REPAIR_MS = 250;
+        function repair(tl, played, byPlayed) {
+            const known = [];
+            for (let k = 0; k < played.length; k++)
+                if (byPlayed[k]) known.push({ e: byPlayed[k].exp.ms, t: played[k].t });
+            if (known.length < 4) return;
+
+            const rs = [];
+            for (let i = 1; i < known.length; i++) {
+                const de = known[i].e - known[i - 1].e, dt = known[i].t - known[i - 1].t;
+                if (de > 0 && dt > 0) rs.push(dt / de);
+            }
+            if (!rs.length) return;
+            const rate = median(rs);
+            if (!(rate > 0)) return;
+            const off = median(known.map(p => p.t - rate * p.e));
+
+            const used = new Set();
+            for (let k = 0; k < played.length; k++) if (byPlayed[k]) used.add(byPlayed[k].idx);
+
+            for (let k = 0; k < played.length; k++) {
+                if (byPlayed[k]) continue;
+                const want = (played[k].t - off) / rate;
+                let best = -1, bd = REPAIR_MS;
+                for (let j = 0; j < tl.length; j++) {
+                    if (used.has(j) || tl[j].midi !== played[k].midi) continue;
+                    const d = Math.abs(tl[j].ms - want);
+                    if (d < bd) { bd = d; best = j; }
+                }
+                if (best >= 0) {
+                    byPlayed[k] = { exp: tl[best], idx: best };
+                    used.add(best);
+                }
+            }
         }
 
         // =====================================================================
@@ -610,6 +676,38 @@
             return out;
         }
 
+        // Ecart moyen au temps, en millisecondes. On ajuste une droite
+        // « temps attendu -> temps joue » sur chaque tronçon sans arret,
+        // puis on prend l'ecart-type des residus. Jouer tres lentement mais
+        // regulierement donne zero : c'est la pente qui absorbe le tempo,
+        // pas les residus.
+        function gridResidual(gaps, stops) {
+            if (gaps.length < 4) return 0;
+            const cut = new Set(stops.map(s => s.at && s.at.ms));
+            const segs = [];
+            let cur = [{ e: gaps[0].exp.ms - gaps[0].ge, t: 0 }];
+            let t = 0;
+            for (const g of gaps) {
+                t += g.ga;
+                if (cut.has(g.exp.ms)) { segs.push(cur); cur = []; }
+                cur.push({ e: g.exp.ms, t: t });
+            }
+            segs.push(cur);
+
+            const res = [];
+            for (const seg of segs) {
+                if (seg.length < 4) continue;
+                let se = 0, st = 0, see = 0, set = 0;
+                for (const p of seg) { se += p.e; st += p.t; }
+                const me = se / seg.length, mt = st / seg.length;
+                for (const p of seg) { see += (p.e - me) * (p.e - me); set += (p.e - me) * (p.t - mt); }
+                if (see <= 0) continue;
+                const a = set / see, b = mt - a * me;
+                for (const p of seg) res.push(p.t - (a * p.e + b));
+            }
+            return res.length > 2 ? sd(res) : 0;
+        }
+
         function analyse(piece, tl, played) {
             const { pairs } = matchAligned(tl, played);
             const good = pairs.filter(p => p.exp);
@@ -630,8 +728,15 @@
             }
             const longest = stops.length ? Math.max(...stops.map(s => s.ms)) : 0;
 
-            // --- tenue du pulse, arrets exclus (ils ont leur propre critere)
+            // --- tenue du pulse : ECART AU TEMPS, en millisecondes
+            // Un coefficient de variation repondrait en proportion : une
+            // croche mal placee de 20 ms compterait quatre fois plus qu'une
+            // ronde mal placee de 20 ms, alors que l'oreille entend la meme
+            // chose. On ajuste donc une grille reguliere et on mesure les
+            // residus. Segment par segment : un arret decale tout ce qui
+            // suit, et il a deja son propre critere.
             const clean = ratios.filter(r => r < rate * STOP_FACTOR);
+            const offMs = gridResidual(gaps, stops);
             const cv = rate > 0 && clean.length > 2 ? sd(clean) / mean(clean) * 100 : 0;
 
             // --- derive : la seconde moitie est-elle jouee au meme tempo ?
@@ -666,7 +771,7 @@
                 total, matched, wrong,
                 accuracy: total ? matched / total * 100 : 0,
                 covered: total ? (good.length ? good[good.length - 1].idx + 1 : 0) / total * 100 : 0,
-                stops: stops.length, longest, cv, drift, rate,
+                stops: stops.length, longest, cv, offMs, drift, rate,
                 recovery: recov.length ? mean(recov) : 0, errors: recov.length,
                 hesitation: hesit, bpmPlayed: piece.bpm / (rate || 1)
             };
@@ -680,7 +785,10 @@
                 k: 'longest', label: 'Longest stop', ok: a.longest < 500,
                 mid: a.longest < 1500, val: Math.round(a.longest) + ' ms'
             });
-            c.push({ k: 'cv', label: 'Pulse held', ok: a.cv < 22, mid: a.cv < 35, val: a.cv.toFixed(0) + ' %' });
+            c.push({
+                k: 'off', label: 'Off the beat by', ok: a.offMs < 45, mid: a.offMs < 90,
+                val: Math.round(a.offMs) + ' ms'
+            });
             c.push({
                 k: 'drift', label: 'No slowing down', ok: Math.abs(a.drift) < 12,
                 mid: Math.abs(a.drift) < 25, val: (a.drift > 0 ? '+' : '') + a.drift.toFixed(0) + ' %'
@@ -755,8 +863,31 @@
             S.phase = 'read';
             S.sys = 0; drawSystem(false);
             const beats = S.piece.compound ? S.piece.ts.num / 3 : S.piece.ts.num;
+            S.beatsPerBar = beats;
             S.gridT0 = startMetronome(S.piece.bpm, beats, LEADIN_BARS);
-            setPhase('read', 'Read. Do not stop, whatever happens.', 0);
+            // On ne part pas sur un clic surprise : le decompte s'affiche,
+            // temps par temps, et annonce la mesure d'entree.
+            setPhase('prep', 'Listen to the count-in — you come in on beat 1.', 0);
+        }
+
+        // Compte a rebours visible pendant les mesures de decompte.
+        function showLeadIn(now) {
+            const beat = 60000 / S.piece.bpm;
+            const left = S.gridT0 - now;
+            if (left <= 0) {
+                if ($('phase').className !== 'phase read')
+                    setPhase('read', 'Read. Do not stop, whatever happens.', 0);
+                return;
+            }
+            const n = Math.ceil(left / beat);
+            const bpb = S.beatsPerBar || 4;
+            // On compte AVEC la mesure (1 2 3 4), pas a rebours : le clic
+            // fort tombe sur le 1, et c'est sur un 1 qu'on entre.
+            const done = LEADIN_BARS * bpb - n;
+            $('phaseCd').textContent = ((done % bpb) + bpb) % bpb + 1;
+            $('phaseText').textContent = n > bpb
+                ? 'Get ready — you come in ' + Math.ceil(n / bpb) + ' bars from now'
+                : 'Come in on the next beat 1';
         }
 
         function liveUpdate() {
@@ -833,7 +964,7 @@
                 ['Wrong or extra notes', a.wrong, a.wrong === 0 ? 'g' : a.wrong < 5 ? 'w' : 'b'],
                 ['Stops', a.stops, a.stops === 0 ? 'g' : a.stops <= 2 ? 'w' : 'b'],
                 ['Longest stop', Math.round(a.longest) + ' ms', a.longest < 500 ? 'g' : a.longest < 1500 ? 'w' : 'b'],
-                ['Pulse unevenness', a.cv.toFixed(0) + ' %', a.cv < 22 ? 'g' : a.cv < 35 ? 'w' : 'b'],
+                ['Off the beat by', Math.round(a.offMs) + ' ms', a.offMs < 45 ? 'g' : a.offMs < 90 ? 'w' : 'b'],
                 ['Tempo drift', (a.drift > 0 ? '+' : '') + a.drift.toFixed(0) + ' %', Math.abs(a.drift) < 12 ? 'g' : 'w'],
                 ['Tempo actually held', '♩≈ ' + Math.round(a.bpmPlayed), ''],
                 ['Piece carried to the end', a.covered.toFixed(0) + ' %', a.covered > 95 ? 'g' : 'w']
@@ -890,10 +1021,11 @@
                     else if (S.phase === 'verdict') startItem();
                 }
             }
+            if (S.phase === 'read' && S.gridT0) showLeadIn(now);
             // garde-fou : une lecture abandonnee ne doit pas bloquer la seance
             if (S.phase === 'read' && S.gridT0) {
                 const budget = SightGen.durationMs(S.piece, S.piece.bpm) * 3 + 15000;
-                if (now - S.gridT0 > budget) finishReading();
+                if (now > S.gridT0 && now - S.gridT0 > budget) finishReading();
             }
             if (now >= S.sessionEnd && S.phase !== 'read') endSession();
         }
@@ -907,21 +1039,21 @@
             const stops = it.reduce((s, x) => s + x.a.stops, 0);
             const clean = it.filter(x => x.clean).length;
             const acc = mean(it.map(x => x.a.accuracy));
-            const cv = mean(it.map(x => x.a.cv));
+            const off = mean(it.map(x => x.a.offMs));
             const lv = it.map(x => x.level);
 
             $('rLead').textContent = it.length + ' pieces read, ' + clean + ' with no stop at all, '
                 + 'level ' + Math.min(...lv) + ' to ' + Math.max(...lv) + '.';
 
             $('rTable').innerHTML = '<tr><th>Piece</th><th>Level</th><th>Key</th><th>Stops</th>'
-                + '<th>Longest</th><th>Right</th><th>Pulse</th></tr>'
+                + '<th>Longest</th><th>Right</th><th>Off the beat</th></tr>'
                 + it.map((x, i) => '<tr><td>' + (i + 1) + '</td><td>' + x.level + '</td><td>' + x.key + '</td>'
                     + '<td class="' + (x.a.stops === 0 ? 'g' : x.a.stops <= 2 ? 'w' : 'b') + '">' + x.a.stops + '</td>'
                     + '<td>' + Math.round(x.a.longest) + ' ms</td>'
                     + '<td>' + x.a.accuracy.toFixed(0) + ' %</td>'
-                    + '<td>' + x.a.cv.toFixed(0) + ' %</td></tr>').join('')
+                    + '<td>' + Math.round(x.a.offMs) + ' ms</td></tr>').join('')
                 + '<tr><th>Average</th><th></th><th></th><th>' + (stops / it.length).toFixed(1) + '</th>'
-                + '<th></th><th>' + acc.toFixed(0) + ' %</th><th>' + cv.toFixed(0) + ' %</th></tr>';
+                + '<th></th><th>' + acc.toFixed(0) + ' %</th><th>' + Math.round(off) + ' ms</th></tr>';
 
             const adv = [];
             if (stops / it.length > 2)
@@ -1059,14 +1191,78 @@
             check('the tempo actually held is measured',
                 Math.abs(a.bpmPlayed - p.bpm / 1.8) < 2, Math.round(a.bpmPlayed) + ' instead of ' + p.bpm);
 
-            // -- 3. le pulse
-            check('perfectly steady playing shows zero unevenness',
-                analyse(p, tl, perfect).cv < 1, analyse(p, tl, perfect).cv.toFixed(1) + ' %');
+            // -- 3. les notes d'un accord, jouees dans le desordre
+            // Deux notes ecrites ensemble ne sont jamais frappees ensemble.
+            // Si l'ordre d'arrivee decidait de l'appariement, chaque accord
+            // vaudrait deux fautes et fausserait toute la mesure du temps.
+            let chordPiece = null;
+            for (let i = 0; i < 200 && !chordPiece; i++) {
+                const c = SightGen.generate(6, 3000 + i);
+                const tlc = SightGen.timeline(c, c.bpm);
+                for (let k = 1; k < tlc.length; k++)
+                    if (tlc[k].tick === tlc[k - 1].tick) { chordPiece = c; break; }
+            }
+            check('a piece with chords exists at level 6', !!chordPiece);
+            if (chordPiece) {
+                const tlc = SightGen.timeline(chordPiece, chordPiece.bpm);
+                // on inverse l'ordre a l'interieur de chaque accord, avec
+                // quelques millisecondes d'ecart, comme un vrai piano
+                const shuffled = [];
+                for (let k = 0; k < tlc.length;) {
+                    let j = k;
+                    while (j < tlc.length && tlc[j].tick === tlc[k].tick) j++;
+                    const grp = tlc.slice(k, j).reverse();
+                    grp.forEach((e, n) => shuffled.push({ t: tlc[k].ms + n * 7, midi: e.midi }));
+                    k = j;
+                }
+                const ac = analyse(chordPiece, tlc, shuffled);
+                check('a chord played out of order counts no wrong note',
+                    ac.wrong === 0, ac.wrong + ' wrong out of ' + tlc.length);
+                check('nor does it create a stop', ac.stops === 0, ac.stops);
+            }
+
+            // -- 4. l'ecart au temps se mesure en millisecondes
+            check('perfectly steady playing is zero off the beat',
+                analyse(p, tl, perfect).offMs < 1,
+                analyse(p, tl, perfect).offMs.toFixed(1) + ' ms');
+            check('playing slowly but steadily is not off the beat',
+                analyse(p, tl, slow).offMs < 1, analyse(p, tl, slow).offMs.toFixed(1) + ' ms');
+
+            // Le piege corrige : un critere exprime en PROPORTION repondait
+            // quatre fois plus fort sur des croches que sur des blanches,
+            // pour une imprecision identique. En millisecondes, le chiffre
+            // ne doit dependre que du jeu, pas des valeurs ecrites.
+            const jit = [18, -25, 31, -12, 27, -33, 9, 22, -19, 14, -28, 35,
+                -7, 24, -16, 29, -22, 11, -31, 20];
+            function steady(dur, n) {
+                const q = { level: 1, tpq: 48, bpm: 60, bars: n, barTicks: 192,
+                    ts: { num: 4, den: 4 }, compound: false, sharps: 0, minor: false,
+                    measures: [] };
+                for (let b = 0; b < n; b++) {
+                    const rh = [];
+                    for (let o = 0; o < 192; o += dur)
+                        rh.push({ d: 28, step: 0, oct: 4, alter: 0, midi: 60,
+                            on: o, dur: dur, rest: false });
+                    q.measures.push({ rh: rh, lh: [] });
+                }
+                return q;
+            }
+            function offFor(dur) {
+                const q = steady(dur, 4);
+                const t = SightGen.timeline(q, 60);
+                return analyse(q, t, t.map((e, i) => ({ t: e.ms + jit[i % jit.length], midi: e.midi }))).offMs;
+            }
+            const offQuarter = offFor(48), offEighth = offFor(24);
+            check('same imprecision on quarters and on eighths: same figure',
+                Math.abs(offQuarter - offEighth) < 8,
+                Math.round(offQuarter) + ' ms against ' + Math.round(offEighth) + ' ms');
+            check('and that figure is the real imprecision',
+                offQuarter > 15 && offQuarter < 38, Math.round(offQuarter) + ' ms');
             const drifting = perfect.map((e, i) => ({ t: e.t * (1 + i / perfect.length * 0.5), midi: e.midi }));
             check('a gradual slowing is seen as tempo drift',
                 analyse(p, tl, drifting).drift > 10, analyse(p, tl, drifting).drift.toFixed(0) + ' %');
 
-            // -- 4. le verdict privilegie la continuite sur la justesse
+            // -- 5. le verdict privilegie la continuite sur la justesse
             const v1 = judge(analyse(p, tl, perfect));
             check('a perfect reading counts as a clean run', v1.cleanRun);
             const manyStops = perfect.map((e, i) => ({ t: e.t + Math.floor(i / 5) * 2500, midi: e.midi }));
@@ -1074,7 +1270,7 @@
             check('a halting reading breaks down, even with every note right',
                 v2.brokeDown && !v2.cleanRun, analyse(p, tl, manyStops).stops + ' stops');
 
-            // -- 5. jamais deux fois la meme piece
+            // -- 6. jamais deux fois la meme piece
             let dup = 0;
             const seenSigs = new Set();
             for (let i = 0; i < 300; i++) {
@@ -1084,7 +1280,7 @@
             }
             check('300 draws at level 4 never repeat', dup === 0, dup + ' duplicates');
 
-            // -- 6. la partition s'affiche, et le clavier n'est JAMAIS montre
+            // -- 7. la partition s'affiche, et le clavier n'est JAMAIS montre
             S.piece = p; S.tl = tl;
             showScore(p, true);
             check('the score shows notes',
@@ -1103,7 +1299,7 @@
                 !document.querySelector('.key, #piano, [data-midi]'));
             hideScore();
 
-            // -- 7. le niveau monte et descend, sans sortir des bornes
+            // -- 8. le niveau monte et descend, sans sortir des bornes
             const before = S.level, wasManual = S.manual;
             S.manual = false; S.calibrating = false;
             S.level = 4; S.upStreak = 0; S.downStreak = 0;
@@ -1120,7 +1316,7 @@
             check('the level never goes below 1', S.level === 1, S.level);
             S.level = before; S.manual = wasManual; saveLevel();
 
-            // -- 8. les reglages tiennent le rechargement
+            // -- 9. les reglages tiennent le rechargement
             const keepSet = localStorage.getItem(LS_SET);
             $('tapOn').checked = true; saveSettings();
             $('tapOn').checked = false; restoreSettings();
@@ -1129,7 +1325,7 @@
             else localStorage.setItem(LS_SET, keepSet);
             restoreSettings();
 
-            // -- 9. le registre des pieces lues
+            // -- 10. le registre des pieces lues
             const keepSeen = localStorage.getItem(LS_SEEN);
             try { localStorage.removeItem(LS_SEEN); } catch (e) { }
             const q1 = nextPiece(2);
@@ -1140,7 +1336,7 @@
             if (keepSeen === null) { try { localStorage.removeItem(LS_SEEN); } catch (e) { } }
             else localStorage.setItem(LS_SEEN, keepSeen);
 
-            // -- 10. le temps d'une seance tient dans le quart d'heure annonce
+            // -- 11. le temps d'une seance tient dans le quart d'heure annonce
             let worst = 0;
             for (let lv = 1; lv <= 8; lv++) {
                 const q = SightGen.generate(lv, 424242 + lv);

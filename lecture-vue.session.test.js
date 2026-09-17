@@ -305,6 +305,60 @@ section('7. La page tourne au bon moment');
     w.endSession();
 }
 
+// ------------------------------------------------------------------
+section('8. Le premier temps n\'arrive pas par surprise');
+
+{
+    w.localStorage.clear();
+    CLOCK = 1000;
+    w.startSession();
+    until('read', 0);
+
+    const st = S(), bpm = st.piece.bpm, beat = 60000 / bpm;
+    const bpb = st.piece.compound ? st.piece.ts.num / 3 : st.piece.ts.num;
+    const t0 = st.gridT0;
+
+    check('l\'entree est annoncee a l\'avance', t0 > CLOCK, Math.round(t0 - CLOCK) + ' ms');
+    check('le decompte dure bien deux mesures',
+        Math.abs((t0 - CLOCK) - 2 * bpb * beat) < 3 * beat,
+        Math.round((t0 - CLOCK) / beat) + ' temps');
+
+    const seen = [], said = [];
+    for (let k = 2 * bpb; k >= 1; k--) {
+        CLOCK = t0 - k * beat + 5;
+        w.tick();
+        seen.push($('phaseCd').textContent);
+        said.push($('phaseText').textContent);
+    }
+    check('un chiffre s\'affiche a chaque temps du decompte',
+        seen.every(v => /^[0-9]+$/.test(v)), seen.join(' '));
+    check('il compte avec la mesure, en repartant a 1 sur chaque temps fort',
+        seen.join(' ') === Array.from({ length: 2 * bpb },
+            (_, i) => (i % bpb) + 1).join(' '), seen.join(' '));
+    // On verifie le COMPORTEMENT, pas le vocabulaire : la consigne doit
+    // changer entre la premiere mesure de decompte et la derniere.
+    // Chercher des mots rendrait l'assertion fausse dans l'autre langue.
+    check('la consigne devient plus pressante sur la derniere mesure',
+        said[0] !== said[said.length - 1],
+        said[0] + '  ->  ' + said[said.length - 1]);
+
+    // au moment exact de l'entree, la consigne de lecture prend la place
+    CLOCK = t0 + 5;
+    w.tick();
+    check('a l\'entree, la consigne devient celle de la lecture',
+        $('phase').className.indexOf('read') >= 0, $('phase').className);
+    check('le decompte disparait', $('phaseCd').textContent === '', '[' + $('phaseCd').textContent + ']');
+
+    // une note jouee pendant le decompte compte quand meme : entrer trop
+    // tot est une erreur de lecture, pas un evenement a ignorer
+    CLOCK = t0 - beat;
+    const before = S().played.length;
+    midi(CLOCK, st.tl[0].midi);
+    check('une entree trop tot est enregistree, pas ignoree',
+        S().played.length === before + 1);
+    w.endSession();
+}
+
 console.log('\n' + (fail === 0 ? 'TOUT PASSE' : 'ECHECS')
     + ' : ' + pass + ' verifications ok, ' + fail + ' en echec');
 process.exit(fail ? 1 : 0);
