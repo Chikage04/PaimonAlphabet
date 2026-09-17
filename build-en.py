@@ -454,6 +454,11 @@ T = [
 ("if (a.art != null && (b.art == null || b.art < a.art)) pire('notes liées', a.art, b.art);",
  "if (a.art != null && (b.art == null || b.art < a.art)) pire('notes connected', a.art, b.art);"),
 
+("check('attente avant de jouer constante à tous les tempos', leadOK,",
+ "check('lead-in before playing constant at every tempo', leadOK,"),
+("leadMin.toFixed(0) + ' à ' + leadMax.toFixed(0) + ' ms de ♩=' + bpmLo + ' à ♩=' + bpmHi);",
+ "leadMin.toFixed(0) + ' to ' + leadMax.toFixed(0) + ' ms from ♩=' + bpmLo + ' to ♩=' + bpmHi);"),
+
 # ------------------------------------------------------------- niveaux -----
 ("souple: { label: 'Souple', even: 8, finger: 5,   tempo: 5, grid: 45, minBpm: 0,  artSD: 0.20, art: null },",
  "souple: { label: 'Lenient', even: 8, finger: 5,   tempo: 5, grid: 45, minBpm: 0,  artSD: 0.20, art: null },"),

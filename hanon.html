@@ -1008,7 +1008,16 @@ const HANON = {
         // Le clic bat la DOUBLE CROCHE, pas le temps : c'est la seule façon de
         // rendre explicite la vitesse à laquelle il faut taper. Le temps reste
         // accentué pour qu'on puisse continuer à compter.
-        function startMetronome(bpm, leadBeats) {
+        //  Attente avant la premiere note : constante, environ deux secondes,
+        //  quel que soit le tempo. Un decompte de quatre temps durait huit
+        //  secondes a ♩=30, ce qui est insupportable apres chaque fausse note.
+        //  Elle est arrondie a un nombre ENTIER de doubles croches, sinon les
+        //  clics tomberaient a cote de la grille sur laquelle les notes sont
+        //  mesurees, et l'ecart au clic serait faux d'entree.
+        const LEAD_MS = 2000;
+        const leadSubs = bpm => Math.max(4, Math.round(LEAD_MS / (60000 / bpm / 4)));
+
+        function startMetronome(bpm) {
             const a = ensureAudio();
             const sub = 60 / bpm / 4;
             const first = a.currentTime + 0.25;
@@ -1021,9 +1030,10 @@ const HANON = {
                 ctxNow = ts.contextTime; perfNow = ts.performanceTime;
             }
             // la première note attendue tombe après les temps de décompte
-            metro.firstPerf = perfNow + (first - ctxNow) * 1000 + leadBeats * 4 * sub * 1000;
+            const lead = leadSubs(bpm);
+            metro.firstPerf = perfNow + (first - ctxNow) * 1000 + lead * sub * 1000;
             metro.nextCtx = first;
-            metro.sub = -leadBeats * 4;          // index de double croche, négatif = décompte
+            metro.sub = -lead;                   // index de double croche, négatif = avant l'entrée
 
             const mode = document.querySelector('#clickSeg button.active').dataset.click;
             metro.timer = setInterval(() => {
@@ -1043,7 +1053,8 @@ const HANON = {
             if (!S.running || !metro.timer) return;
             const left = metro.firstPerf - performance.now();
             if (left > 0) {
-                setGauge('gTempo', 'vTempo', Math.ceil(left / (60000 / S.bpm)), '', 100, 'g-warn');
+                // en secondes, pas en temps : l'attente ne depend plus du tempo
+                setGauge('gTempo', 'vTempo', Math.ceil(left / 1000), 's', 100, 'g-warn');
                 requestAnimationFrame(countdown);
             } else {
                 setGauge('gTempo', 'vTempo', '▶', '', 100, 'g-good');
@@ -1142,7 +1153,7 @@ const HANON = {
             // après resetGauges, sinon le décompte est effacé dès sa première image
             S.paused = false;
             S.brkNext = false;
-            if (S.mode === 'metro') S.gridT0 = startMetronome(S.bpm, 4);
+            if (S.mode === 'metro') S.gridT0 = startMetronome(S.bpm);
             setPauseUI();
         }
 
@@ -1211,7 +1222,7 @@ const HANON = {
             if (S.mode === 'metro') {
                 // on ré-ancre la grille sur la note où l'on reprend, sinon tout ce
                 // qui suit serait mesuré contre un décompte vieux de la pause
-                const first = startMetronome(S.bpm, 4);
+                const first = startMetronome(S.bpm);
                 S.gridT0 = first - S.cur[S.hands[0]] * S.subMs;
             }
             markNext();
@@ -3014,6 +3025,18 @@ const HANON = {
             const fitCourt = crescFit(synth(seq, { durRatio: 1.05 }).filter(e => e.hand === 'R').slice(0, 32), MOTIF);
             check('sur 32 notes la portée en hauteur est trop courte pour conclure',
                 fitCourt && fitCourt.span < 0.75, fitCourt ? fitCourt.span.toFixed(2) + ' octave' : 'non mesurable');
+
+            // 8 duodecies. L'attente avant de jouer doit rester la meme a tous
+            //               les tempos, et tomber sur un nombre entier de doubles
+            //               croches pour que les clics restent sur la grille.
+            let leadOK = true, leadMin = 1e9, leadMax = 0;
+            for (let bpm = bpmLo; bpm <= bpmHi; bpm += 2) {
+                const ms = leadSubs(bpm) * (60000 / bpm / 4);
+                leadMin = Math.min(leadMin, ms); leadMax = Math.max(leadMax, ms);
+                if (Math.abs(ms - LEAD_MS) > 300 || leadSubs(bpm) % 1 !== 0) leadOK = false;
+            }
+            check('attente avant de jouer constante à tous les tempos', leadOK,
+                leadMin.toFixed(0) + ' à ' + leadMax.toFixed(0) + ' ms de ♩=' + bpmLo + ' à ♩=' + bpmHi);
 
             // 9. entrées MIDI : un piano expose souvent plusieurs ports qui
             //    portent les mêmes notes. Un seul doit être écouté, sinon
