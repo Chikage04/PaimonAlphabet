@@ -171,6 +171,16 @@
         <label class="toggle"><input type="checkbox" id="tapOn"> Frapper le rythme d'abord</label>
     </div>
 
+    <div class="controls">
+        <span class="seg" id="occlSeg" title="Ce qui est déjà joué peut s'effacer, pour empêcher le regard de revenir en arrière.">
+            <button data-oc="none" class="active">Tout visible</button>
+            <button data-oc="fade">Voile arrière</button>
+            <button data-oc="erase">Effacement</button>
+            <button data-oc="flash">Flash</button>
+        </span>
+        <span class="chip" id="occlHint"></span>
+    </div>
+
     <div class="controls" id="manualRow" hidden>
         <label class="toggle">Niveau
             <input type="range" id="lvSlider" min="1" max="8" step="1" value="1" style="width:180px">
@@ -223,6 +233,13 @@
                 La lecture à vue exige du matériel jamais vu ; rejouer, c'est déjà travailler un morceau.</p>
             <p><b>Le clic bat le temps, pas la note.</b> Cliquer chaque note donnerait le rythme — or le rythme
                 est précisément ce qu'il faut lire.</p>
+            <p><b>Ce qui est joué peut s'effacer, ce qui vient jamais.</b> Masquer les mesures déjà
+                jouées empêche le regard de revenir en arrière. Restreindre au contraire ce qu'on voit
+                <i>devant</i> est la seule de ces manipulations qui ait été testée — et elle fait
+                <i>rétrécir</i> l'empan œil-main au lieu de l'agrandir (Truitt et coll., 1997 ;
+                Gilman &amp; Underwood, 2003). Aucune étude n'a évalué l'effacement du passé : c'est
+                proposé comme une expérience, et cette page mesure assez pour que tu la tranches
+                toi-même en comparant tes séances.</p>
             <p><b>Une pré-lecture chronométrée.</b> Vingt secondes pour repérer la tonalité, la mesure et les
                 endroits difficiles, sans toucher au piano. C'est l'habitude que tout le monde réclame et que
                 personne ne prend.</p>
@@ -250,6 +267,8 @@
         const TAP_MS = 15000;          // frappe du rythme, optionnelle
         const VERDICT_MS = 9000;       // le temps de lire le bilan
         const LEADIN_BARS = 2;         // decompte avant d'entrer
+        const FLASH_MS = 2500;         // duree d'apparition d'une mesure en mode flash
+        const FLASH_WAIT = 9000;       // au-dela, on passe a la mesure suivante
         const MATCH_WINDOW = 6;        // notes explorees en avant pour apparier
         const STOP_FACTOR = 2.0;       // un arret = 2x l'ecart attendu...
         const STOP_FLOOR = 350;        // ...et au moins ce surplus, en ms
@@ -285,7 +304,8 @@
         const S = {
             running: false,
             phase: 'idle',         // idle | preread | tap | read | verdict
-            level: 1, manual: false,
+            level: 1, manual: false, occl: 'none',
+            flashBar: 0, flashBuf: [], flashRes: null,
             piece: null, tl: null, sys: 0,
             played: [],            // { t, midi }
             taps: [],
@@ -449,6 +469,12 @@
             if (prev !== undefined && Math.abs(t - prev) < DUP_MS) { S.dupes++; return; }
             S.lastOn.set(pitch, Math.max(t, prev === undefined ? t : prev));
             if (S.phase === 'tap') { S.taps.push(t); tone(880, 0.05, 0.08); return; }
+            if (S.phase === 'flashPlay') {
+                S.flashBuf.push({ t: t, midi: pitch });
+                if (S.flashBuf.length >= barNotes(S.flashBar).length) { S.phaseEnd = 0; flashNext(); }
+                return;
+            }
+            if (S.phase === 'flashShow') return;          // on regarde, on ne joue pas
             if (S.phase !== 'read') return;                // pre-lecture : le piano est muet
             // Taper le decompte pour sentir le pulse est un reflexe de
             // musicien, pas une faute : ces notes-la ne font pas partie de
@@ -505,8 +531,42 @@
             });
             $('sysnav').hidden = systems.length < 2;
             $('sysnav').textContent = 'Ligne ' + (S.sys + 1) + ' sur ' + systems.length;
+            // la partition vient d'etre redessinee : le masquage aussi
+            if (S.phase === 'read') applyOcclusion();
         }
         function hideScore() { $('paper').classList.add('hidden'); $('sysnav').hidden = true; }
+
+        // Ce qui est deja joue s'efface, pour que le regard ne puisse pas
+        // revenir en arriere. On ne touche JAMAIS a ce qui est devant :
+        // restreindre la vue vers l'avant fait retrecir l'empan oeil-main.
+        function applyOcclusion() {
+            const groups = $('score').querySelectorAll('.sr-bar');
+            if (!groups.length) return;
+            if (S.occl !== 'fade' && S.occl !== 'erase') {
+                for (const g of groups) g.setAttribute('opacity', 1);
+                return;
+            }
+            // la mesure de la DERNIERE note jouee, jamais celle a venir
+            const done = S.played.length;
+            const cur = done ? S.tl[Math.min(S.tl.length - 1, done - 1)].bar : -1;
+            for (const g of groups) {
+                const b = +g.getAttribute('data-bar');
+                const off = S.occl === 'erase' ? b <= cur : b < cur;
+                g.setAttribute('opacity', off ? (S.occl === 'erase' ? 0 : 0.1) : 1);
+            }
+        }
+
+        // Mode flash : une seule mesure visible a la fois.
+        function showOnlyBar(bar) {
+            const sys = systems.findIndex(x => bar >= x.from && bar < x.to);
+            if (sys >= 0 && sys !== S.sys) { S.sys = sys; drawSystem(false); }
+            for (const g of $('score').querySelectorAll('.sr-bar'))
+                g.setAttribute('opacity', +g.getAttribute('data-bar') === bar ? 1 : 0);
+        }
+        function hideAllBars() {
+            for (const g of $('score').querySelectorAll('.sr-bar')) g.setAttribute('opacity', 0);
+        }
+        const barNotes = bar => S.tl.filter(e => e.bar === bar);
 
         // La page tourne quand la lecture ATTEINT la derniere mesure du
         // systeme courant. Pas de defilement : il fournirait l'avance
@@ -879,11 +939,97 @@
             $('cStops').textContent = '—';
             $('cAcc').textContent = '—';
 
+            if (S.occl === 'flash') { startFlash(); return; }
+
             showScore(S.piece, true);
             S.phase = 'preread';
             setPhase('prep',
                 'Pré-lecture — repère la tonalité, la mesure, et les endroits entourés. Ne joue pas.',
                 performance.now() + PREREAD_MS);
+        }
+
+        // ---- Mode flash : lire une mesure, la perdre, la rejouer --------
+        // Ce n'est plus de la lecture a vue mais du regroupement : on
+        // s'entraine a saisir une mesure d'un coup d'oeil. Aucune mesure de
+        // temps n'aurait de sens ici, il n'y a pas de grille.
+        function startFlash() {
+            showScore(S.piece, false);
+            S.flashBar = 0;
+            S.flashRes = [];
+            flashShow();
+        }
+        function flashShow() {
+            S.phase = 'flashShow';
+            S.flashBuf = [];
+            showOnlyBar(S.flashBar);
+            setPhase('prep', 'Mesure ' + (S.flashBar + 1) + ' sur ' + S.piece.bars
+                + ' — retiens-la.', performance.now() + FLASH_MS);
+        }
+        function flashPlay() {
+            S.phase = 'flashPlay';
+            hideAllBars();
+            setPhase('read', 'Rejoue la mesure ' + (S.flashBar + 1) + ' de mémoire.',
+                performance.now() + FLASH_WAIT);
+        }
+        function flashNext() {
+            const want = barNotes(S.flashBar).map(e => e.midi).sort((a, b) => a - b);
+            const got = S.flashBuf.map(n => n.midi).sort((a, b) => a - b);
+            const rest = want.slice();
+            let right = 0;
+            for (const m of got) {
+                const k = rest.indexOf(m);
+                if (k >= 0) { rest.splice(k, 1); right++; }
+            }
+            S.flashRes.push({
+                bar: S.flashBar, want: want.length, right: right,
+                exact: right === want.length && got.length === want.length
+            });
+            S.flashBar++;
+            if (S.flashBar >= S.piece.bars) finishFlash();
+            else flashShow();
+        }
+        function finishFlash() {
+            S.phase = 'verdict';
+            const r = S.flashRes;
+            const want = r.reduce((s, x) => s + x.want, 0);
+            const right = r.reduce((s, x) => s + x.right, 0);
+            const exact = r.filter(x => x.exact).length;
+            const a = {
+                total: want, matched: right, wrong: 0,
+                accuracy: want ? right / want * 100 : 0, covered: 100,
+                stops: 0, longest: 0, cv: 0, offMs: 0, drift: 0, rate: 1,
+                recovery: 0, errors: 0, hesitation: null, bpmPlayed: S.piece.bpm,
+                flash: { bars: r.length, exact: exact }
+            };
+            markSeen(S.piece.level, S.piece.sig);
+            S.items.push({ level: S.piece.level, a: a, clean: exact === r.length, key: S.piece.keyName, flash: true });
+            showFlashVerdict(a);
+            hideScore();
+            setPhase('done', exact + ' mesure' + (exact > 1 ? 's' : '') + ' sur '
+                + r.length + ' rejouée' + (exact > 1 ? 's' : '') + ' exactement.',
+                performance.now() + VERDICT_MS);
+            tone(exact === r.length ? 880 : 420, 0.18, 0.12);
+        }
+        function showFlashVerdict(a) {
+            $('verdict').hidden = false;
+            $('vTitle').textContent = 'Flash ' + S.itemIndex + ' — niveau ' + S.piece.level
+                + ', ' + S.piece.keyName;
+            $('vLead').textContent = 'Le flash n\'est pas de la lecture à vue : il entraîne le '
+                + 'regroupement, c\'est-à-dire la capacité à saisir une mesure d\'un coup d\'œil. '
+                + 'Aucun temps n\'est mesuré ici, il n\'y a pas de grille.';
+            $('vChips').innerHTML = '';
+            const chip = (label, val, ok) => {
+                const e = document.createElement('span');
+                e.className = 'chip ' + (ok ? 'ok' : 'mid');
+                e.textContent = (ok ? '✓ ' : '~ ') + label + ' : ' + val;
+                $('vChips').appendChild(e);
+            };
+            chip('Mesures exactes', a.flash.exact + ' / ' + a.flash.bars, a.flash.exact === a.flash.bars);
+            chip('Notes retrouvées', Math.round(a.accuracy) + ' %', a.accuracy > 90);
+            $('vTable').innerHTML = '<tr><th>Mesure</th><th>Notes retrouvées</th></tr>'
+                + S.flashRes.map(x => '<tr><td>' + (x.bar + 1) + '</td><td class="'
+                    + (x.exact ? 'g' : x.right > x.want / 2 ? 'w' : 'b') + '">'
+                    + x.right + ' / ' + x.want + '</td></tr>').join('');
         }
 
         function endPreread() {
@@ -933,6 +1079,7 @@
         function liveUpdate() {
             S.cursor = Math.min(S.tl.length, S.played.length);
             maybeTurnPage();
+            applyOcclusion();
             // le bilan complet coute cher : en direct on l'espace
             const now = performance.now();
             if (now - (S.lastGauge || 0) < 200) return;
@@ -964,7 +1111,7 @@
         // reellement le « deux a trois grades sous ton niveau » sans demander
         // a l'eleve d'estimer quelque chose qu'il ne peut pas estimer.
         function adaptLevel(v) {
-            if (S.manual) return;
+            if (S.manual || S.occl === 'flash') return;
             if (S.calibrating) {
                 if (v.cleanRun && S.level < 8) { S.level = Math.min(8, S.level + 2); }
                 else { S.calibrating = false; S.level = Math.max(1, S.level - 1); }
@@ -1061,6 +1208,8 @@
                     S.phaseEnd = 0;
                     if (S.phase === 'preread') endPreread();
                     else if (S.phase === 'tap') startReading();
+                    else if (S.phase === 'flashShow') flashPlay();
+                    else if (S.phase === 'flashPlay') flashNext();
                     else if (S.phase === 'verdict') startItem();
                 }
             }
@@ -1149,7 +1298,7 @@
             try {
                 localStorage.setItem(LS_SET, JSON.stringify({
                     click: $('clickOn').checked, tap: $('tapOn').checked,
-                    manual: S.manual, level: S.level
+                    manual: S.manual, level: S.level, occl: S.occl
                 }));
             } catch (e) { }
         }
@@ -1162,7 +1311,11 @@
                 $('clickOn').checked = o.click !== false;
                 $('tapOn').checked = !!o.tap;
                 S.manual = !!o.manual;
+                if (o.occl) S.occl = o.occl;
             }
+            [...$('occlSeg').children].forEach(b =>
+                b.classList.toggle('active', b.dataset.oc === S.occl));
+            showOcclHint();
             S.level = clamp(parseInt(lv || (o && o.level) || 1, 10) || 1, 1, 8);
             [...$('levelSeg').children].forEach(b =>
                 b.classList.toggle('active', (b.dataset.lv === 'manual') === S.manual));
@@ -1184,6 +1337,22 @@
             b.classList.add('active');
             S.manual = b.dataset.lv === 'manual';
             $('manualRow').hidden = !S.manual;
+            saveSettings();
+        });
+        const OCCL_HINT = {
+            none: 'La partition reste entière, comme sur du papier.',
+            fade: 'La mesure terminée s\'estompe quand tu entames la suivante : le regard ne peut plus revenir en arrière.',
+            erase: 'La mesure disparaît dès sa première note. Tu la finis de mémoire — c\'est exigeant.',
+            flash: 'Une mesure apparaît quelques secondes, puis disparaît : tu la rejoues de mémoire. Ce n\'est pas de la lecture à vue mais du regroupement.'
+        };
+        function showOcclHint() { $('occlHint').textContent = OCCL_HINT[S.occl] || ''; }
+        $('occlSeg').addEventListener('click', e => {
+            const b = e.target.closest('button');
+            if (!b) return;
+            [...e.currentTarget.children].forEach(x => x.classList.remove('active'));
+            b.classList.add('active');
+            S.occl = b.dataset.oc;
+            showOcclHint();
             saveSettings();
         });
         $('lvSlider').addEventListener('input', e => {

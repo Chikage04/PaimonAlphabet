@@ -265,7 +265,11 @@
                 svg.appendChild(el('line', {
                     x1: x, y1: T_TOP, x2: x, y2: B_BOTTOM, stroke: INK, 'stroke-width': W_BAR
                 }));
-            drawBar(svg, piece, bd, x, bw, tpq, beatTicks, positions, opts);
+            // le contenu de la mesure vit dans son propre groupe : la page
+            // peut le masquer d'un coup, la portee restant en place
+            var g = el('g', { 'class': 'sr-bar', 'data-bar': bd.index });
+            svg.appendChild(g);
+            drawBar(g, piece, bd, x, bw, tpq, beatTicks, positions, opts);
             x += bw;
         });
 
@@ -280,6 +284,7 @@
         return positions;
     }
 
+    // svg est ici le GROUPE de la mesure, pas la racine.
     function drawBar(svg, piece, bd, mx, mw, tpq, beatTicks, positions, opts) {
         var cols = bd.cols, xs = [], acc = {}, i;
 
