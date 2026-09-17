@@ -9,7 +9,7 @@ const fs = require('fs');
 const DIR = 'C:/Users/Lucas/PaimonAlphabet/';
 const PAGE = process.argv[2] || 'lecture-vue.html';
 let html = fs.readFileSync(DIR + PAGE, 'utf8');
-for (const f of ['sightread-gen.js', 'sightread-render.js'])
+for (const f of ['sightread-glyphs.js', 'sightread-gen.js', 'sightread-render.js'])
     html = html.replace('<script src="' + f + '"></script>',
         '<script>' + fs.readFileSync(DIR + f, 'utf8') + '</script>');
 

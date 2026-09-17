@@ -19,7 +19,11 @@ const section = t => console.log('\n' + t);
 
 const svg = document.getElementById('s');
 const q = sel => svg.querySelectorAll(sel);
-const texts = () => Array.from(svg.querySelectorAll('text')).map(t => t.textContent);
+// Les symboles sont desormais des chemins issus de Bravura, portant une
+// classe stable. Il n'y a plus ni ellipse ni caractere Unicode a compter.
+const GLY = require('C:/Users/Lucas/PaimonAlphabet/sightread-glyphs.js');
+const many = sel => svg.querySelectorAll(sel).length;
+const dOf = sel => Array.from(svg.querySelectorAll(sel)).map(e => e.getAttribute('d'));
 
 function noteCount(p) {
     let n = 0;
@@ -49,7 +53,7 @@ for (const lvl of G.LEVELS) {
         n++;
 
         // une tete par note reelle
-        const heads = q('ellipse').length;
+        const heads = many('.sr-head');
         if (heads !== noteCount(p)) badHeads++;
 
         // chaque note reelle a une position connue de la page
@@ -119,8 +123,9 @@ section('3. Armature et alterations');
     // do majeur : aucune alteration a la cle, aucune alteration du tout
     const p = G.generate(3, 777);
     R.draw(svg, p, { width: 900 });
-    check('do majeur : aucune alteration a la cle',
-        texts().filter(t => t === '\u266F' || t === '\u266D').length === 0);
+    check('do majeur : aucune alteration a la cle', many('.sr-key') === 0, many('.sr-key'));
+    check('les deux cles sont gravees', many('.sr-clef') === 2, many('.sr-clef'));
+    check('le chiffrage est grave sur les deux portees', many('.sr-ts') === 4, many('.sr-ts'));
 
     // une piece a deux bemols : deux bemols par portee, donc quatre
     let two = null;
@@ -131,8 +136,8 @@ section('3. Armature et alterations');
     check('une piece a 2 bemols existe au niveau 6', !!two);
     if (two) {
         R.draw(svg, two, { width: 900 });
-        const flats = texts().filter(t => t === '\u266D').length;
-        check('2 bemols graves sur chacune des deux portees', flats >= 4, flats + ' bemols');
+        const flats = many('.sr-key');
+        check('2 bemols graves sur chacune des deux portees', flats === 4, flats + ' bemols');
     }
 
     // mineur harmonique : la sensible haussee doit etre gravee
@@ -144,7 +149,7 @@ section('3. Armature et alterations');
     check('une piece en mineur existe au niveau 7', !!min);
     if (min) {
         R.draw(svg, min, { width: 900 });
-        const marks = texts().filter(t => '\u266F\u266D\u266E'.indexOf(t) >= 0).length;
+        const marks = many('.sr-acc');
         const accNotes = min.measures.reduce((s, m) =>
             s + m.rh.filter(n => n.acc).length + m.lh.filter(n => n.acc).length, 0);
         check('le mineur harmonique produit des alterations a lire', accNotes > 0, accNotes);
@@ -165,11 +170,11 @@ section('3. Armature et alterations');
     }];
     p.bars = 1; p.barTicks = 192; p.sharps = 0; p.ts = { num: 4, den: 4 };
     R.draw(svg, p, { width: 900 });
-    const t = texts();
-    check('un diese repete dans la mesure n est grave qu une fois',
-        t.filter(x => x === '\u266F').length === 1, t.filter(x => x === '\u266F').length);
-    check('le retour a la note naturelle porte un becarre',
-        t.filter(x => x === '\u266E').length === 1, t.filter(x => x === '\u266E').length);
+    const accs = dOf('.sr-acc');
+    const nSharp = accs.filter(d => d === GLY.accidentalSharp.d).length;
+    const nNat = accs.filter(d => d === GLY.accidentalNatural.d).length;
+    check('un diese repete dans la mesure n est grave qu une fois', nSharp === 1, nSharp);
+    check('le retour a la note naturelle porte un becarre', nNat === 1, nNat);
 }
 
 // ------------------------------------------------------------------
@@ -184,8 +189,7 @@ section('4. Silences, ligatures, lignes supplementaires');
     check('les niveaux avec silences en produisent', !!anyRest);
     if (anyRest) {
         R.draw(svg, anyRest, { width: 900 });
-        const rects = q('rect').length, sil = texts().filter(t => t === '\uD834\uDD3D').length;
-        check('les silences sont dessines', rects + sil > 0, rects + ' rect, ' + sil + ' soupirs');
+        check('les silences sont dessines', many('.sr-rest') > 0, many('.sr-rest') + ' silences');
     }
 
     // ligatures : des croches dans un meme temps doivent etre barrees
@@ -197,8 +201,11 @@ section('4. Silences, ligatures, lignes supplementaires');
     }];
     p.bars = 1; p.barTicks = 192; p.ts = { num: 4, den: 4 };
     R.draw(svg, p, { width: 900 });
-    const thick = Array.from(q('line')).filter(l => +l.getAttribute('stroke-width') > 3).length;
-    check('huit croches donnent quatre ligatures (une par temps)', thick === 4, thick + ' barres');
+    // une ligature est un rectangle plein, une par temps
+    const nbeams = q('rect').length;
+    check('huit croches donnent quatre ligatures (une par temps)', nbeams === 4, nbeams + ' barres');
+    check('aucun crochet isole quand les croches sont ligaturees',
+        many('.sr-flag') === 0, many('.sr-flag'));
 }
 
 {
@@ -209,9 +216,10 @@ section('4. Silences, ligatures, lignes supplementaires');
     }];
     p.bars = 1; p.barTicks = 192; p.sharps = 0; p.ts = { num: 4, den: 4 };
     R.draw(svg, p, { width: 900 });
+    const LW = 0.16 * R.GAP;                 // epaisseur SMuFL d'une ligne suppl.
     const led = Array.from(q('line')).filter(l =>
-        Math.abs(+l.getAttribute('x2') - +l.getAttribute('x1')) < 25
-        && +l.getAttribute('stroke-width') === 1.2).length;
+        Math.abs(+l.getAttribute('x2') - +l.getAttribute('x1')) < 40
+        && Math.abs(+l.getAttribute('stroke-width') - LW) < 0.01).length;
     check('un do6 fait apparaitre des lignes supplementaires', led >= 3, led + ' lignes');
 }
 

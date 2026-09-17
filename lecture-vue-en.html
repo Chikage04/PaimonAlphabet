@@ -231,6 +231,7 @@
 
     <ul id="selftest" hidden></ul>
 
+    <script src="sightread-glyphs.js"></script>
     <script src="sightread-gen.js"></script>
     <script src="sightread-render.js"></script>
     <script>
@@ -1086,7 +1087,13 @@
             // -- 6. la partition s'affiche, et le clavier n'est JAMAIS montre
             S.piece = p; S.tl = tl;
             showScore(p, true);
-            check('the score shows notes', $('score').querySelectorAll('ellipse').length > 0);
+            check('the score shows notes',
+                $('score').querySelectorAll('.sr-head').length > 0);
+            check('the engraving glyphs are loaded',
+                !!(window.SightGlyphs && SightGlyphs.gClef && SightGlyphs.noteheadBlack));
+            check('clefs and time signature are engraved',
+                $('score').querySelectorAll('.sr-clef').length === 2
+                && $('score').querySelectorAll('.sr-ts').length === 4);
             check('the pre-reading scan circles the difficulties, or finds none',
                 $('score').querySelectorAll('.sr-hot').length === SightGen.hotspots(p)
                     .filter(h => h.bar < systems[0].to).length);

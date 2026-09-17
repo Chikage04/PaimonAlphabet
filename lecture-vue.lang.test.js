@@ -10,7 +10,7 @@ const DIR = 'C:/Users/Lucas/PaimonAlphabet/';
 
 function boot(page, seedStore) {
     let html = fs.readFileSync(DIR + page, 'utf8');
-    for (const f of ['sightread-gen.js', 'sightread-render.js'])
+    for (const f of ['sightread-glyphs.js', 'sightread-gen.js', 'sightread-render.js'])
         html = html.replace('<script src="' + f + '"></script>',
             '<script>' + fs.readFileSync(DIR + f, 'utf8') + '</script>');
     const PRELUDE = `<script>

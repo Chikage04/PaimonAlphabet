@@ -9,7 +9,7 @@ const DIR = 'C:/Users/Lucas/PaimonAlphabet/';
 const PAGE = process.argv[2] || 'lecture-vue.html';
 let html = fs.readFileSync(DIR + PAGE, 'utf8');
 // jsdom ne va pas chercher les <script src> relatifs : on les incorpore
-for (const f of ['sightread-gen.js', 'sightread-render.js']) {
+for (const f of ['sightread-glyphs.js', 'sightread-gen.js', 'sightread-render.js']) {
     const src = fs.readFileSync(DIR + f, 'utf8');
     html = html.replace('<script src="' + f + '"></script>',
         '<script>' + src + '</script>');
