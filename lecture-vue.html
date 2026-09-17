@@ -1,0 +1,1153 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lecture à vue — Entraîneur</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Baloo+2:wght@400;500;700&display=swap');
+
+        :root {
+            --bg: #010520;
+            --panel: #0b1336;
+            --accent: #3c6dff;
+            --good: #2ec27e;
+            --warn: #ffb14d;
+            --bad: #ff4d5e;
+            --text: #e8ecff;
+            --muted: #8c97c9;
+            --line: #233169;
+        }
+
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        html, body { overflow-x: hidden; }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            background: radial-gradient(1200px 600px at 50% -10%, #142057 0%, var(--bg) 60%);
+            color: var(--text);
+            font-family: "Baloo 2", system-ui, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 18px 10px 60px;
+        }
+
+        h1 { margin: 4px 0 2px; font-weight: 700; font-size: clamp(22px, 6vw, 38px); text-align: center; }
+        .subtitle { color: var(--muted); margin: 0 0 14px; text-align: center; font-size: clamp(13px, 3.5vw, 16px); }
+
+        .navlinks { display: flex; gap: 14px; flex-wrap: wrap; justify-content: center; margin-bottom: 10px; }
+        .navlinks a { color: var(--accent); text-decoration: none; font-size: 14px; }
+
+        .midi-status {
+            font-size: 12px; border-radius: 20px; padding: 4px 12px;
+            border: 1px solid var(--line); background: var(--panel);
+        }
+        .midi-status.idle { color: var(--muted); }
+        .midi-status.off { color: var(--warn); border-color: #5a431f; }
+        .midi-status.on { color: var(--good); border-color: #1e6b48; background: #0c2b1f; }
+        .midi-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; justify-content: center; margin-bottom: 14px; }
+        #midiSel { padding: 4px 10px; font-size: 12px; border-radius: 20px; max-width: 260px; }
+
+        .btn {
+            font-family: inherit; font-weight: 600; font-size: 15px; color: #fff; cursor: pointer;
+            background: linear-gradient(#2c3f8f, #1d2b68); border: 1px solid var(--line);
+            border-radius: 12px; padding: 10px 20px;
+        }
+        .btn:hover { filter: brightness(1.15); }
+        .btn.primary { background: linear-gradient(#4a7bff, #2b4fd8); padding: 12px 28px; font-size: 16px; }
+        .btn.ghost { background: transparent; }
+        .btn[disabled] { opacity: .45; cursor: default; filter: none; }
+
+        .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+        .seg button {
+            font-family: inherit; font-size: 13px; padding: 7px 14px; cursor: pointer;
+            background: transparent; color: var(--muted); border: 0;
+        }
+        .seg button.active { background: var(--accent); color: #fff; font-weight: 700; }
+
+        .toggle { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); cursor: pointer; }
+
+        .controls { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; align-items: center; margin-bottom: 14px; }
+
+        /* ---- Bandeau de phase : ce qu'il faut faire MAINTENANT ---- */
+        .phase {
+            width: 100%; max-width: 940px; margin-bottom: 12px; padding: 12px 18px;
+            border-radius: 14px; border: 1px solid var(--line); background: var(--panel);
+            display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+        }
+        .phase .big { font-size: clamp(17px, 4.4vw, 23px); font-weight: 700; flex: 1 1 auto; }
+        .phase .cd {
+            font-size: 34px; font-weight: 700; font-variant-numeric: tabular-nums; min-width: 68px; text-align: right;
+        }
+        .phase.read { border-color: var(--good); background: #0c2b1f; }
+        .phase.read .big { color: var(--good); }
+        .phase.prep { border-color: var(--accent); }
+        .phase.done { border-color: #5a431f; background: #241a08; }
+
+        /* ---- La partition : du papier, pas un écran sombre ---- */
+        .paper {
+            width: 100%; max-width: 940px; background: #fbfbf7; border-radius: 14px;
+            padding: 10px 6px 4px; margin-bottom: 12px; box-shadow: 0 10px 34px rgba(0, 0, 0, .45);
+        }
+        .paper svg { display: block; width: 100%; height: auto; }
+        .paper .caption { color: #555; font-size: 12px; text-align: center; padding: 2px 0 6px; }
+        .paper.hidden { display: none; }
+
+        .sysnav { display: flex; gap: 8px; justify-content: center; align-items: center; margin-bottom: 12px; font-size: 13px; color: var(--muted); }
+
+        /* ---- Tableau de bord de la séance ---- */
+        .board { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; margin-bottom: 14px; }
+        .cell {
+            background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
+            padding: 8px 18px; text-align: center; min-width: 112px;
+        }
+        .cell .k { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
+        .cell .v { font-size: 27px; font-weight: 700; line-height: 1.15; font-variant-numeric: tabular-nums; }
+        .cell.good .v { color: var(--good); }
+        .cell.warn .v { color: var(--warn); }
+        .cell.bad .v { color: var(--bad); }
+
+        .chips { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; margin-top: 10px; }
+        .chip {
+            font-size: 12px; padding: 3px 11px; border-radius: 20px; border: 1px solid var(--line);
+            font-variant-numeric: tabular-nums; white-space: nowrap; color: var(--muted);
+        }
+        .chip.ok { color: var(--good); border-color: #1e6b48; background: #0c2b1f; }
+        .chip.no { color: var(--bad); border-color: #5a1f27; background: #260d12; }
+        .chip.mid { color: var(--warn); border-color: #5a431f; background: #241a08; }
+
+        .card {
+            width: 100%; max-width: 940px; margin-bottom: 16px; padding: 14px 18px;
+            background: var(--panel); border: 1px solid var(--line); border-radius: 16px;
+        }
+        .card[hidden] { display: none !important; }
+        .card h2 { margin: 0 0 8px; font-size: 17px; }
+        .card p { margin: 4px 0; font-size: 14px; color: var(--muted); line-height: 1.55; }
+        .card .lead { color: var(--text); font-size: 15px; }
+
+        table.rep { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 8px; }
+        table.rep th, table.rep td { padding: 5px 8px; border-bottom: 1px solid var(--line); text-align: right; }
+        table.rep th:first-child, table.rep td:first-child { text-align: left; }
+        table.rep th { color: var(--muted); font-weight: 500; font-size: 11px; text-transform: uppercase; letter-spacing: .6px; }
+        td.g { color: var(--good); } td.w { color: var(--warn); } td.b { color: var(--bad); }
+
+        .why { font-size: 12.5px; color: var(--muted); line-height: 1.6; max-width: 940px; text-align: left; }
+        .why b { color: var(--text); font-weight: 600; }
+
+        #selftest { max-width: 940px; width: 100%; font-size: 12px; color: var(--muted); }
+        #selftest li.ko { color: var(--bad); }
+        #selftest li.ok { color: var(--good); }
+    </style>
+</head>
+
+<body>
+    <h1>Lecture à vue</h1>
+    <p class="subtitle">Une pièce jamais vue, une seule fois, sans jamais s'arrêter.</p>
+
+    <nav class="navlinks">
+        <a href="index.html">← Accueil</a>
+        <a href="hanon.html">🏋️ Hanon</a>
+        <a href="lecture.html">🎼 Lecture de notes</a>
+        <a href="extrait.html">🎹 Extraits</a>
+    </nav>
+
+    <div class="midi-row">
+        <span class="midi-status idle" id="midiStatus">🎛️ MIDI : en attente…</span>
+        <select id="midiSel" style="display:none"></select>
+    </div>
+
+    <div class="controls">
+        <button class="btn primary" id="startBtn">▶ Séance de 15 minutes</button>
+        <button class="btn ghost" id="stopBtn" disabled>Arrêter</button>
+        <span class="seg" id="levelSeg" title="Le niveau s'ajuste tout seul ; ici tu peux le forcer.">
+            <button data-lv="auto" class="active">Niveau auto</button>
+            <button data-lv="manual">Forcer</button>
+        </span>
+        <label class="toggle"><input type="checkbox" id="clickOn" checked> Clic sur le temps</label>
+        <label class="toggle"><input type="checkbox" id="tapOn"> Frapper le rythme d'abord</label>
+    </div>
+
+    <div class="controls" id="manualRow" hidden>
+        <label class="toggle">Niveau
+            <input type="range" id="lvSlider" min="1" max="8" step="1" value="1" style="width:180px">
+            <b id="lvVal">1</b>
+        </label>
+        <span class="chip" id="lvLabel"></span>
+    </div>
+
+    <div class="phase" id="phase">
+        <span class="big" id="phaseText">Branche ton piano, puis lance une séance.</span>
+        <span class="cd" id="phaseCd"></span>
+    </div>
+
+    <div class="board">
+        <div class="cell"><div class="k">Temps restant</div><div class="v" id="cTime">15:00</div></div>
+        <div class="cell"><div class="k">Pièce</div><div class="v" id="cItem">—</div></div>
+        <div class="cell"><div class="k">Niveau</div><div class="v" id="cLevel">1</div></div>
+        <div class="cell"><div class="k">Arrêts</div><div class="v" id="cStops">—</div></div>
+        <div class="cell"><div class="k">Notes justes</div><div class="v" id="cAcc">—</div></div>
+    </div>
+
+    <div class="paper hidden" id="paper">
+        <svg id="score" viewBox="0 0 940 240" aria-label="partition"></svg>
+        <div class="caption" id="scoreCap"></div>
+    </div>
+    <div class="sysnav" id="sysnav" hidden></div>
+
+    <div class="card" id="verdict" hidden>
+        <h2 id="vTitle">Bilan de la lecture</h2>
+        <p class="lead" id="vLead"></p>
+        <div class="chips" id="vChips"></div>
+        <table class="rep" id="vTable"></table>
+    </div>
+
+    <div class="card" id="report" hidden>
+        <h2>Bilan de la séance</h2>
+        <p class="lead" id="rLead"></p>
+        <table class="rep" id="rTable"></table>
+        <p id="rAdvice"></p>
+    </div>
+
+    <div class="card">
+        <h2>Pourquoi cet exercice est fait comme ça</h2>
+        <div class="why">
+            <p><b>On ne s'arrête jamais.</b> Une fausse note ne déclenche rien et n'interrompt rien.
+                Le seul vrai échec mesuré ici, c'est l'arrêt : c'est lui qui distingue un lecteur d'un déchiffreur.</p>
+            <p><b>Il n'y a pas de clavier à l'écran.</b> Un clavier qui montre la touche attendue transforme
+                la lecture en suivi de lumières. L'information doit venir de la portée, et d'elle seule.</p>
+            <p><b>Une pièce ne se joue qu'une fois.</b> Chaque pièce lue est retirée du vivier définitivement.
+                La lecture à vue exige du matériel jamais vu ; rejouer, c'est déjà travailler un morceau.</p>
+            <p><b>Le clic bat le temps, pas la note.</b> Cliquer chaque note donnerait le rythme — or le rythme
+                est précisément ce qu'il faut lire.</p>
+            <p><b>Une pré-lecture chronométrée.</b> Vingt secondes pour repérer la tonalité, la mesure et les
+                endroits difficiles, sans toucher au piano. C'est l'habitude que tout le monde réclame et que
+                personne ne prend.</p>
+        </div>
+    </div>
+
+    <ul id="selftest" hidden></ul>
+
+    <script src="sightread-gen.js"></script>
+    <script src="sightread-render.js"></script>
+    <script>
+        'use strict';
+        // =====================================================================
+        //  1. Constantes
+        // =====================================================================
+        const SESSION_MS = 15 * 60 * 1000;
+        const PREREAD_MS = 20000;      // pre-lecture, piano muet
+        const TAP_MS = 15000;          // frappe du rythme, optionnelle
+        const VERDICT_MS = 9000;       // le temps de lire le bilan
+        const LEADIN_BARS = 2;         // decompte avant d'entrer
+        const MATCH_WINDOW = 6;        // notes explorees en avant pour apparier
+        const STOP_FACTOR = 2.0;       // un arret = 2x l'ecart attendu...
+        const STOP_FLOOR = 350;        // ...et au moins ce surplus, en ms
+        const UP_STREAK = 2, DOWN_STREAK = 2;
+
+        const LS_SEEN = 'lecture.seen';
+        const LS_LEVEL = 'lecture.level';
+        const LS_SET = 'lecture.settings';
+        const LS_HIST = 'lecture.history';
+
+        const $ = id => document.getElementById(id);
+        const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
+        const median = a => {
+            if (!a.length) return 0;
+            const s = a.slice().sort((x, y) => x - y);
+            const h = s.length >> 1;
+            return s.length % 2 ? s[h] : (s[h - 1] + s[h]) / 2;
+        };
+        const mean = a => a.length ? a.reduce((x, y) => x + y, 0) / a.length : 0;
+        const sd = a => {
+            if (a.length < 2) return 0;
+            const m = mean(a);
+            return Math.sqrt(a.reduce((s, x) => s + (x - m) * (x - m), 0) / (a.length - 1));
+        };
+        const mmss = ms => {
+            const s = Math.max(0, Math.round(ms / 1000));
+            return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+        };
+
+        // =====================================================================
+        //  2. Etat
+        // =====================================================================
+        const S = {
+            running: false,
+            phase: 'idle',         // idle | preread | tap | read | verdict
+            level: 1, manual: false,
+            piece: null, tl: null, sys: 0,
+            played: [],            // { t, midi }
+            taps: [],
+            itemIndex: 0, items: [],
+            sessionEnd: 0, phaseEnd: 0,
+            gridT0: null, cursor: 0,
+            upStreak: 0, downStreak: 0,
+            calibrating: false, calibLeft: 0,
+            timer: null, raf: null
+        };
+
+        // =====================================================================
+        //  3. Audio et metronome
+        // =====================================================================
+        let ac = null;
+        function ensureAudio() {
+            if (!ac) ac = new (window.AudioContext || window.webkitAudioContext)();
+            if (ac.state === 'suspended') ac.resume();
+            return ac;
+        }
+        const metro = { timer: null, nextCtx: 0, beat: 0, firstPerf: 0 };
+
+        function click(when, strong) {
+            const a = ensureAudio();
+            const o = a.createOscillator(), g = a.createGain();
+            o.type = 'square';
+            o.frequency.setValueAtTime(strong ? 1500 : 950, when);
+            o.connect(g); g.connect(a.destination);
+            g.gain.setValueAtTime(0.0001, when);
+            g.gain.exponentialRampToValueAtTime(strong ? 0.18 : 0.09, when + 0.006);
+            g.gain.exponentialRampToValueAtTime(0.0001, when + 0.07);
+            o.start(when); o.stop(when + 0.09);
+        }
+        function tone(freq, dur, gain) {
+            let a; try { a = ensureAudio(); } catch (e) { return; }
+            const t = a.currentTime + 0.02;
+            const o = a.createOscillator(), g = a.createGain();
+            o.type = 'triangle'; o.frequency.setValueAtTime(freq, t);
+            o.connect(g); g.connect(a.destination);
+            g.gain.setValueAtTime(0.0001, t);
+            g.gain.exponentialRampToValueAtTime(gain || 0.14, t + 0.01);
+            g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+            o.start(t); o.stop(t + dur + 0.05);
+        }
+
+        // Le clic bat LE TEMPS. Cliquer chaque note reviendrait a dicter le
+        // rythme, c'est-a-dire a fournir ce que l'exercice demande de lire.
+        function startMetronome(bpm, beatsPerBar, leadBars) {
+            const a = ensureAudio();
+            const beat = 60 / bpm;
+            const first = a.currentTime + 0.3;
+
+            let ctxNow = a.currentTime, perfNow = performance.now();
+            const ts = a.getOutputTimestamp ? a.getOutputTimestamp() : null;
+            if (ts && ts.contextTime > 0 && ts.performanceTime > 0) {
+                ctxNow = ts.contextTime; perfNow = ts.performanceTime;
+            }
+            const lead = leadBars * beatsPerBar;
+            metro.firstPerf = perfNow + (first - ctxNow) * 1000 + lead * beat * 1000;
+            metro.nextCtx = first;
+            metro.beat = -lead;
+
+            const on = () => $('clickOn').checked;
+            metro.timer = setInterval(() => {
+                while (metro.nextCtx < ac.currentTime + 0.12) {
+                    const strong = ((metro.beat % beatsPerBar) + beatsPerBar) % beatsPerBar === 0;
+                    // le decompte s'entend toujours : sans lui on ne sait pas
+                    // sur quel temps entrer
+                    if (on() || metro.beat < 0) click(metro.nextCtx, strong);
+                    metro.nextCtx += beat;
+                    metro.beat++;
+                }
+            }, 25);
+            return metro.firstPerf;
+        }
+        function stopMetronome() {
+            if (metro.timer) { clearInterval(metro.timer); metro.timer = null; }
+        }
+
+        // =====================================================================
+        //  4. Entree MIDI
+        // =====================================================================
+        const LS_MIDI = 'lecture.midiInput';
+        const MIDI_PREF = [/piano\s*2/i, /piano/i];
+        let midiAccess = null;
+
+        function setMidiStatus(cls, txt) {
+            const e = $('midiStatus');
+            e.className = 'midi-status ' + cls;
+            e.textContent = txt;
+        }
+
+        // Un piano expose souvent plusieurs ports qui renvoient la MEME note :
+        // ecouter tous les ports compterait chaque note autant de fois.
+        function refreshMidiInputs(access) {
+            midiAccess = access;
+            const inputs = [...access.inputs.values()];
+            const sel = $('midiSel');
+            const nameOf = i => i.name || 'appareil sans nom';
+
+            let saved = null;
+            try { saved = localStorage.getItem(LS_MIDI); } catch (e) { }
+
+            let target = null;
+            if (saved && saved !== '*') target = inputs.find(i => nameOf(i) === saved) || null;
+            if (!target && saved !== '*')
+                for (const re of MIDI_PREF) { target = inputs.find(i => re.test(nameOf(i))); if (target) break; }
+            if (!target && saved !== '*') target = inputs[0] || null;
+
+            const all = saved === '*';
+            inputs.forEach(i => { i.onmidimessage = (all || i === target) ? onMIDIMessage : null; });
+
+            sel.innerHTML = '';
+            const seen = {};
+            for (const i of inputs) {
+                const n = nameOf(i);
+                seen[n] = (seen[n] || 0) + 1;
+                const o = document.createElement('option');
+                o.value = n;
+                o.textContent = n + (seen[n] > 1 ? ' (' + seen[n] + ')' : '');
+                sel.appendChild(o);
+            }
+            const oAll = document.createElement('option');
+            oAll.value = '*'; oAll.textContent = 'Toutes les entrées (doublons)';
+            sel.appendChild(oAll);
+            sel.value = all ? '*' : (target ? nameOf(target) : '*');
+            sel.style.display = inputs.length > 1 ? '' : 'none';
+
+            const n = inputs.length;
+            if (!n) setMidiStatus('off', '🎛️ MIDI : aucun clavier détecté');
+            else if (all) setMidiStatus('off', `⚠️ ${n} entrées écoutées — chaque note comptée ${n} fois`);
+            else if (n > 1) setMidiStatus('on', `🎹 ${nameOf(target)} — ${n - 1} autre(s) entrée(s) ignorée(s)`);
+            else setMidiStatus('on', '🎹 MIDI connecté : ' + nameOf(target));
+        }
+
+        function initMIDI() {
+            if (!navigator.requestMIDIAccess) {
+                setMidiStatus('idle', '🎛️ Web MIDI non supporté — utilise Chrome ou Edge');
+                return;
+            }
+            navigator.requestMIDIAccess().then(access => {
+                refreshMidiInputs(access);
+                access.onstatechange = () => refreshMidiInputs(access);
+            }).catch(() => setMidiStatus('idle', '🎛️ MIDI : accès refusé'));
+        }
+
+        function onMIDIMessage(e) {
+            const [st, pitch, vel] = e.data;
+            if ((st & 0xf0) !== 0x90 || !vel) return;      // seules les attaques comptent
+            const t = e.timeStamp || performance.now();
+            if (S.phase === 'tap') { S.taps.push(t); tone(880, 0.05, 0.08); return; }
+            if (S.phase !== 'read') return;                // pre-lecture : le piano est muet
+            S.played.push({ t, midi: pitch, vel });
+            liveUpdate();
+        }
+
+        // =====================================================================
+        //  5. Choix de la piece
+        // =====================================================================
+        // Une piece lue est brulee. Sans ce registre, l'exercice cesserait
+        // d'etre de la lecture a vue des la premiere repetition.
+        function loadSeen() {
+            try { return JSON.parse(localStorage.getItem(LS_SEEN)) || {}; } catch (e) { return {}; }
+        }
+        function markSeen(level, sig) {
+            const s = loadSeen();
+            (s[level] = s[level] || []).push(sig);
+            if (s[level].length > 4000) s[level] = s[level].slice(-4000);
+            try { localStorage.setItem(LS_SEEN, JSON.stringify(s)); } catch (e) { }
+        }
+        function nextPiece(level) {
+            const seen = new Set((loadSeen()[level] || []));
+            for (let k = 0; k < 200; k++) {
+                const seed = (Math.random() * 4294967295) >>> 0;
+                const p = SightGen.generate(level, seed);
+                if (!seen.has(p.sig)) return p;
+            }
+            // vivier epuise a ce niveau : on le dit au lieu de resservir
+            return SightGen.generate(level, (Math.random() * 4294967295) >>> 0);
+        }
+
+        // =====================================================================
+        //  6. Affichage de la partition
+        // =====================================================================
+        let systems = [], positions = [];
+
+        function showScore(piece, withHotspots) {
+            systems = SightRender.systems(piece, piece.bars > 8 ? 4 : 4);
+            S.sys = 0;
+            drawSystem(withHotspots);
+            $('paper').classList.remove('hidden');
+            $('scoreCap').textContent = piece.keyName + ' · ' + piece.ts.num + '/' + piece.ts.den
+                + ' · ♩= ' + piece.bpm + ' · ' + piece.bars + ' mesures · niveau ' + piece.level;
+        }
+        function drawSystem(withHotspots) {
+            const s = systems[S.sys];
+            positions = SightRender.draw($('score'), S.piece, {
+                fromBar: s.from, toBar: s.to, width: 940,
+                showTimeSig: S.sys === 0, showHotspots: !!withHotspots
+            });
+            $('sysnav').hidden = systems.length < 2;
+            $('sysnav').textContent = 'Ligne ' + (S.sys + 1) + ' sur ' + systems.length;
+        }
+        function hideScore() { $('paper').classList.add('hidden'); $('sysnav').hidden = true; }
+
+        // La page tourne quand la lecture ATTEINT la derniere mesure du
+        // systeme courant. Pas de defilement : il fournirait l'avance
+        // oeil-main que l'exercice cherche a faire construire.
+        function maybeTurnPage() {
+            const s = systems[S.sys];
+            if (!s || S.sys >= systems.length - 1) return;
+            const nextExpected = S.tl[S.cursor];
+            if (nextExpected && nextExpected.bar >= s.to) { S.sys++; drawSystem(false); }
+        }
+
+        // =====================================================================
+        //  7. Appariement du jeu reel a la partition
+        // =====================================================================
+        // Un lecteur se trompe, saute des notes, en ajoute.
+        //
+        // Version GLOUTONNE : pour chaque note jouee on prend la premiere
+        // correspondance un peu plus loin. C'est immediat, donc utilisable a
+        // chaque touche pendant la lecture — mais c'est faux en presence de
+        // fausses notes voisines : jouer un do diese la ou un re est attendu
+        // « ressemble » au mi suivant, le curseur saute, et le reste se
+        // decale en inventant des arrets qui n'ont pas eu lieu.
+        function matchGreedy(tl, played) {
+            const out = [];
+            let cur = 0;
+            for (const p of played) {
+                let hit = -1;
+                for (let j = cur; j < Math.min(tl.length, cur + MATCH_WINDOW); j++) {
+                    if (tl[j].midi === p.midi) { hit = j; break; }
+                }
+                if (hit < 0) { out.push({ played: p, exp: null, missed: 0 }); continue; }
+                out.push({ played: p, exp: tl[hit], idx: hit, missed: hit - cur });
+                cur = hit + 1;
+            }
+            return { pairs: out, cursor: cur };
+        }
+
+        // Version ALIGNEE : on cherche la lecture qui explique le jeu avec le
+        // moins de fautes possible, en alignant globalement les deux suites
+        // de hauteurs. Une substitution coute moins cher qu'un oubli suivi
+        // d'un ajout, donc une fausse note reste une fausse note au lieu de
+        // decaler tout ce qui suit. Trop couteux pour tourner a chaque
+        // touche : reserve au bilan, la ou l'exactitude compte.
+        const C_SUB = 3, C_GAP = 2;
+        function matchAligned(tl, played) {
+            const n = tl.length, m = played.length;
+            if (!n || !m || n * m > 600000) return matchGreedy(tl, played);
+
+            const W = m + 1;
+            const cost = new Int32Array((n + 1) * W);
+            const dir = new Uint8Array((n + 1) * W);   // 1 diag, 2 haut, 3 gauche
+            for (let j = 1; j <= m; j++) { cost[j] = j * C_GAP; dir[j] = 3; }
+            for (let i = 1; i <= n; i++) { cost[i * W] = i * C_GAP; dir[i * W] = 2; }
+
+            for (let i = 1; i <= n; i++) {
+                const pi = tl[i - 1].midi, row = i * W, prev = (i - 1) * W;
+                for (let j = 1; j <= m; j++) {
+                    const same = pi === played[j - 1].midi;
+                    let best = cost[prev + j - 1] + (same ? 0 : C_SUB), d = 1;
+                    const up = cost[prev + j] + C_GAP;
+                    if (up < best) { best = up; d = 2; }
+                    const le = cost[row + j - 1] + C_GAP;
+                    if (le < best) { best = le; d = 3; }
+                    cost[row + j] = best; dir[row + j] = d;
+                }
+            }
+
+            const byPlayed = new Array(m).fill(null);
+            let i = n, j = m, lastMatched = -1;
+            while (i > 0 || j > 0) {
+                const d = (i > 0 && j > 0) ? dir[i * W + j] : (i > 0 ? 2 : 3);
+                if (d === 1) {
+                    if (tl[i - 1].midi === played[j - 1].midi) {
+                        byPlayed[j - 1] = { exp: tl[i - 1], idx: i - 1 };
+                        if (i - 1 > lastMatched) lastMatched = i - 1;
+                    }
+                    i--; j--;
+                } else if (d === 2) i--;
+                else j--;
+            }
+
+            const out = [];
+            let cur = 0;
+            for (let k = 0; k < m; k++) {
+                const b = byPlayed[k];
+                if (!b) { out.push({ played: played[k], exp: null, missed: 0 }); continue; }
+                out.push({ played: played[k], exp: b.exp, idx: b.idx, missed: Math.max(0, b.idx - cur) });
+                cur = b.idx + 1;
+            }
+            return { pairs: out, cursor: cur };
+        }
+
+        // =====================================================================
+        //  8. Les criteres de la lecture a vue
+        // =====================================================================
+        // « Justesse » n'est PAS le critere principal : on mesure d'abord la
+        // continuite, la tenue du pulse, la recuperation apres une faute, et
+        // l'hesitation devant une difficulte.
+        // Regroupe les notes appariees par instant ATTENDU distinct. Sans ce
+        // regroupement, un arret qui tombe sur un accord passe inapercu :
+        // l'ecart attendu y vaut zero, et la paire est ecartee.
+        function gapSeries(good) {
+            const at = [];
+            for (const g of good) {
+                const last = at[at.length - 1];
+                const hot = !!(g.exp.leap || g.exp.acc || g.exp.shift);
+                if (last && last.ems === g.exp.ms) {
+                    last.t = Math.min(last.t, g.played.t);
+                    last.hot = last.hot || hot;
+                } else at.push({ ems: g.exp.ms, t: g.played.t, hot: hot, exp: g.exp });
+            }
+            const out = [];
+            for (let i = 1; i < at.length; i++) {
+                const ge = at[i].ems - at[i - 1].ems;
+                const ga = at[i].t - at[i - 1].t;
+                if (ge > 0 && ga > 0) out.push({ ge, ga, r: ga / ge, hot: at[i].hot, exp: at[i].exp });
+            }
+            return out;
+        }
+
+        function analyse(piece, tl, played) {
+            const { pairs } = matchAligned(tl, played);
+            const good = pairs.filter(p => p.exp);
+            const wrong = pairs.length - good.length;
+            const matched = good.length;
+
+            // rythme reel rapporte au rythme attendu
+            const gaps = gapSeries(good);
+            const ratios = gaps.map(g => g.r);
+            const rate = ratios.length ? median(ratios) : 1;
+
+            // --- arrets
+            const stops = [];
+            for (const g of gaps) {
+                const expect = g.ge * rate;
+                if (g.ga > expect * STOP_FACTOR && g.ga - expect > STOP_FLOOR)
+                    stops.push({ at: g.exp, ms: g.ga - expect });
+            }
+            const longest = stops.length ? Math.max(...stops.map(s => s.ms)) : 0;
+
+            // --- tenue du pulse, arrets exclus (ils ont leur propre critere)
+            const clean = ratios.filter(r => r < rate * STOP_FACTOR);
+            const cv = rate > 0 && clean.length > 2 ? sd(clean) / mean(clean) * 100 : 0;
+
+            // --- derive : la seconde moitie est-elle jouee au meme tempo ?
+            let drift = 0;
+            if (clean.length >= 8) {
+                const h = clean.length >> 1;
+                const a = mean(clean.slice(0, h)), b = mean(clean.slice(h));
+                if (a > 0) drift = (b / a - 1) * 100;
+            }
+
+            // --- recuperation : apres une faute, combien de notes perdues
+            const recov = [];
+            for (let i = 0; i < pairs.length; i++) {
+                if (pairs[i].exp) continue;
+                let k = i + 1, lost = 0;
+                while (k < pairs.length && !pairs[k].exp) { lost++; k++; }
+                if (k < pairs.length) lost += pairs[k].missed;
+                recov.push(lost);
+            }
+
+            // --- hesitation devant une difficulte : proxy de l'empan oeil-main
+            const norm = [], hot = [];
+            for (const g of gaps) {
+                if (g.r > rate * STOP_FACTOR) continue;
+                (g.hot ? hot : norm).push(g.r);
+            }
+            const hesit = (norm.length > 2 && hot.length > 1 && mean(norm) > 0)
+                ? (mean(hot) / mean(norm) - 1) * 100 : null;
+
+            const total = tl.length;
+            return {
+                total, matched, wrong,
+                accuracy: total ? matched / total * 100 : 0,
+                covered: total ? (good.length ? good[good.length - 1].idx + 1 : 0) / total * 100 : 0,
+                stops: stops.length, longest, cv, drift, rate,
+                recovery: recov.length ? mean(recov) : 0, errors: recov.length,
+                hesitation: hesit, bpmPlayed: piece.bpm / (rate || 1)
+            };
+        }
+
+        // Le verdict : la continuite d'abord, la justesse ensuite.
+        function judge(a) {
+            const c = [];
+            c.push({ k: 'stops', label: 'Aucun arrêt', ok: a.stops === 0, mid: a.stops <= 2, val: a.stops });
+            c.push({
+                k: 'longest', label: 'Plus long arrêt', ok: a.longest < 500,
+                mid: a.longest < 1500, val: Math.round(a.longest) + ' ms'
+            });
+            c.push({ k: 'cv', label: 'Pulse tenu', ok: a.cv < 22, mid: a.cv < 35, val: a.cv.toFixed(0) + ' %' });
+            c.push({
+                k: 'drift', label: 'Pas de ralentissement', ok: Math.abs(a.drift) < 12,
+                mid: Math.abs(a.drift) < 25, val: (a.drift > 0 ? '+' : '') + a.drift.toFixed(0) + ' %'
+            });
+            c.push({
+                k: 'covered', label: 'Pièce menée au bout', ok: a.covered > 95,
+                mid: a.covered > 80, val: a.covered.toFixed(0) + ' %'
+            });
+            c.push({
+                k: 'acc', label: 'Notes justes', ok: a.accuracy > 90,
+                mid: a.accuracy > 75, val: a.accuracy.toFixed(0) + ' %'
+            });
+            if (a.errors)
+                c.push({
+                    k: 'recov', label: 'Reprise après faute', ok: a.recovery < 1,
+                    mid: a.recovery < 3, val: a.recovery.toFixed(1) + ' notes'
+                });
+            if (a.hesitation !== null)
+                c.push({
+                    k: 'hesit', label: 'Anticipation des difficultés', ok: a.hesitation < 15,
+                    mid: a.hesitation < 40, val: '+' + Math.round(a.hesitation) + ' %'
+                });
+
+            // Un passage est « propre » si la lecture n'a pas casse : aucun
+            // arret, la piece menee au bout, et la majorite des notes justes.
+            const cleanRun = a.stops === 0 && a.covered > 95 && a.accuracy > 85;
+            const brokeDown = a.stops >= 3 || a.covered < 70;
+            return { checks: c, cleanRun, brokeDown };
+        }
+
+        // =====================================================================
+        //  9. Deroulement d'une pièce
+        // =====================================================================
+        function setPhase(cls, text, endMs) {
+            S.phaseEnd = endMs || 0;
+            $('phase').className = 'phase ' + (cls || '');
+            $('phaseText').textContent = text;
+            $('phaseCd').textContent = '';
+        }
+
+        function startItem() {
+            if (!S.running) return;
+            if (performance.now() >= S.sessionEnd) return endSession();
+
+            S.itemIndex++;
+            S.piece = nextPiece(S.level);
+            S.tl = SightGen.timeline(S.piece, S.piece.bpm);
+            S.played = []; S.taps = []; S.cursor = 0;
+            $('verdict').hidden = true;
+            $('cItem').textContent = S.itemIndex;
+            $('cLevel').textContent = S.level;
+            $('cStops').textContent = '—';
+            $('cAcc').textContent = '—';
+
+            showScore(S.piece, true);
+            S.phase = 'preread';
+            setPhase('prep',
+                'Pré-lecture — repère la tonalité, la mesure, et les endroits entourés. Ne joue pas.',
+                performance.now() + PREREAD_MS);
+        }
+
+        function endPreread() {
+            SightRender.clearHotspots($('score'));
+            if ($('tapOn').checked) {
+                S.phase = 'tap';
+                setPhase('prep', 'Frappe le rythme sur n\'importe quelle touche — seules les durées comptent.',
+                    performance.now() + TAP_MS);
+            } else startReading();
+        }
+
+        function startReading() {
+            S.phase = 'read';
+            S.sys = 0; drawSystem(false);
+            const beats = S.piece.compound ? S.piece.ts.num / 3 : S.piece.ts.num;
+            S.gridT0 = startMetronome(S.piece.bpm, beats, LEADIN_BARS);
+            setPhase('read', 'Lis. Ne t\'arrête pas, quoi qu\'il arrive.', 0);
+        }
+
+        function liveUpdate() {
+            const a = analyse(S.piece, S.tl, S.played);
+            // en direct on se contente du glouton : il faut une reponse a
+            // chaque touche, et seule la position approximative sert ici
+            S.cursor = matchGreedy(S.tl, S.played).cursor;
+            $('cStops').textContent = a.stops;
+            $('cAcc').textContent = Math.round(a.accuracy) + ' %';
+            maybeTurnPage();
+            if (S.cursor >= S.tl.length) finishReading();
+        }
+
+        function finishReading() {
+            if (S.phase !== 'read') return;
+            stopMetronome();
+            S.phase = 'verdict';
+            const a = analyse(S.piece, S.tl, S.played);
+            const v = judge(a);
+            markSeen(S.piece.level, S.piece.sig);
+            S.items.push({ level: S.piece.level, a: a, clean: v.cleanRun, key: S.piece.keyName });
+
+            adaptLevel(v);
+            showVerdict(a, v);
+            hideScore();
+            setPhase('done', v.cleanRun ? 'Lecture menée sans casser.' :
+                v.brokeDown ? 'La lecture a cassé — la suivante sera plus facile.' :
+                    'Lecture terminée.', performance.now() + VERDICT_MS);
+            tone(v.cleanRun ? 880 : 420, 0.18, 0.12);
+        }
+
+        // Le niveau s'ajuste tout seul : c'est la seule facon d'appliquer
+        // reellement le « deux a trois grades sous ton niveau » sans demander
+        // a l'eleve d'estimer quelque chose qu'il ne peut pas estimer.
+        function adaptLevel(v) {
+            if (S.manual) return;
+            if (S.calibrating) {
+                if (v.cleanRun && S.level < 8) { S.level = Math.min(8, S.level + 2); }
+                else { S.calibrating = false; S.level = Math.max(1, S.level - 1); }
+                if (--S.calibLeft <= 0) S.calibrating = false;
+                saveLevel();
+                return;
+            }
+            if (v.cleanRun) { S.upStreak++; S.downStreak = 0; }
+            else if (v.brokeDown) { S.downStreak++; S.upStreak = 0; }
+            else { S.upStreak = 0; S.downStreak = 0; }
+
+            if (S.upStreak >= UP_STREAK && S.level < 8) { S.level++; S.upStreak = 0; }
+            else if (S.downStreak >= DOWN_STREAK && S.level > 1) { S.level--; S.downStreak = 0; }
+            saveLevel();
+        }
+
+        function showVerdict(a, v) {
+            $('verdict').hidden = false;
+            $('vTitle').textContent = 'Pièce ' + S.itemIndex + ' — niveau ' + S.piece.level
+                + ', ' + S.piece.keyName;
+            $('vLead').textContent = a.stops === 0
+                ? 'Aucun arrêt. C\'est le critère qui compte le plus, et il est tenu.'
+                : a.stops === 1
+                    ? 'Un seul arrêt. Une hésitation isolée vaut mieux qu\'un arrêt franc, mais le but reste zéro.'
+                    : a.stops + ' arrêts. La continuité passe avant les notes justes : ralentis mentalement plutôt que de t\'arrêter.';
+
+            $('vChips').innerHTML = '';
+            for (const c of v.checks) {
+                const el = document.createElement('span');
+                el.className = 'chip ' + (c.ok ? 'ok' : c.mid ? 'mid' : 'no');
+                el.textContent = (c.ok ? '✓ ' : c.mid ? '~ ' : '✗ ') + c.label + ' : ' + c.val;
+                $('vChips').appendChild(el);
+            }
+
+            const rows = [
+                ['Notes attendues', a.total, ''],
+                ['Notes justes', a.matched + ' (' + a.accuracy.toFixed(0) + ' %)', a.accuracy > 90 ? 'g' : a.accuracy > 75 ? 'w' : 'b'],
+                ['Notes fausses ou en trop', a.wrong, a.wrong === 0 ? 'g' : a.wrong < 5 ? 'w' : 'b'],
+                ['Arrêts', a.stops, a.stops === 0 ? 'g' : a.stops <= 2 ? 'w' : 'b'],
+                ['Plus long arrêt', Math.round(a.longest) + ' ms', a.longest < 500 ? 'g' : a.longest < 1500 ? 'w' : 'b'],
+                ['Irrégularité du pulse', a.cv.toFixed(0) + ' %', a.cv < 22 ? 'g' : a.cv < 35 ? 'w' : 'b'],
+                ['Dérive de tempo', (a.drift > 0 ? '+' : '') + a.drift.toFixed(0) + ' %', Math.abs(a.drift) < 12 ? 'g' : 'w'],
+                ['Tempo réellement tenu', '♩≈ ' + Math.round(a.bpmPlayed), ''],
+                ['Pièce menée au bout', a.covered.toFixed(0) + ' %', a.covered > 95 ? 'g' : 'w']
+            ];
+            if (a.errors) rows.push(['Notes perdues après une faute', a.recovery.toFixed(1),
+                a.recovery < 1 ? 'g' : a.recovery < 3 ? 'w' : 'b']);
+            if (a.hesitation !== null) rows.push(['Ralentissement devant les difficultés',
+                '+' + Math.round(a.hesitation) + ' %', a.hesitation < 15 ? 'g' : a.hesitation < 40 ? 'w' : 'b']);
+
+            $('vTable').innerHTML = '<tr><th>Mesure</th><th>Valeur</th></tr>'
+                + rows.map(r => '<tr><td>' + r[0] + '</td><td class="' + r[2] + '">' + r[1] + '</td></tr>').join('');
+        }
+
+        // =====================================================================
+        //  10. Seance
+        // =====================================================================
+        function startSession() {
+            ensureAudio();
+            S.running = true; S.items = []; S.itemIndex = 0;
+            S.upStreak = 0; S.downStreak = 0;
+            S.sessionEnd = performance.now() + SESSION_MS;
+            const hist = loadHistory();
+            S.calibrating = hist.length === 0 && !S.manual;
+            S.calibLeft = 3;
+            $('startBtn').disabled = true;
+            $('stopBtn').disabled = false;
+            $('report').hidden = true;
+            startItem();
+            if (!S.timer) S.timer = setInterval(tick, 100);
+        }
+
+        function endSession() {
+            S.running = false; S.phase = 'idle';
+            stopMetronome();
+            hideScore();
+            $('startBtn').disabled = false;
+            $('stopBtn').disabled = true;
+            setPhase('', 'Séance terminée.');
+            $('cTime').textContent = '0:00';
+            if (S.items.length) { saveHistory(); showReport(); }
+        }
+
+        function tick() {
+            if (!S.running) return;
+            $('cTime').textContent = mmss(S.sessionEnd - performance.now());
+            const now = performance.now();
+            if (S.phaseEnd) {
+                const left = S.phaseEnd - now;
+                $('phaseCd').textContent = left > 0 ? Math.ceil(left / 1000) + ' s' : '';
+                if (left <= 0) {
+                    S.phaseEnd = 0;
+                    if (S.phase === 'preread') endPreread();
+                    else if (S.phase === 'tap') startReading();
+                    else if (S.phase === 'verdict') startItem();
+                }
+            }
+            // garde-fou : une lecture abandonnee ne doit pas bloquer la seance
+            if (S.phase === 'read' && S.gridT0) {
+                const budget = SightGen.durationMs(S.piece, S.piece.bpm) * 3 + 15000;
+                if (now - S.gridT0 > budget) finishReading();
+            }
+            if (now >= S.sessionEnd && S.phase !== 'read') endSession();
+        }
+
+        // =====================================================================
+        //  11. Bilan de la seance
+        // =====================================================================
+        function showReport() {
+            $('report').hidden = false;
+            const it = S.items;
+            const stops = it.reduce((s, x) => s + x.a.stops, 0);
+            const clean = it.filter(x => x.clean).length;
+            const acc = mean(it.map(x => x.a.accuracy));
+            const cv = mean(it.map(x => x.a.cv));
+            const lv = it.map(x => x.level);
+
+            $('rLead').textContent = it.length + ' pièces lues, ' + clean + ' sans aucun arrêt, '
+                + 'niveau ' + Math.min(...lv) + ' à ' + Math.max(...lv) + '.';
+
+            $('rTable').innerHTML = '<tr><th>Pièce</th><th>Niveau</th><th>Tonalité</th><th>Arrêts</th>'
+                + '<th>Plus long</th><th>Justes</th><th>Pulse</th></tr>'
+                + it.map((x, i) => '<tr><td>' + (i + 1) + '</td><td>' + x.level + '</td><td>' + x.key + '</td>'
+                    + '<td class="' + (x.a.stops === 0 ? 'g' : x.a.stops <= 2 ? 'w' : 'b') + '">' + x.a.stops + '</td>'
+                    + '<td>' + Math.round(x.a.longest) + ' ms</td>'
+                    + '<td>' + x.a.accuracy.toFixed(0) + ' %</td>'
+                    + '<td>' + x.a.cv.toFixed(0) + ' %</td></tr>').join('')
+                + '<tr><th>Moyenne</th><th></th><th></th><th>' + (stops / it.length).toFixed(1) + '</th>'
+                + '<th></th><th>' + acc.toFixed(0) + ' %</th><th>' + cv.toFixed(0) + ' %</th></tr>';
+
+            const adv = [];
+            if (stops / it.length > 2)
+                adv.push('Tu t\'arrêtes trop. Le remède n\'est pas de mieux lire : c\'est de lire plus lentement. '
+                    + 'Choisis mentalement un tempo où tu peux tenir la note la plus difficile de la pièce.');
+            else if (acc < 80 && stops / it.length < 1)
+                adv.push('Tu tiens la continuité mais tu perds des notes : c\'est le bon compromis à ce stade, '
+                    + 'et le niveau va monter tout seul.');
+            const hes = it.map(x => x.a.hesitation).filter(x => x !== null && x !== undefined);
+            if (hes.length && mean(hes) > 40)
+                adv.push('Tu ralentis nettement en arrivant sur les sauts et les altérations : ton regard reste '
+                    + 'collé à la note jouée. Pendant la pré-lecture, force-toi à nommer à voix haute les deux '
+                    + 'endroits difficiles.');
+            if (clean === it.length)
+                adv.push('Rien n\'a cassé de toute la séance : le niveau est trop bas, il montera au prochain passage.');
+            $('rAdvice').textContent = adv.join(' ');
+        }
+
+        // =====================================================================
+        //  12. Persistance
+        // =====================================================================
+        function loadHistory() {
+            try { return JSON.parse(localStorage.getItem(LS_HIST)) || []; } catch (e) { return []; }
+        }
+        function saveHistory() {
+            const h = loadHistory();
+            h.push({
+                at: Date.now(), items: S.items.length,
+                clean: S.items.filter(x => x.clean).length,
+                stops: S.items.reduce((s, x) => s + x.a.stops, 0),
+                level: Math.max(...S.items.map(x => x.level))
+            });
+            try { localStorage.setItem(LS_HIST, JSON.stringify(h.slice(-200))); } catch (e) { }
+        }
+        function saveLevel() {
+            try { localStorage.setItem(LS_LEVEL, String(S.level)); } catch (e) { }
+            $('cLevel').textContent = S.level;
+            $('lvSlider').value = S.level;
+            $('lvVal').textContent = S.level;
+            $('lvLabel').textContent = SightGen.LEVELS[S.level - 1].label;
+        }
+        function saveSettings() {
+            try {
+                localStorage.setItem(LS_SET, JSON.stringify({
+                    click: $('clickOn').checked, tap: $('tapOn').checked,
+                    manual: S.manual, level: S.level
+                }));
+            } catch (e) { }
+        }
+        function restoreSettings() {
+            let o = null;
+            try { o = JSON.parse(localStorage.getItem(LS_SET)); } catch (e) { }
+            let lv = null;
+            try { lv = localStorage.getItem(LS_LEVEL); } catch (e) { }
+            if (o) {
+                $('clickOn').checked = o.click !== false;
+                $('tapOn').checked = !!o.tap;
+                S.manual = !!o.manual;
+            }
+            S.level = clamp(parseInt(lv || (o && o.level) || 1, 10) || 1, 1, 8);
+            [...$('levelSeg').children].forEach(b =>
+                b.classList.toggle('active', (b.dataset.lv === 'manual') === S.manual));
+            $('manualRow').hidden = !S.manual;
+            saveLevel();
+        }
+
+        // =====================================================================
+        //  13. Cablage
+        // =====================================================================
+        $('startBtn').addEventListener('click', startSession);
+        $('stopBtn').addEventListener('click', endSession);
+        $('clickOn').addEventListener('change', saveSettings);
+        $('tapOn').addEventListener('change', saveSettings);
+        $('levelSeg').addEventListener('click', e => {
+            const b = e.target.closest('button');
+            if (!b) return;
+            [...e.currentTarget.children].forEach(x => x.classList.remove('active'));
+            b.classList.add('active');
+            S.manual = b.dataset.lv === 'manual';
+            $('manualRow').hidden = !S.manual;
+            saveSettings();
+        });
+        $('lvSlider').addEventListener('input', e => {
+            S.level = +e.target.value;
+            saveLevel(); saveSettings();
+        });
+        $('midiSel').addEventListener('change', e => {
+            try { localStorage.setItem(LS_MIDI, e.target.value); } catch (err) { }
+            if (midiAccess) refreshMidiInputs(midiAccess);
+        });
+
+        restoreSettings();
+        initMIDI();
+
+        // =====================================================================
+        //  14. Verification embarquee  (?selftest=1)
+        // =====================================================================
+        function selftest() {
+            const out = [], check = (name, ok, detail) =>
+                out.push({ name, ok, detail: detail === undefined ? '' : String(detail) });
+
+            // -- 1. l'appariement survit aux fautes, aux manques, aux ajouts
+            const p = SightGen.generate(3, 12345);
+            const tl = SightGen.timeline(p, p.bpm);
+            const perfect = tl.map(e => ({ t: e.ms, midi: e.midi }));
+            let a = analyse(p, tl, perfect);
+            check('une lecture parfaite : aucune faute', a.wrong === 0 && a.matched === tl.length,
+                a.matched + '/' + tl.length + ', ' + a.wrong + ' fausses');
+            check('une lecture parfaite : aucun arrêt', a.stops === 0, a.stops);
+            check('une lecture parfaite : pièce menée au bout', a.covered > 99, a.covered.toFixed(0) + ' %');
+
+            // une note fausse inseree ne doit pas desynchroniser la suite
+            const withWrong = perfect.slice();
+            withWrong.splice(5, 0, { t: perfect[5].t - 5, midi: 13 });
+            a = analyse(p, tl, withWrong);
+            check('une note fausse ne désynchronise pas la suite',
+                a.matched === tl.length && a.wrong === 1, a.matched + '/' + tl.length + ', ' + a.wrong + ' fausses');
+
+            // des notes sautees sont comptees comme manquantes, pas comme fausses
+            const skipped = perfect.filter((_, i) => i % 7 !== 3);
+            a = analyse(p, tl, skipped);
+            check('les notes sautées manquent sans compter comme fausses',
+                a.wrong === 0 && a.matched < tl.length, a.matched + '/' + tl.length);
+
+            // -- 2. un arret est bien vu, et une lecture lente ne l'est pas
+            const stopped = perfect.map((e, i) => ({ t: e.t + (i >= 10 ? 3000 : 0), midi: e.midi }));
+            a = analyse(p, tl, stopped);
+            check('un arrêt de 3 s est détecté', a.stops === 1, a.stops + ' arrêt(s)');
+            check('sa durée est mesurée correctement',
+                Math.abs(a.longest - 3000) < 400, Math.round(a.longest) + ' ms');
+
+            const slow = perfect.map(e => ({ t: e.t * 1.8, midi: e.midi }));
+            a = analyse(p, tl, slow);
+            check('jouer lentement mais régulièrement n\'est PAS un arrêt', a.stops === 0, a.stops);
+            check('le tempo réellement tenu est mesuré',
+                Math.abs(a.bpmPlayed - p.bpm / 1.8) < 2, Math.round(a.bpmPlayed) + ' au lieu de ' + p.bpm);
+
+            // -- 3. le pulse
+            check('un jeu parfaitement régulier a une irrégularité nulle',
+                analyse(p, tl, perfect).cv < 1, analyse(p, tl, perfect).cv.toFixed(1) + ' %');
+            const drifting = perfect.map((e, i) => ({ t: e.t * (1 + i / perfect.length * 0.5), midi: e.midi }));
+            check('un ralentissement progressif est vu comme une dérive',
+                analyse(p, tl, drifting).drift > 10, analyse(p, tl, drifting).drift.toFixed(0) + ' %');
+
+            // -- 4. le verdict privilegie la continuite sur la justesse
+            const v1 = judge(analyse(p, tl, perfect));
+            check('une lecture parfaite est un passage propre', v1.cleanRun);
+            const manyStops = perfect.map((e, i) => ({ t: e.t + Math.floor(i / 5) * 2500, midi: e.midi }));
+            const v2 = judge(analyse(p, tl, manyStops));
+            check('une lecture hachée casse, même avec toutes les notes justes',
+                v2.brokeDown && !v2.cleanRun, analyse(p, tl, manyStops).stops + ' arrêts');
+
+            // -- 5. jamais deux fois la meme piece
+            let dup = 0;
+            const seenSigs = new Set();
+            for (let i = 0; i < 300; i++) {
+                const q = SightGen.generate(4, (i * 2654435761) % 4294967296);
+                if (seenSigs.has(q.sig)) dup++;
+                seenSigs.add(q.sig);
+            }
+            check('300 tirages au niveau 4 ne se répètent pas', dup === 0, dup + ' doublons');
+
+            // -- 6. la partition s'affiche, et le clavier n'est JAMAIS montre
+            S.piece = p; S.tl = tl;
+            showScore(p, true);
+            check('la partition affiche des notes', $('score').querySelectorAll('ellipse').length > 0);
+            check('la pré-lecture entoure les difficultés ou n\'en trouve aucune',
+                $('score').querySelectorAll('.sr-hot').length === SightGen.hotspots(p)
+                    .filter(h => h.bar < systems[0].to).length);
+            SightRender.clearHotspots($('score'));
+            check('les repères de pré-lecture s\'effacent', $('score').querySelectorAll('.sr-hot').length === 0);
+            check('aucun clavier n\'est affiché sur la page',
+                !document.querySelector('.key, #piano, [data-midi]'));
+            hideScore();
+
+            // -- 7. le niveau monte et descend, sans sortir des bornes
+            const before = S.level, wasManual = S.manual;
+            S.manual = false; S.calibrating = false;
+            S.level = 4; S.upStreak = 0; S.downStreak = 0;
+            adaptLevel({ cleanRun: true }); adaptLevel({ cleanRun: true });
+            check('deux lectures propres font monter d\'un niveau', S.level === 5, S.level);
+            S.upStreak = 0; S.downStreak = 0;
+            adaptLevel({ brokeDown: true }); adaptLevel({ brokeDown: true });
+            check('deux lectures cassées font redescendre', S.level === 4, S.level);
+            S.level = 8; S.upStreak = 0;
+            adaptLevel({ cleanRun: true }); adaptLevel({ cleanRun: true });
+            check('le niveau ne dépasse jamais 8', S.level === 8, S.level);
+            S.level = 1; S.downStreak = 0;
+            adaptLevel({ brokeDown: true }); adaptLevel({ brokeDown: true });
+            check('le niveau ne descend jamais sous 1', S.level === 1, S.level);
+            S.level = before; S.manual = wasManual; saveLevel();
+
+            // -- 8. les reglages tiennent le rechargement
+            const keepSet = localStorage.getItem(LS_SET);
+            $('tapOn').checked = true; saveSettings();
+            $('tapOn').checked = false; restoreSettings();
+            check('les réglages survivent au rechargement', $('tapOn').checked === true);
+            if (keepSet === null) localStorage.removeItem(LS_SET);
+            else localStorage.setItem(LS_SET, keepSet);
+            restoreSettings();
+
+            // -- 9. le registre des pieces lues
+            const keepSeen = localStorage.getItem(LS_SEEN);
+            try { localStorage.removeItem(LS_SEEN); } catch (e) { }
+            const q1 = nextPiece(2);
+            markSeen(2, q1.sig);
+            let same = 0;
+            for (let i = 0; i < 40; i++) if (nextPiece(2).sig === q1.sig) same++;
+            check('une pièce lue n\'est plus jamais resservie', same === 0, same + ' reprises');
+            if (keepSeen === null) { try { localStorage.removeItem(LS_SEEN); } catch (e) { } }
+            else localStorage.setItem(LS_SEEN, keepSeen);
+
+            // -- 10. le temps d'une seance tient dans le quart d'heure annonce
+            let worst = 0;
+            for (let lv = 1; lv <= 8; lv++) {
+                const q = SightGen.generate(lv, 424242 + lv);
+                worst = Math.max(worst, PREREAD_MS + SightGen.durationMs(q, q.bpm) + VERDICT_MS);
+            }
+            check('au pire, une pièce tient en 100 s (donc 9 pièces au moins)',
+                worst < 100000, Math.round(worst / 1000) + ' s');
+            check('une séance ordinaire enchaîne au moins 9 pièces',
+                Math.floor(SESSION_MS / worst) >= 9, Math.floor(SESSION_MS / worst) + ' pièces');
+
+            const ul = $('selftest');
+            ul.hidden = false;
+            ul.innerHTML = '<li><b>' + out.filter(o => o.ok).length + ' / ' + out.length
+                + ' vérifications passées</b></li>'
+                + out.map(o => '<li class="' + (o.ok ? 'ok' : 'ko') + '">'
+                    + (o.ok ? '✓' : '✗') + ' ' + o.name + (o.detail ? ' — ' + o.detail : '') + '</li>').join('');
+            return out;
+        }
+        window.selftest = selftest;
+        if (/[?&]selftest=1/.test(location.search)) selftest();
+    </script>
+</body>
+
+</html>

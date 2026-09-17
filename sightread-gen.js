@@ -596,15 +596,22 @@
     }
 
     // Les endroits que la pre-lecture doit montrer, puis effacer.
+    // Les DEUX mains comptent : une alteration a la main gauche est une
+    // difficulte de lecture au meme titre qu'a la main droite.
     function hotspots(piece) {
-        var out = [];
+        var out = [], hands = ['rh', 'lh'];
         for (var m = 0; m < piece.measures.length; m++) {
-            var arr = piece.measures[m].rh;
-            for (var i = 0; i < arr.length; i++) {
-                var n = arr[i];
-                if (n.rest) continue;
-                var why = n.acc ? 'alteration' : n.shift ? 'position' : n.leap ? 'saut' : null;
-                if (why) out.push({ bar: m, on: n.on, midi: n.midi, why: why });
+            for (var h = 0; h < hands.length; h++) {
+                var arr = piece.measures[m][hands[h]] || [];
+                for (var i = 0; i < arr.length; i++) {
+                    var n = arr[i];
+                    if (n.rest) continue;
+                    var why = n.acc ? 'alteration' : n.shift ? 'position' : n.leap ? 'saut' : null;
+                    if (why) out.push({
+                        bar: m, on: n.on, midi: n.midi, why: why,
+                        hand: hands[h] === 'rh' ? 'R' : 'L'
+                    });
+                }
             }
         }
         return out;
