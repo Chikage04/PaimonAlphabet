@@ -118,48 +118,56 @@
     var LEVELS = [
         {
             n: 1, label: 'Position fixe, main droite seule',
+            labelEn: 'Fixed five-finger position, right hand alone',
             bars: 8, ts: [[4, 4], [3, 4]], keys: [0], minor: false, chordsPerBar: 1,
             span: 4, maxLeap: 1, shift: false, acc: false,
             rhythm: ['h', 'q', 'w'], lh: 'none', bpm: 60
         },
         {
             n: 2, label: 'Sauts de tierce, basse tenue',
+            labelEn: 'Third leaps, sustained bass',
             bars: 8, ts: [[4, 4], [3, 4]], keys: [0], minor: false, chordsPerBar: 1,
             span: 4, maxLeap: 2, shift: false, acc: false,
             rhythm: ['h', 'q', 'w'], lh: 'drone', bpm: 60
         },
         {
             n: 3, label: 'Croches, basse en tierces et quintes',
+            labelEn: 'Eighth notes, bass in thirds and fifths',
             bars: 8, ts: [[4, 4], [3, 4]], keys: [0], minor: false, chordsPerBar: 1,
             span: 4, maxLeap: 2, shift: false, acc: false,
             rhythm: ['h', 'q', 'e'], lh: 'dyad', bpm: 63
         },
         {
             n: 4, label: 'Changement de position, basse d\'Alberti',
+            labelEn: 'Position shifts, Alberti bass',
             bars: 8, ts: [[4, 4], [3, 4]], keys: [0], minor: false, chordsPerBar: 1,
             span: 7, maxLeap: 4, shift: true, acc: false,
             rhythm: ['h', 'q', 'e', 'r'], lh: 'alberti', bpm: 63
         },
         {
             n: 5, label: 'Une alteration a la cle, mains dissociees',
+            labelEn: 'One sharp or flat, hands in different rhythms',
             bars: 8, ts: [[4, 4], [3, 4]], keys: [1, -1], minor: false, chordsPerBar: 1,
             span: 7, maxLeap: 4, shift: true, acc: false,
             rhythm: ['h', 'q', 'e', 'r', 'dq'], lh: 'alberti', bpm: 66
         },
         {
             n: 6, label: 'Deux alterations, sauts de sixte, doubles croches',
+            labelEn: 'Two sharps or flats, sixth leaps, sixteenth notes',
             bars: 8, ts: [[4, 4], [3, 4]], keys: [2, -2], minor: false, chordsPerBar: 2,
             span: 9, maxLeap: 5, shift: true, acc: false,
             rhythm: ['h', 'q', 'e', 'r', 'dq', 's'], lh: 'chord2', bpm: 66
         },
         {
             n: 7, label: 'Mode mineur, accords a trois sons, syncopes',
+            labelEn: 'Minor mode, three-note chords, syncopation',
             bars: 12, ts: [[4, 4], [3, 4]], keys: [0, 1, -1, -2], minor: true, chordsPerBar: 2,
             span: 11, maxLeap: 7, shift: true, acc: true,
             rhythm: ['h', 'q', 'e', 'r', 're', 'dq', 's', 'syn'], lh: 'chord3', bpm: 69
         },
         {
             n: 8, label: 'Mesure composee, deux voix independantes',
+            labelEn: 'Compound metre, two independent voices',
             bars: 12, ts: [[6, 8]], keys: [0, 1, -1, 2, -2], minor: true, chordsPerBar: 1,
             span: 11, maxLeap: 7, shift: true, acc: true,
             rhythm: ['c1', 'c2', 'c3', 'cr'], lh: 'counter', bpm: 72
@@ -514,7 +522,7 @@
         for (m = 0; m < lvl.bars; m++) measures.push({ rh: rh[m] || [], lh: lh[m] || [] });
 
         var piece = {
-            level: lvl.n, levelLabel: lvl.label, seed: seed >>> 0,
+            level: lvl.n, levelLabel: levelLabel(lvl), seed: seed >>> 0,
             sharps: sharps, minor: minor, tonicStep: tonicStep,
             keyName: keyName(sharps, minor),
             ts: { num: num, den: den }, barTicks: barTicks, beatTicks: beatTicks,
@@ -535,15 +543,34 @@
         return oct * 7 + step;
     }
 
-    var MAJ = ['Do', 'Sol', 'Re', 'La', 'Mi', 'Si', 'Fa#', 'Do#'];
-    var MAJb = ['Do', 'Fa', 'Si b', 'Mi b', 'La b', 'Re b', 'Sol b', 'Do b'];
-    var MIN = ['La', 'Mi', 'Si', 'Fa#', 'Do#', 'Sol#', 'Re#', 'La#'];
-    var MINb = ['La', 'Re', 'Sol', 'Do', 'Fa', 'Si b', 'Mi b', 'La b'];
-    function keyName(sharps, minor) {
+    // Les noms de notes different d'une langue a l'autre : do majeur se dit
+    // C major. Une seule source, deux tables, pas deux fichiers.
+    var NAMES = {
+        fr: {
+            MAJ: ['Do', 'Sol', 'Re', 'La', 'Mi', 'Si', 'Fa#', 'Do#'],
+            MAJb: ['Do', 'Fa', 'Si b', 'Mi b', 'La b', 'Re b', 'Sol b', 'Do b'],
+            MIN: ['La', 'Mi', 'Si', 'Fa#', 'Do#', 'Sol#', 'Re#', 'La#'],
+            MINb: ['La', 'Re', 'Sol', 'Do', 'Fa', 'Si b', 'Mi b', 'La b'],
+            maj: ' majeur', min: ' mineur'
+        },
+        en: {
+            MAJ: ['C', 'G', 'D', 'A', 'E', 'B', 'F#', 'C#'],
+            MAJb: ['C', 'F', 'B flat', 'E flat', 'A flat', 'D flat', 'G flat', 'C flat'],
+            MIN: ['A', 'E', 'B', 'F#', 'C#', 'G#', 'D#', 'A#'],
+            MINb: ['A', 'D', 'G', 'C', 'F', 'B flat', 'E flat', 'A flat'],
+            maj: ' major', min: ' minor'
+        }
+    };
+    var LANG = 'fr';
+    function setLang(l) { LANG = l === 'en' ? 'en' : 'fr'; return LANG; }
+    function keyName(sharps, minor, lang) {
+        var N = NAMES[lang || LANG] || NAMES.fr;
         var i = Math.abs(sharps);
-        var t = minor ? (sharps >= 0 ? MIN[i] : MINb[i]) : (sharps >= 0 ? MAJ[i] : MAJb[i]);
-        return t + (minor ? ' mineur' : ' majeur');
+        var t = minor ? (sharps >= 0 ? N.MIN[i] : N.MINb[i])
+            : (sharps >= 0 ? N.MAJ[i] : N.MAJb[i]);
+        return t + (minor ? N.min : N.maj);
     }
+    function levelLabel(lvl) { return LANG === 'en' ? lvl.labelEn : lvl.label; }
 
     // Empreinte du contenu : sert a ne jamais resservir la meme piece.
     function signature(p) {
@@ -624,6 +651,7 @@
     return {
         TPQ: TPQ, LEVELS: LEVELS, generate: generate, timeline: timeline,
         hotspots: hotspots, durationMs: durationMs, signature: signature,
-        keyAlter: keyAlter, midiOf: midiOf, keyName: keyName, rng: rng
+        keyAlter: keyAlter, midiOf: midiOf, keyName: keyName, rng: rng,
+        setLang: setLang, levelLabel: levelLabel
     };
 }));

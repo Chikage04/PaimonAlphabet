@@ -7,7 +7,8 @@ const { JSDOM } = require('jsdom');
 const fs = require('fs');
 
 const DIR = 'C:/Users/Lucas/PaimonAlphabet/';
-let html = fs.readFileSync(DIR + 'lecture-vue.html', 'utf8');
+const PAGE = process.argv[2] || 'lecture-vue.html';
+let html = fs.readFileSync(DIR + PAGE, 'utf8');
 for (const f of ['sightread-gen.js', 'sightread-render.js'])
     html = html.replace('<script src="' + f + '"></script>',
         '<script>' + fs.readFileSync(DIR + f, 'utf8') + '</script>');
@@ -40,7 +41,7 @@ html = html.replace('<head>', '<head>' + PRELUDE);
 
 const dom = new JSDOM(html, {
     runScripts: 'dangerously', pretendToBeVisual: true,
-    url: 'https://local.test/lecture-vue.html'
+    url: 'https://local.test/' + PAGE
 });
 const w = dom.window;
 Object.defineProperty(globalThis, 'CLOCK', {

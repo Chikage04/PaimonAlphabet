@@ -6,7 +6,8 @@ const { JSDOM } = require('jsdom');
 const fs = require('fs');
 
 const DIR = 'C:/Users/Lucas/PaimonAlphabet/';
-let html = fs.readFileSync(DIR + 'lecture-vue.html', 'utf8');
+const PAGE = process.argv[2] || 'lecture-vue.html';
+let html = fs.readFileSync(DIR + PAGE, 'utf8');
 // jsdom ne va pas chercher les <script src> relatifs : on les incorpore
 for (const f of ['sightread-gen.js', 'sightread-render.js']) {
     const src = fs.readFileSync(DIR + f, 'utf8');
@@ -14,7 +15,7 @@ for (const f of ['sightread-gen.js', 'sightread-render.js']) {
         '<script>' + src + '</script>');
 }
 
-const dom = new JSDOM(html, { runScripts: 'dangerously', pretendToBeVisual: true, url: 'https://local.test/lecture-vue.html' });
+const dom = new JSDOM(html, { runScripts: 'dangerously', pretendToBeVisual: true, url: 'https://local.test/' + PAGE });
 const w = dom.window;
 
 // L'audio n'existe pas ici : un mandataire qui accepte tout evite d'avoir
