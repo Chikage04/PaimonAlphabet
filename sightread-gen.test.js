@@ -140,6 +140,138 @@ for (const lvl of G.LEVELS) {
 }
 
 // ------------------------------------------------------------------
+section('1 ter. Variantes : quelle main, quel contenu');
+
+// intervalle diatonique entre les notes simultanees
+// L'option de contenu s'applique a la main QUI LIT : on inspecte donc
+// cette main-la, pas l'accompagnement.
+function stacksOf(p, hands) {
+    const out = [];
+    for (const m of p.measures)
+        for (const hand of [hands === 'lh' ? 'lh' : 'rh']) {
+            const byOn = new Map();
+            for (const n of m[hand]) {
+                if (n.rest) continue;
+                if (!byOn.has(n.on)) byOn.set(n.on, []);
+                byOn.get(n.on).push(n.d);
+            }
+            for (const [, ds] of byOn) out.push(ds.sort((a, b) => a - b));
+        }
+    return out;
+}
+
+check('sans options, la piece est identique a avant',
+    JSON.stringify(G.generate(4, 999)) === JSON.stringify(G.generate(4, 999, {})),
+    'les valeurs par defaut ne doivent rien changer');
+
+for (const lvl of G.LEVELS) {
+    let noLH = 0, noRH = 0, horsPortee = 0, n = 0;
+    for (let i = 0; i < 150; i++) {
+        const a = G.generate(lvl.n, 4000 + i * 811, { hands: 'rh' });
+        const b = G.generate(lvl.n, 4000 + i * 811, { hands: 'lh' });
+        n++;
+        if (a.measures.some(m => m.lh.length)) noLH++;
+        if (b.measures.some(m => m.rh.length)) noRH++;
+        // la main gauche seule doit tenir sur la portee de fa,
+        // ledgers raisonnables compris : do2 a do4
+        for (const e of G.timeline(b, b.bpm))
+            if (e.midi < 36 || e.midi > 62) horsPortee++;
+    }
+    check('niveau ' + lvl.n + ' : main droite seule, rien a la main gauche', noLH === 0, noLH);
+    check('niveau ' + lvl.n + ' : main gauche seule, rien a la main droite', noRH === 0, noRH);
+    check('niveau ' + lvl.n + ' : la main gauche seule tient sur sa portee',
+        horsPortee === 0, horsPortee + ' notes hors de do2-do4');
+}
+
+{
+    // quintes : deux notes, toujours une quinte
+    let mauvais = 0, total = 0;
+    for (let i = 0; i < 300; i++)
+        for (const st of stacksOf(G.generate(1 + (i % 8), 6000 + i, { content: 'fifths' }), 'rh')) {
+            total++;
+            if (st.length !== 2 || Math.abs(st[1] - st[0]) !== 4) mauvais++;
+        }
+    check('quintes : chaque empilement est exactement une quinte',
+        mauvais === 0, mauvais + ' ecarts sur ' + total);
+
+    // quintes et septiemes : les deux, et rien d'autre
+    let horsJeu = 0, q = 0, sept = 0;
+    for (let i = 0; i < 300; i++)
+        for (const st of stacksOf(G.generate(1 + (i % 8), 7000 + i, { content: 'fifths7' }), 'rh')) {
+            if (st.length !== 2) { horsJeu++; continue; }
+            const w = Math.abs(st[1] - st[0]);
+            if (w === 4) q++; else if (w === 6) sept++; else horsJeu++;
+        }
+    check('quintes et septiemes : aucun autre intervalle', horsJeu === 0, horsJeu);
+    check('les deux intervalles apparaissent vraiment', q > 100 && sept > 100,
+        q + ' quintes, ' + sept + ' septiemes');
+
+    // accords : trois ou quatre sons empiles par tierces
+    let malForme = 0, n3 = 0, n4 = 0;
+    for (let i = 0; i < 300; i++)
+        for (const st of stacksOf(G.generate(1 + (i % 8), 8000 + i, { content: 'chords' }), 'rh')) {
+            if (st.length === 3) n3++; else if (st.length === 4) n4++; else { malForme++; continue; }
+            for (let k = 1; k < st.length; k++) if (st[k] - st[k - 1] !== 2) malForme++;
+        }
+    check('accords : trois ou quatre sons, empiles par tierces', malForme === 0, malForme);
+    check('les triades et les septiemes apparaissent', n3 > 100 && n4 > 100, n3 + ' / ' + n4);
+}
+
+{
+    // un accord ne se lit pas en doubles croches
+    let tropCourt = 0;
+    for (const content of ['fifths', 'fifths7', 'chords'])
+        for (let i = 0; i < 200; i++) {
+            const p = G.generate(1 + (i % 8), 9000 + i, { content });
+            const beat = p.compound ? p.tpq * 1.5 : p.tpq;
+            for (const m of p.measures)
+                for (const nn of m.rh.concat(m.lh)) if (nn.dur < beat) tropCourt++;
+        }
+    check('aucun empilement plus court qu\'un temps', tropCourt === 0, tropCourt);
+}
+
+{
+    // une variante n'est pas la meme piece : elle ne doit pas bruler
+    // la melodie correspondante
+    const sigs = new Set();
+    for (const hands of G.HANDSETS)
+        for (const content of G.CONTENTS)
+            sigs.add(G.generate(3, 12345, { hands, content }).sig);
+    check('chaque variante a sa propre empreinte', sigs.size === 12, sigs.size + ' sur 12');
+}
+
+{
+    // la jouabilite tient aussi dans les variantes
+    let unisson = 0, croise = 0, tropLarge = 0;
+    for (const hands of G.HANDSETS)
+        for (const content of G.CONTENTS)
+            for (let i = 0; i < 60; i++) {
+                const p = G.generate(1 + (i % 8), 15000 + i, { hands, content });
+                const tl = G.timeline(p, p.bpm);
+                const vus = new Set(), parTick = new Map();
+                for (const e of tl) {
+                    const key = e.tick + ':' + e.midi;
+                    if (vus.has(key)) unisson++;
+                    vus.add(key);
+                    if (!parTick.has(e.tick)) parTick.set(e.tick, []);
+                    parTick.get(e.tick).push(e);
+                }
+                for (const [, es] of parTick) {
+                    const R = es.filter(e => e.hand === 'R'), L = es.filter(e => e.hand === 'L');
+                    if (R.length && L.length
+                        && Math.max(...L.map(e => e.midi)) >= Math.min(...R.map(e => e.midi))) croise++;
+                    for (const h of ['R', 'L']) {
+                        const v = es.filter(e => e.hand === h).map(e => e.midi);
+                        if (v.length > 1 && Math.max(...v) - Math.min(...v) > 12) tropLarge++;
+                    }
+                }
+            }
+    check('variantes : jamais deux fois la meme note au meme instant', unisson === 0, unisson);
+    check('variantes : les mains ne se croisent jamais', croise === 0, croise);
+    check('variantes : aucun accord ne depasse l\'octave sous une main', tropLarge === 0, tropLarge);
+}
+
+// ------------------------------------------------------------------
 section('2. La difficulte ne recule jamais d\'un niveau au suivant');
 
 for (let i = 1; i < G.LEVELS.length; i++) {

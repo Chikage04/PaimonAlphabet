@@ -172,6 +172,23 @@
     </div>
 
     <div class="controls">
+        <span class="seg" id="handsSeg" title="Which hand plays. The level itself does not change.">
+            <button data-h="both" class="active">Both hands</button>
+            <button data-h="rh">Right hand</button>
+            <button data-h="lh">Left hand</button>
+        </span>
+        <span class="seg" id="contentSeg" title="What there is to read: a line, or stacked intervals.">
+            <button data-c="melody" class="active">Melody</button>
+            <button data-c="fifths">Fifths</button>
+            <button data-c="fifths7">Fifths and 7ths</button>
+            <button data-c="chords">Chords</button>
+        </span>
+    </div>
+    <div class="controls">
+        <span class="chip" id="varHint"></span>
+    </div>
+
+    <div class="controls">
         <span class="seg" id="occlSeg" title="What you have already played can fade away, so your eyes cannot go back.">
             <button data-oc="none" class="active">All visible</button>
             <button data-oc="fade">Fade behind</button>
@@ -233,6 +250,12 @@
                 Sight-reading demands unseen material; replaying is already practising a piece.</p>
             <p><b>The click marks the beat, not the note.</b> Clicking every note would hand you the rhythm — and the rhythm
                 is precisely what you are meant to read.</p>
+            <p><b>Which hand, and what to read, are set apart from the level.</b> The level fixes the
+                key, the metre, the rhythm and the range; the other two settings say who plays
+                and what there is to read. “Level 1, right hand, fifths and sevenths” is therefore a
+                valid combination. A fifth and a seventh both run line-to-line or
+                space-to-space: mixing them is not a mere variation, it is the drill that
+                separates the two intervals people confuse most.</p>
             <p><b>What you have played may fade; what is coming never does.</b> Hiding the bars already
                 played stops your eyes from going back. Restricting instead what you can see
                 <i>ahead</i> is the one manipulation of the two that has actually been tested — and it makes
@@ -305,6 +328,7 @@
             running: false,
             phase: 'idle',         // idle | preread | tap | read | verdict
             level: 1, manual: false, occl: 'none',
+            hands: 'both', content: 'melody',
             flashBar: 0, flashBuf: [], flashRes: null,
             piece: null, tl: null, sys: 0,
             played: [],            // { t, midi }
@@ -499,15 +523,16 @@
             if (s[level].length > 4000) s[level] = s[level].slice(-4000);
             try { localStorage.setItem(LS_SEEN, JSON.stringify(s)); } catch (e) { }
         }
+        const variant = () => ({ hands: S.hands, content: S.content });
         function nextPiece(level) {
             const seen = new Set((loadSeen()[level] || []));
             for (let k = 0; k < 200; k++) {
                 const seed = (Math.random() * 4294967295) >>> 0;
-                const p = SightGen.generate(level, seed);
+                const p = SightGen.generate(level, seed, variant());
                 if (!seen.has(p.sig)) return p;
             }
             // vivier epuise a ce niveau : on le dit au lieu de resservir
-            return SightGen.generate(level, (Math.random() * 4294967295) >>> 0);
+            return SightGen.generate(level, (Math.random() * 4294967295) >>> 0, variant());
         }
 
         // =====================================================================
@@ -521,7 +546,8 @@
             drawSystem(withHotspots);
             $('paper').classList.remove('hidden');
             $('scoreCap').textContent = piece.keyName + ' · ' + piece.ts.num + '/' + piece.ts.den
-                + ' · ♩= ' + piece.bpm + ' · ' + piece.bars + ' bars · level ' + piece.level;
+                + ' · ♩= ' + piece.bpm + ' · ' + piece.bars + ' bars · level ' + piece.level
+                + variantLabel();
         }
         function drawSystem(withHotspots) {
             const s = systems[S.sys];
@@ -1298,7 +1324,8 @@
             try {
                 localStorage.setItem(LS_SET, JSON.stringify({
                     click: $('clickOn').checked, tap: $('tapOn').checked,
-                    manual: S.manual, level: S.level, occl: S.occl
+                    manual: S.manual, level: S.level, occl: S.occl,
+                    hands: S.hands, content: S.content
                 }));
             } catch (e) { }
         }
@@ -1312,7 +1339,14 @@
                 $('tapOn').checked = !!o.tap;
                 S.manual = !!o.manual;
                 if (o.occl) S.occl = o.occl;
+                if (o.hands) S.hands = o.hands;
+                if (o.content) S.content = o.content;
             }
+            [...$('handsSeg').children].forEach(b =>
+                b.classList.toggle('active', b.dataset.h === S.hands));
+            [...$('contentSeg').children].forEach(b =>
+                b.classList.toggle('active', b.dataset.c === S.content));
+            showVarHint();
             [...$('occlSeg').children].forEach(b =>
                 b.classList.toggle('active', b.dataset.oc === S.occl));
             showOcclHint();
@@ -1339,6 +1373,42 @@
             $('manualRow').hidden = !S.manual;
             saveSettings();
         });
+        // Trois listes de boutons se cablent pareil : un seul endroit.
+        function wireSeg(id, attr, after) {
+            $(id).addEventListener('click', e => {
+                const b = e.target.closest('button');
+                if (!b) return;
+                [...e.currentTarget.children].forEach(x => x.classList.remove('active'));
+                b.classList.add('active');
+                after(b.dataset[attr]);
+                saveSettings();
+            });
+        }
+
+        const HANDS_LABEL = { both: 'both hands', rh: 'right hand', lh: 'left hand' };
+        const CONTENT_LABEL = {
+            melody: 'melody', fifths: 'fifths',
+            fifths7: 'fifths and sevenths', chords: 'chords'
+        };
+        const variantLabel = () => (S.hands === 'both' && S.content === 'melody')
+            ? '' : ' · ' + HANDS_LABEL[S.hands] + ', ' + CONTENT_LABEL[S.content];
+
+        function showVarHint() {
+            const h = S.hands === 'both' ? 'Both hands play.'
+                : S.hands === 'rh' ? 'Right hand alone: the bass stave stays empty.'
+                    : 'Left hand alone: the line is written on the bass stave.';
+            const c = S.content === 'melody' ? 'A melodic line.'
+                : S.content === 'fifths' ? 'Fifths, to be taken in at a glance.'
+                    : S.content === 'fifths7'
+                        ? 'Fifths and sevenths mixed — the two look alike on the stave, and those are exactly the ones people confuse.'
+                        : 'Chords of three and four notes, stacked in thirds.';
+            const plus = S.content === 'melody' ? ''
+                : ' Note values come down to the beat and the bass is held: the drill is about the intervals.';
+            $('varHint').textContent = h + ' ' + c + plus;
+        }
+        wireSeg('handsSeg', 'h', v => { S.hands = v; showVarHint(); });
+        wireSeg('contentSeg', 'c', v => { S.content = v; showVarHint(); });
+
         const OCCL_HINT = {
             none: 'The score stays whole, as it would on paper.',
             fade: 'The finished bar fades as you start the next one: your eyes can no longer go back.',
@@ -1346,15 +1416,7 @@
             flash: 'A bar appears for a few seconds, then vanishes: you play it back from memory. This is not sight-reading but chunking.'
         };
         function showOcclHint() { $('occlHint').textContent = OCCL_HINT[S.occl] || ''; }
-        $('occlSeg').addEventListener('click', e => {
-            const b = e.target.closest('button');
-            if (!b) return;
-            [...e.currentTarget.children].forEach(x => x.classList.remove('active'));
-            b.classList.add('active');
-            S.occl = b.dataset.oc;
-            showOcclHint();
-            saveSettings();
-        });
+        wireSeg('occlSeg', 'oc', v => { S.occl = v; showOcclHint(); });
         $('lvSlider').addEventListener('input', e => {
             S.level = +e.target.value;
             saveLevel(); saveSettings();

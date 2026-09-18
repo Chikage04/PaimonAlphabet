@@ -501,9 +501,55 @@
     }
 
     // ---------------------------------------------------------------
-    // 10. Assemblage
+    // 10. Variantes : quelle main, quel contenu
     // ---------------------------------------------------------------
-    function generate(levelNo, seed) {
+    var CONTENTS = ['melody', 'fifths', 'fifths7', 'chords'];
+    var HANDSETS = ['both', 'rh', 'lh'];
+
+    function normOpts(o) {
+        o = o || {};
+        return {
+            hands: HANDSETS.indexOf(o.hands) >= 0 ? o.hands : 'both',
+            content: CONTENTS.indexOf(o.content) >= 0 ? o.content : 'melody'
+        };
+    }
+
+    // Ce qu'on empile sur la note lue, en degres de portee.
+    function stackOffsets(r, content) {
+        if (content === 'fifths') return [4];
+        if (content === 'fifths7') return [r() < 0.5 ? 4 : 6];
+        return r() < 0.5 ? [2, 4] : [2, 4, 6];
+    }
+
+    function emptyBars(n) {
+        var a = [];
+        for (var i = 0; i < n; i++) a.push([]);
+        return a;
+    }
+
+    // dir vaut +1 a la main droite, -1 a la main gauche : un accord de
+    // main gauche se lit du haut vers le bas, et c'est ce qui l'empeche
+    // de deborder de la portee de fa.
+    function stackBars(r, bars, ctx, content, dir) {
+        for (var m = 0; m < bars.length; m++) {
+            var add = [];
+            for (var i = 0; i < bars[m].length; i++) {
+                var n = bars[m][i];
+                if (n.rest) continue;
+                var offs = stackOffsets(r, content);
+                for (var k = 0; k < offs.length; k++)
+                    add.push(mkNote(n.d + dir * offs[k], n.on, n.dur, ctx));
+            }
+            bars[m] = bars[m].concat(add);
+            bars[m].sort(function (a, b) { return a.on - b.on || a.d - b.d; });
+        }
+    }
+
+    // ---------------------------------------------------------------
+    // 11. Assemblage
+    // ---------------------------------------------------------------
+    function generate(levelNo, seed, opts) {
+        var O = normOpts(opts);
         var lvl = LEVELS[Math.max(1, Math.min(LEVELS.length, levelNo)) - 1];
         var r = rng(seed >>> 0);
 
@@ -527,6 +573,51 @@
             barTicks: barTicks
         };
 
+        // Un accord de septieme en doubles croches ne se lit pas, et lire
+        // des intervalles empiles ne demande pas une ligne large mais une
+        // basse qui bouge peu. On derive donc le niveau au lieu de
+        // l'appliquer tel quel — la tonalite et la mesure, elles, restent
+        // celles du niveau choisi.
+        var beat = compound ? beatTicks : TPQ;
+        if (O.content !== 'melody' || O.hands === 'lh') {
+            var base = lvl, k2;
+            lvl = {};
+            for (k2 in base) lvl[k2] = base[k2];
+        }
+        if (O.content !== 'melody') {
+            lvl.span = Math.min(lvl.span, 4);
+            lvl.maxLeap = Math.min(lvl.maxLeap, 2);
+            lvl.rhythm = lvl.rhythm.filter(function (name) {
+                return UNITS[name].cells.every(function (cell) {
+                    return cell.every(function (d) { return Math.abs(d) >= beat; });
+                });
+            });
+            if (!lvl.rhythm.length) lvl.rhythm = ['q'];
+            // Demander des quintes et recevoir une basse d'Alberti par
+            // dessous n'est pas ce qu'on a demande : quand le contenu est
+            // empile, la basse se tient et l'exercice porte sur les
+            // intervalles, sur rien d'autre.
+            if (lvl.lh !== 'none') lvl.lh = 'drone';
+        }
+        // Main gauche seule : la ligne s'ecrit directement dans le registre
+        // grave, et on la cale pour qu'elle tienne entre mi2 et do4 —
+        // l'empilement vers le bas compris. Le calage se fait par octaves
+        // entieres, sinon le degre de la sensible se decalerait avec lui.
+        if (O.hands === 'lh') {
+            // La ligne doit tenir entre do2 et do4, empilement compris.
+            // Quand elle porte des accords, c'est l'empilement qui occupe
+            // la place : la ligne, elle, bouge alors d'une tierce au plus.
+            lvl.span = Math.min(lvl.span, O.content === 'melody' ? 7 : 2);
+            var deep = O.content === 'melody' ? 0 : 6;
+            var lowD = 14 + deep, hiD = 28 - lvl.span;
+            // la fenetre couvre au moins sept degres, donc chaque tonalite
+            // y a exactement un representant
+            tonicD = nearTo(tonicStep, Math.round((lowD + hiD) / 2));
+            while (tonicD < lowD) tonicD += 7;
+            while (tonicD > hiD) tonicD -= 7;
+            ctx.tonicD = tonicD;
+        }
+
         var plan = harmonyPlan(r, lvl.bars);
 
         var rhythms = [], m;
@@ -535,8 +626,17 @@
             rhythms.push(measureRhythm(r, lvl, barTicks, compound ? beatTicks : TPQ, cad));
         }
 
-        var rh = buildMelody(r, lvl, ctx, plan, rhythms, compound ? beatTicks : TPQ);
-        var lh = buildBass(r, lvl, ctx, plan, rh, compound ? beatTicks : TPQ);
+        var rh = buildMelody(r, lvl, ctx, plan, rhythms, beat);
+        var lh = O.hands === 'both'
+            ? buildBass(r, lvl, ctx, plan, rh, beat)
+            : emptyBars(lvl.bars);
+
+        // A la main gauche, les intervalles s'empilent vers le bas : c'est
+        // ainsi qu'on ecrit un accord de main gauche, et c'est ce qui le
+        // garde sur sa portee.
+        var dir = O.hands === 'lh' ? -1 : 1;
+        if (O.content !== 'melody') stackBars(r, rh, ctx, O.content, dir);
+        if (O.hands === 'lh') { lh = rh; rh = emptyBars(lvl.bars); }
 
         var measures = [];
         for (m = 0; m < lvl.bars; m++) measures.push({ rh: rh[m] || [], lh: lh[m] || [] });
@@ -547,7 +647,7 @@
             keyName: keyName(sharps, minor),
             ts: { num: num, den: den }, barTicks: barTicks, beatTicks: beatTicks,
             compound: compound, tpq: TPQ, bpm: lvl.bpm, bars: lvl.bars,
-            plan: plan, measures: measures
+            plan: plan, measures: measures, variant: O
         };
         piece.sig = signature(piece);
         return piece;
@@ -596,6 +696,10 @@
     function signature(p) {
         var s = p.level + '|' + p.sharps + '|' + (p.minor ? 'm' : 'M') + '|'
             + p.ts.num + '/' + p.ts.den;
+        // une variante n'est pas la meme piece : on ne veut pas qu'une
+        // lecture en quintes brule la melodie correspondante
+        if (p.variant && (p.variant.hands !== 'both' || p.variant.content !== 'melody'))
+            s += '|' + p.variant.hands + ':' + p.variant.content;
         for (var m = 0; m < p.measures.length; m++) {
             var mm = p.measures[m];
             s += '|';
@@ -672,6 +776,7 @@
         TPQ: TPQ, LEVELS: LEVELS, generate: generate, timeline: timeline,
         hotspots: hotspots, durationMs: durationMs, signature: signature,
         keyAlter: keyAlter, midiOf: midiOf, keyName: keyName, rng: rng,
-        setLang: setLang, levelLabel: levelLabel
+        setLang: setLang, levelLabel: levelLabel,
+        CONTENTS: CONTENTS, HANDSETS: HANDSETS, normOpts: normOpts
     };
 }));
