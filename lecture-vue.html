@@ -93,6 +93,8 @@
             padding: 10px 6px 4px; margin-bottom: 12px; box-shadow: 0 10px 34px rgba(0, 0, 0, .45);
         }
         .paper svg { display: block; width: 100%; height: auto; }
+        /* les lignes suivantes, empilees pendant la pre-lecture */
+        #scoreMore svg { margin-top: 4px; }
         .paper .caption { color: #555; font-size: 12px; text-align: center; padding: 2px 0 6px; }
         .paper.hidden { display: none; }
 
@@ -221,6 +223,7 @@
 
     <div class="paper hidden" id="paper">
         <svg id="score" viewBox="0 0 940 240" aria-label="partition"></svg>
+        <div id="scoreMore"></div>
         <div class="caption" id="scoreCap"></div>
     </div>
     <div class="sysnav" id="sysnav" hidden></div>
@@ -540,16 +543,19 @@
         // =====================================================================
         let systems = [], positions = [];
 
-        function showScore(piece, withHotspots) {
+        // all : toutes les lignes l'une sous l'autre. Reserve a la
+        // pre-lecture — pendant la lecture, une ligne a la fois.
+        function showScore(piece, withHotspots, all) {
             systems = SightRender.systems(piece, piece.bars > 8 ? 4 : 4);
             S.sys = 0;
-            drawSystem(withHotspots);
+            if (all) drawAll(withHotspots); else drawSystem(withHotspots);
             $('paper').classList.remove('hidden');
             $('scoreCap').textContent = piece.keyName + ' · ' + piece.ts.num + '/' + piece.ts.den
                 + ' · ♩= ' + piece.bpm + ' · ' + piece.bars + ' mesures · niveau ' + piece.level
                 + variantLabel();
         }
         function drawSystem(withHotspots) {
+            $('scoreMore').innerHTML = '';
             const s = systems[S.sys];
             positions = SightRender.draw($('score'), S.piece, {
                 fromBar: s.from, toBar: s.to, width: 940,
@@ -559,6 +565,27 @@
             $('sysnav').textContent = 'Ligne ' + (S.sys + 1) + ' sur ' + systems.length;
             // la partition vient d'etre redessinee : le masquage aussi
             if (S.phase === 'read') applyOcclusion();
+        }
+
+        // Toute la piece, ligne sous ligne. Le chiffrage de mesure ne se
+        // grave qu'en tete, comme sur une vraie partition.
+        function drawAll(withHotspots) {
+            $('scoreMore').innerHTML = '';
+            positions = SightRender.draw($('score'), S.piece, {
+                fromBar: systems[0].from, toBar: systems[0].to, width: 940,
+                showTimeSig: true, showHotspots: !!withHotspots
+            });
+            for (let i = 1; i < systems.length; i++) {
+                const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+                svg.setAttribute('aria-label', 'partition, ligne ' + (i + 1));
+                $('scoreMore').appendChild(svg);
+                SightRender.draw(svg, S.piece, {
+                    fromBar: systems[i].from, toBar: systems[i].to, width: 940,
+                    showTimeSig: false, showHotspots: !!withHotspots
+                });
+            }
+            $('sysnav').hidden = systems.length < 2;
+            $('sysnav').textContent = 'Les ' + systems.length + ' lignes, en entier';
         }
         function hideScore() { $('paper').classList.add('hidden'); $('sysnav').hidden = true; }
 
@@ -967,7 +994,7 @@
 
             if (S.occl === 'flash') { startFlash(); return; }
 
-            showScore(S.piece, true);
+            showScore(S.piece, true, true);
             S.phase = 'preread';
             setPhase('prep',
                 'Pré-lecture — repère la tonalité, la mesure, et les endroits entourés. Ne joue pas.',
@@ -1059,7 +1086,8 @@
         }
 
         function endPreread() {
-            SightRender.clearHotspots($('score'));
+            // les reperes sont repartis sur toutes les lignes affichees
+            SightRender.clearHotspots($('paper'));
             if ($('tapOn').checked) {
                 S.phase = 'tap';
                 setPhase('prep', 'Frappe le rythme sur n\'importe quelle touche — seules les durées comptent.',

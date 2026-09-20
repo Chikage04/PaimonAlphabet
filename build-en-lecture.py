@@ -261,6 +261,10 @@ T = [
  "separates the two intervals people confuse most.</p>"),
 ("$('sysnav').textContent = 'Ligne ' + (S.sys + 1) + ' sur ' + systems.length;",
  "$('sysnav').textContent = 'Line ' + (S.sys + 1) + ' of ' + systems.length;"),
+("$('sysnav').textContent = 'Les ' + systems.length + ' lignes, en entier';",
+ "$('sysnav').textContent = 'All ' + systems.length + ' lines, in full';"),
+("svg.setAttribute('aria-label', 'partition, ligne ' + (i + 1));",
+ "svg.setAttribute('aria-label', 'score, line ' + (i + 1));"),
 
 # --------------------------------------------------------- criteres --------
 ("c.push({ k: 'stops', label: 'Aucun arrêt', ok: a.stops === 0, mid: a.stops <= 2, val: a.stops });",

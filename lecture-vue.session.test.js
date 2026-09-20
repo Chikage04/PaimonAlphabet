@@ -158,13 +158,36 @@ section('2. Le piano est muet pendant la pre-lecture');
 
     check('la partition est affichee des la pre-lecture',
         !$('paper').classList.contains('hidden'));
-    check('les difficultes sont entourees pendant la pre-lecture',
-        $('score').querySelectorAll('.sr-hot').length
-        === w.SightGen.hotspots(S().piece).filter(h => h.bar < 4).length);
+
+    // La pre-lecture sert a embrasser la piece entiere : toutes les
+    // lignes sont a l'ecran, l'une sous l'autre, et toutes les
+    // difficultes sont entourees — pas seulement celles de la premiere.
+    const piece = S().piece;
+    const nSys = w.eval('systems.length');
+    check('toutes les lignes sont affichees pendant la pre-lecture',
+        $('paper').querySelectorAll('svg').length === nSys,
+        $('paper').querySelectorAll('svg').length + ' portees pour ' + nSys + ' lignes');
+    check('toutes les mesures de la piece sont a l\'ecran',
+        $('paper').querySelectorAll('.sr-bar').length === piece.bars,
+        $('paper').querySelectorAll('.sr-bar').length + ' mesures sur ' + piece.bars);
+    check('les difficultes de TOUTE la piece sont entourees',
+        $('paper').querySelectorAll('.sr-hot').length
+        === w.SightGen.hotspots(piece).length,
+        $('paper').querySelectorAll('.sr-hot').length + ' halos pour '
+        + w.SightGen.hotspots(piece).length + ' difficultes');
+    check('le chiffrage de mesure ne se grave qu\'en tete',
+        $('paper').querySelectorAll('.sr-ts').length === 4,
+        $('paper').querySelectorAll('.sr-ts').length + ' chiffres');
 
     until('read', 0);
-    check('les reperes sont effaces au moment de lire',
-        $('score').querySelectorAll('.sr-hot').length === 0);
+    // La lecture, elle, revient a une ligne a la fois : un mur de lignes
+    // fournirait l'avance oeil-main que l'exercice fait construire.
+    check('la lecture revient a une seule ligne',
+        $('paper').querySelectorAll('svg').length === 1,
+        $('paper').querySelectorAll('svg').length + ' portees');
+    check('les reperes sont effaces partout au moment de lire',
+        $('paper').querySelectorAll('.sr-hot').length === 0,
+        $('paper').querySelectorAll('.sr-hot').length + ' halos restants');
     // avant l'entree : compte a part, pas melange a la lecture
     midi(CLOCK, S().tl[0].midi);
     check('une note frappee pendant le decompte ne compte pas comme jouee',
