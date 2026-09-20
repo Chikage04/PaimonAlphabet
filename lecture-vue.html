@@ -197,6 +197,10 @@
             <button data-oc="erase">Effacement</button>
             <button data-oc="flash">Flash</button>
         </span>
+        <span class="seg" id="viewSeg" title="Voir toute la partition, ou une ligne a la fois.">
+            <button data-v="all" class="active">Partition entière</button>
+            <button data-v="line">Ligne par ligne</button>
+        </span>
         <span class="chip" id="occlHint"></span>
     </div>
 
@@ -266,6 +270,12 @@
                 Gilman &amp; Underwood, 2003). Aucune étude n'a évalué l'effacement du passé : c'est
                 proposé comme une expérience, et cette page mesure assez pour que tu la tranches
                 toi-même en comparant tes séances.</p>
+            <p><b>La partition entière reste visible.</b> Découper en lignes partait d'une
+                confusion : un <i>défilement</i> impose son propre tempo de lecture, mais une page
+                fixe non. Un lecteur voit sa page entière et tourne quand il arrive au bout ;
+                n'en montrer qu'une ligne est plus restrictif que la réalité, et c'est justement la
+                restriction vers l'avant que la recherche donne pour nuisible. « Ligne par ligne »
+                reste disponible pour qui veut s'y contraindre.</p>
             <p><b>Une pré-lecture chronométrée.</b> Vingt secondes pour repérer la tonalité, la mesure et les
                 endroits difficiles, sans toucher au piano. C'est l'habitude que tout le monde réclame et que
                 personne ne prend.</p>
@@ -331,7 +341,7 @@
             running: false,
             phase: 'idle',         // idle | preread | tap | read | verdict
             level: 1, manual: false, occl: 'none',
-            hands: 'both', content: 'melody',
+            hands: 'both', content: 'melody', view: 'all',
             flashBar: 0, flashBuf: [], flashRes: null,
             piece: null, tl: null, sys: 0,
             played: [],            // { t, midi }
@@ -586,6 +596,7 @@
             }
             $('sysnav').hidden = systems.length < 2;
             $('sysnav').textContent = 'Les ' + systems.length + ' lignes, en entier';
+            if (S.phase === 'read') applyOcclusion();
         }
         function hideScore() { $('paper').classList.add('hidden'); $('sysnav').hidden = true; }
 
@@ -593,7 +604,8 @@
         // revenir en arriere. On ne touche JAMAIS a ce qui est devant :
         // restreindre la vue vers l'avant fait retrecir l'empan oeil-main.
         function applyOcclusion() {
-            const groups = $('score').querySelectorAll('.sr-bar');
+            // une mesure peut vivre sur n'importe quelle portee affichee
+            const groups = $('paper').querySelectorAll('.sr-bar');
             if (!groups.length) return;
             if (S.occl !== 'fade' && S.occl !== 'erase') {
                 for (const g of groups) g.setAttribute('opacity', 1);
@@ -613,11 +625,11 @@
         function showOnlyBar(bar) {
             const sys = systems.findIndex(x => bar >= x.from && bar < x.to);
             if (sys >= 0 && sys !== S.sys) { S.sys = sys; drawSystem(false); }
-            for (const g of $('score').querySelectorAll('.sr-bar'))
+            for (const g of $('paper').querySelectorAll('.sr-bar'))
                 g.setAttribute('opacity', +g.getAttribute('data-bar') === bar ? 1 : 0);
         }
         function hideAllBars() {
-            for (const g of $('score').querySelectorAll('.sr-bar')) g.setAttribute('opacity', 0);
+            for (const g of $('paper').querySelectorAll('.sr-bar')) g.setAttribute('opacity', 0);
         }
         const barNotes = bar => S.tl.filter(e => e.bar === bar);
 
@@ -625,6 +637,7 @@
         // systeme courant. Pas de defilement : il fournirait l'avance
         // oeil-main que l'exercice cherche a faire construire.
         function maybeTurnPage() {
+            if (S.view === 'all') return;        // tout est deja sous les yeux
             const s = systems[S.sys];
             if (!s || S.sys >= systems.length - 1) return;
             const nextExpected = S.tl[S.cursor];
@@ -1097,7 +1110,8 @@
 
         function startReading() {
             S.phase = 'read';
-            S.sys = 0; drawSystem(false);
+            S.sys = 0;
+            if (S.view === 'all') drawAll(false); else drawSystem(false);
             const beats = S.piece.compound ? S.piece.ts.num / 3 : S.piece.ts.num;
             S.beatsPerBar = beats;
             S.gridT0 = startMetronome(S.piece.bpm, beats, LEADIN_BARS);
@@ -1353,7 +1367,7 @@
                 localStorage.setItem(LS_SET, JSON.stringify({
                     click: $('clickOn').checked, tap: $('tapOn').checked,
                     manual: S.manual, level: S.level, occl: S.occl,
-                    hands: S.hands, content: S.content
+                    hands: S.hands, content: S.content, view: S.view
                 }));
             } catch (e) { }
         }
@@ -1369,7 +1383,10 @@
                 if (o.occl) S.occl = o.occl;
                 if (o.hands) S.hands = o.hands;
                 if (o.content) S.content = o.content;
+                if (o.view) S.view = o.view;
             }
+            [...$('viewSeg').children].forEach(b =>
+                b.classList.toggle('active', b.dataset.v === S.view));
             [...$('handsSeg').children].forEach(b =>
                 b.classList.toggle('active', b.dataset.h === S.hands));
             [...$('contentSeg').children].forEach(b =>
@@ -1443,8 +1460,15 @@
             erase: 'La mesure disparaît dès sa première note. Tu la finis de mémoire — c\'est exigeant.',
             flash: 'Une mesure apparaît quelques secondes, puis disparaît : tu la rejoues de mémoire. Ce n\'est pas de la lecture à vue mais du regroupement.'
         };
-        function showOcclHint() { $('occlHint').textContent = OCCL_HINT[S.occl] || ''; }
+        const VIEW_HINT = {
+            all: 'Toute la partition reste sous les yeux, comme une page de papier.',
+            line: 'Une ligne à la fois ; elle tourne quand la lecture l\'atteint.'
+        };
+        function showOcclHint() {
+            $('occlHint').textContent = (VIEW_HINT[S.view] || '') + ' ' + (OCCL_HINT[S.occl] || '');
+        }
         wireSeg('occlSeg', 'oc', v => { S.occl = v; showOcclHint(); });
+        wireSeg('viewSeg', 'v', v => { S.view = v; showOcclHint(); });
         $('lvSlider').addEventListener('input', e => {
             S.level = +e.target.value;
             saveLevel(); saveSettings();

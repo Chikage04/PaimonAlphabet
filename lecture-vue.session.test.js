@@ -180,11 +180,11 @@ section('2. Le piano est muet pendant la pre-lecture');
         $('paper').querySelectorAll('.sr-ts').length + ' chiffres');
 
     until('read', 0);
-    // La lecture, elle, revient a une ligne a la fois : un mur de lignes
-    // fournirait l'avance oeil-main que l'exercice fait construire.
-    check('la lecture revient a une seule ligne',
-        $('paper').querySelectorAll('svg').length === 1,
-        $('paper').querySelectorAll('svg').length + ' portees');
+    // Par defaut, la partition entiere reste sous les yeux pendant la
+    // lecture : un lecteur voit sa page, il n'en lit pas une ligne.
+    check('par defaut, toute la partition reste affichee pour lire',
+        $('paper').querySelectorAll('svg').length === nSys,
+        $('paper').querySelectorAll('svg').length + ' portees pour ' + nSys + ' lignes');
     check('les reperes sont effaces partout au moment de lire',
         $('paper').querySelectorAll('.sr-hot').length === 0,
         $('paper').querySelectorAll('.sr-hot').length + ' halos restants');
@@ -317,7 +317,7 @@ section('6. Les pieces lues restent brulees d\'une seance a l\'autre');
 }
 
 // ------------------------------------------------------------------
-section('7. La page tourne au bon moment');
+section('7. Ligne par ligne : la page tourne au bon moment');
 
 {
     w.localStorage.clear();
@@ -325,9 +325,12 @@ section('7. La page tourne au bon moment');
     w.startSession();
     // le niveau doit etre pose AVANT que la piece ne soit tiree : la
     // changer en cours d'item ne toucherait que la piece suivante
-    w.eval('S.manual = true; S.calibrating = false; S.level = 7;');
+    w.eval("S.manual = true; S.calibrating = false; S.level = 7; S.view = 'line';");
     w.startItem();                                   // 12 mesures : 3 systemes
     until('read', 0);
+    check('en mode ligne par ligne, une seule portee est affichee',
+        $('paper').querySelectorAll('svg').length === 1,
+        $('paper').querySelectorAll('svg').length + ' portees');
     const nSys = w.eval('systems.length');
     check('la piece tiree est bien au niveau 7', S().piece.level === 7, S().piece.level);
     check('une piece de 12 mesures tient sur 3 lignes', nSys === 3, nSys);
@@ -343,6 +346,43 @@ section('7. La page tourne au bon moment');
         'ligne ' + (turned[turned.length - 1] + 1));
     check('les pages ne tournent que vers l\'avant',
         turned.every((v, i) => i === 0 || v >= turned[i - 1]));
+    w.endSession();
+}
+
+// ------------------------------------------------------------------
+section('7 bis. Partition entiere : rien ne tourne, et le masquage suit');
+
+{
+    w.localStorage.clear();
+    CLOCK = 1000;
+    w.startSession();
+    w.eval("S.manual = true; S.calibrating = false; S.level = 7; S.view = 'all'; S.occl = 'erase';");
+    w.startItem();
+    until('read', 0);
+
+    const nSys2 = w.eval('systems.length');
+    check('les trois lignes sont affichees pour lire', nSys2 === 3
+        && $('paper').querySelectorAll('svg').length === 3,
+        $('paper').querySelectorAll('svg').length + ' portees');
+    check('toutes les mesures sont a l\'ecran',
+        $('paper').querySelectorAll('.sr-bar').length === S().piece.bars,
+        $('paper').querySelectorAll('.sr-bar').length);
+
+    const st = S(), tl = st.tl, t0 = st.gridT0;
+    const vues = new Set();
+    for (let i = 0; i < tl.length; i++) {
+        CLOCK = t0 + tl[i].ms;
+        midi(CLOCK, tl[i].midi);
+        vues.add(w.eval('S.sys'));
+    }
+    check('la page ne tourne jamais : tout est deja la',
+        vues.size === 1 && vues.has(0), [...vues].join(','));
+
+    // le masquage doit atteindre les mesures des AUTRES portees
+    const off = [...$('paper').querySelectorAll('.sr-bar')]
+        .filter(g => +g.getAttribute('opacity') === 0).length;
+    check('l\'effacement atteint les mesures de toutes les portees',
+        off >= S().piece.bars - 1, off + ' mesures effacees sur ' + S().piece.bars);
     w.endSession();
 }
 
