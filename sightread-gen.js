@@ -115,17 +115,21 @@
     // maxLeap : plus grand intervalle diatonique autorise (1 = conjoint,
     //           2 = tierce, 4 = quinte, 5 = sixte, 7 = octave).
     // shift   : la main droite a-t-elle le droit de changer de position.
+    //
+    // La table ne dit PAS quelle main joue : c'est l'affaire des options.
+    // Un niveau qui se reservait la main droite laissait une portee vide
+    // alors que l'utilisateur avait demande deux mains.
     var LEVELS = [
         {
-            n: 1, label: 'Position fixe, main droite seule',
-            labelEn: 'Fixed five-finger position, right hand alone',
+            n: 1, label: 'Cinq doigts, mouvement conjoint',
+            labelEn: 'Five-finger position, stepwise motion',
             bars: 8, ts: [[4, 4], [3, 4]], keys: [0], minor: false, chordsPerBar: 1,
             span: 4, maxLeap: 1, shift: false, acc: false,
-            rhythm: ['h', 'q', 'w'], lh: 'none', bpm: 60
+            rhythm: ['h', 'q', 'w'], lh: 'drone', bpm: 60
         },
         {
-            n: 2, label: 'Sauts de tierce, basse tenue',
-            labelEn: 'Third leaps, sustained bass',
+            n: 2, label: 'Sauts de tierce',
+            labelEn: 'Third leaps',
             bars: 8, ts: [[4, 4], [3, 4]], keys: [0], minor: false, chordsPerBar: 1,
             span: 4, maxLeap: 2, shift: false, acc: false,
             rhythm: ['h', 'q', 'w'], lh: 'drone', bpm: 60

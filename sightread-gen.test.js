@@ -160,6 +160,22 @@ function stacksOf(p, hands) {
     return out;
 }
 
+// Un bouton qui annonce « deux mains » et n'en donne qu'une ment. Le
+// niveau 1 se reservait la main droite : sa portee de fa restait vide
+// alors que l'utilisateur avait demande les deux.
+for (const lvl of G.LEVELS) {
+    let sansMG = 0, sansMD = 0;
+    for (let i = 0; i < 100; i++) {
+        const p = G.generate(lvl.n, 3100 + i * 977, { hands: 'both' });
+        if (!p.measures.some(m => m.lh.some(n => !n.rest))) sansMG++;
+        if (!p.measures.some(m => m.rh.some(n => !n.rest))) sansMD++;
+    }
+    check('niveau ' + lvl.n + ' : en deux mains, la main gauche a des notes',
+        sansMG === 0, sansMG + '/100 pieces sans main gauche');
+    check('niveau ' + lvl.n + ' : en deux mains, la main droite a des notes',
+        sansMD === 0, sansMD + '/100 pieces sans main droite');
+}
+
 check('sans options, la piece est identique a avant',
     JSON.stringify(G.generate(4, 999)) === JSON.stringify(G.generate(4, 999, {})),
     'les valeurs par defaut ne doivent rien changer');
