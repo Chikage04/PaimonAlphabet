@@ -79,6 +79,7 @@
             display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
         }
         .phase .big { font-size: clamp(17px, 4.4vw, 23px); font-weight: 700; flex: 1 1 auto; }
+        .phase .chip[hidden] { display: none; }
         .phase .cd {
             font-size: 34px; font-weight: 700; font-variant-numeric: tabular-nums; min-width: 68px; text-align: right;
         }
@@ -214,6 +215,7 @@
 
     <div class="phase" id="phase">
         <span class="big" id="phaseText">Branche ton piano, puis lance une séance.</span>
+        <span class="chip mid" id="modeChip" hidden></span>
         <span class="cd" id="phaseCd"></span>
     </div>
 
@@ -988,6 +990,24 @@
             $('phase').className = 'phase ' + (cls || '');
             $('phaseText').textContent = text;
             $('phaseCd').textContent = '';
+            refreshModeChip();
+        }
+
+        // Rappel des reglages qui RETIRENT quelque chose de la vue, place
+        // la ou l'oeil est pendant la lecture. Rien a signaler : rien
+        // d'affiche — un avertissement permanent ne s'avertit plus.
+        const MODE_CHIP = {
+            line: 'ligne par ligne',
+            fade: 'voile arrière', erase: 'effacement', flash: 'flash'
+        };
+        function refreshModeChip() {
+            const on = [];
+            if (S.view === 'line') on.push(MODE_CHIP.line);
+            if (S.occl !== 'none') on.push(MODE_CHIP[S.occl]);
+            if (S.hands === 'rh') on.push('main droite seule');
+            if (S.hands === 'lh') on.push('main gauche seule');
+            $('modeChip').hidden = !on.length;
+            $('modeChip').textContent = on.length ? '👁 ' + on.join(' · ') : '';
         }
 
         function startItem() {
@@ -1451,7 +1471,7 @@
                 : ' Les valeurs descendent au temps et la basse se tient : l\'exercice porte sur les intervalles.';
             $('varHint').textContent = h + ' ' + c + plus;
         }
-        wireSeg('handsSeg', 'h', v => { S.hands = v; showVarHint(); });
+        wireSeg('handsSeg', 'h', v => { S.hands = v; showVarHint(); refreshModeChip(); });
         wireSeg('contentSeg', 'c', v => { S.content = v; showVarHint(); });
 
         const OCCL_HINT = {
@@ -1466,6 +1486,7 @@
         };
         function showOcclHint() {
             $('occlHint').textContent = (VIEW_HINT[S.view] || '') + ' ' + (OCCL_HINT[S.occl] || '');
+            refreshModeChip();
         }
         wireSeg('occlSeg', 'oc', v => { S.occl = v; showOcclHint(); });
         wireSeg('viewSeg', 'v', v => { S.view = v; showOcclHint(); });

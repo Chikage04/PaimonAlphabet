@@ -273,6 +273,15 @@ T = [
  '''<button data-v="line">Line by line</button>'''),
 ("all: 'Toute la partition reste sous les yeux, comme une page de papier.',",
  "all: 'The whole score stays in view, like a page of paper.',"),
+
+# ------------------------------------------- rappel du mode restrictif ----
+("line: 'ligne par ligne',", "line: 'line by line',"),
+("fade: 'voile arrière', erase: 'effacement', flash: 'flash'",
+ "fade: 'fade behind', erase: 'erase', flash: 'flash'"),
+("if (S.hands === 'rh') on.push('main droite seule');",
+ "if (S.hands === 'rh') on.push('right hand only');"),
+("if (S.hands === 'lh') on.push('main gauche seule');",
+ "if (S.hands === 'lh') on.push('left hand only');"),
 ("line: 'Une ligne à la fois ; elle tourne quand la lecture l\\'atteint.'",
  "line: 'One line at a time; it turns when your reading reaches it.'"),
 

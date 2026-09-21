@@ -208,6 +208,45 @@ section('3. Mode flash : une mesure a la fois, rejouee de memoire');
 }
 
 // ------------------------------------------------------------------
+section('3 bis. Un mode restrictif se rappelle la ou on regarde');
+
+{
+    // Une partition qui se vide sans raison apparente fait chercher un
+    // defaut qui n'existe pas. Le bandeau de phase nomme donc ce qui
+    // retire quelque chose de la vue — et se tait quand rien ne retire.
+    const w = boot();
+    const chip = () => {
+        const c = w.document.getElementById('modeChip');
+        return c.hidden ? '' : c.textContent;
+    };
+    const pose = (v, o, h) => {
+        w.eval("S.view='" + v + "';S.occl='" + o + "';S.hands='" + h + "';");
+        w.eval('setPhase("read","Lis.",0)');
+        return chip();
+    };
+    // On verifie le COMPORTEMENT, jamais le vocabulaire : chercher des
+    // mots rendrait l'assertion fausse dans l'autre langue.
+    check('rien a signaler : le rappel reste muet',
+        pose('all', 'none', 'both') === '', '[' + pose('all', 'none', 'both') + ']');
+
+    const seul = pose('line', 'none', 'both');
+    const autre = pose('all', 'erase', 'both');
+    const deux = pose('line', 'erase', 'both');
+    check('un affichage restrictif se signale', seul.length > 0, seul);
+    check('un masquage se signale', autre.length > 0, autre);
+    check('les deux se signalent differemment', seul !== autre, seul + ' / ' + autre);
+    check('cumules, le rappel nomme les deux',
+        deux.length > seul.length && deux.length > autre.length, deux);
+
+    const md = pose('all', 'none', 'rh'), mg = pose('all', 'none', 'lh');
+    check('une main seule se signale', md.length > 0 && mg.length > 0, md + ' / ' + mg);
+    check('et la main nommee n est pas la meme', md !== mg, md + ' / ' + mg);
+    check('le flash se signale', pose('all', 'flash', 'both').length > 0);
+    check('et le rappel se tait a nouveau au retour du defaut',
+        pose('all', 'none', 'both') === '');
+}
+
+// ------------------------------------------------------------------
 section('4. Le reglage tient le rechargement');
 
 {
