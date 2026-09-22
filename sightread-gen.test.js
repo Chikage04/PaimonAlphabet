@@ -104,7 +104,7 @@ for (const lvl of G.LEVELS) {
 section('1 bis. La partition est JOUABLE a deux mains');
 
 for (const lvl of G.LEVELS) {
-    let unisson = 0, croise = 0, tropLarge = 0, n = 0;
+    let unisson = 0, croise = 0, tropLarge = 0, voisines = 0, n = 0;
     for (let i = 0; i < 400; i++) {
         const p = G.generate(lvl.n, 7000 + i * 617);
         const tl = G.timeline(p, p.bpm);
@@ -131,10 +131,17 @@ for (const lvl of G.LEVELS) {
                 const v = es.filter(e => e.hand === h).map(e => e.midi);
                 if (v.length > 1 && Math.max(...v) - Math.min(...v) > 12) tropLarge++;
             }
+            // Deux touches voisines frappees ensemble sont indiscernables
+            // d'un doigt qui deborde : la partition ne doit jamais en
+            // demander, sinon le filtre qui corrige ce geste les mangerait.
+            const ps = es.map(e => e.midi).sort((a, b) => a - b);
+            for (let k = 1; k < ps.length; k++) if (ps[k] - ps[k - 1] < 3) voisines++;
         }
     }
     const L = 'niveau ' + lvl.n;
     check(L + ' : jamais deux fois la meme note au meme instant', unisson === 0, unisson);
+    check(L + ' : jamais deux touches voisines au meme instant', voisines === 0,
+        voisines + ' intervalles de moins d\'une tierce');
     check(L + ' : les mains ne se croisent jamais', croise === 0, croise);
     check(L + ' : aucun accord ne depasse l\'octave sous une main', tropLarge === 0, tropLarge);
 }

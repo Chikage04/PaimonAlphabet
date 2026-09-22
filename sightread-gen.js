@@ -399,8 +399,12 @@
                 if (!rhNotes[m0][i0].rest && rhNotes[m0][i0].d < ceil)
                     ceil = rhNotes[m0][i0].d;
         var floor = base - 7;
+        // Une TIERCE au moins sous la note la plus grave de la main droite.
+        // A un seul degre d'ecart, les deux mains pouvaient tomber sur des
+        // touches voisines — do diese et re ensemble : injouable proprement,
+        // et indiscernable d'un doigt qui accroche la touche d'a cote.
         function under(d) {
-            while (d >= ceil) d -= 7;
+            while (d >= ceil - 1) d -= 7;
             while (d < floor) d += 7;
             return d;
         }

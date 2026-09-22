@@ -350,6 +350,7 @@
             played: [],            // { t, midi }
             taps: [],
             itemIndex: 0, items: [], early: 0, dupes: 0, lastOn: new Map(),
+            grazed: 0, brushed: 0,
             sessionEnd: 0, phaseEnd: 0,
             gridT0: null, cursor: 0,
             upStreak: 0, downStreak: 0,
@@ -498,6 +499,12 @@
         // suffit pas. Une meme hauteur reattaquee en moins de 35 ms n'est
         // pas jouable a la main — c'est un doublon.
         const DUP_MS = 35;
+        // Une attaque a 1 % de force n'est pas une note : c'est un doigt qui
+        // traine. Meme en nuance douce on ne descend pas sous ce seuil.
+        const MIN_VEL = 10;
+        // Un doigt qui deborde accroche la touche voisine : deux attaques a
+        // quelques millisecondes, a un ou deux demi-tons. C'est UNE frappe.
+        const BRUSH_SEMI = 2, BRUSH_MS = 35;
         function onMIDIMessage(e) {
             const [st, pitch, vel] = e.data;
             if ((st & 0xf0) !== 0x90 || !vel) return;      // seules les attaques comptent
@@ -521,6 +528,27 @@
             // la lecture. On les compte pour pouvoir le dire, sans les
             // melanger a ce qui est joue sur la partition.
             if (S.gridT0 && t < S.gridT0 - 120) { S.early++; return; }
+            if (vel < MIN_VEL) { S.grazed++; return; }
+
+            // Touche voisine accrochee : on ne compte qu'une frappe, et on
+            // garde celle que la partition attend. La partition ne demande
+            // jamais deux notes a moins d'une tierce ensemble, donc deux
+            // voisines simultanees sont forcement un debordement de doigt.
+            const derniere = S.played[S.played.length - 1];
+            if (derniere && t - derniere.t <= BRUSH_MS
+                && Math.abs(pitch - derniere.midi) <= BRUSH_SEMI) {
+                S.brushed++;
+                const exp = S.tl[Math.min(S.tl.length - 1, S.played.length - 1)];
+                // la nouvelle est la bonne : elle remplace, en gardant la
+                // date de la premiere — c'est le meme geste
+                if (exp && pitch === exp.midi && derniere.midi !== exp.midi) {
+                    derniere.midi = pitch;
+                    derniere.vel = vel;
+                }
+                liveUpdate();
+                return;
+            }
+
             S.played.push({ t, midi: pitch, vel });
             liveUpdate();
         }
@@ -1024,6 +1052,7 @@
             S.tl = SightGen.timeline(S.piece, S.piece.bpm);
             S.played = []; S.taps = []; S.cursor = 0; S.early = 0;
             S.dupes = 0; S.lastOn = new Map();
+            S.grazed = 0; S.brushed = 0;
             $('verdict').hidden = true;
             $('cItem').textContent = S.itemIndex;
             $('cLevel').textContent = S.level;
@@ -1268,6 +1297,8 @@
             ];
             if (S.early) rows.push(['Notes jouées pendant le décompte (ignorées)', S.early, 'w']);
             if (S.dupes) rows.push(['Notes reçues en double (ignorées)', S.dupes, 'w']);
+            if (S.grazed) rows.push(['Touches effleurées (ignorées)', S.grazed, 'w']);
+            if (S.brushed) rows.push(['Touches voisines accrochées (fusionnées)', S.brushed, 'w']);
             if (a.errors) rows.push(['Notes perdues après une faute', a.recovery.toFixed(1),
                 a.recovery < 1 ? 'g' : a.recovery < 3 ? 'w' : 'b']);
             if (a.hesitation !== null) rows.push(['Ralentissement devant les difficultés',
