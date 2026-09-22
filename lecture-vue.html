@@ -965,6 +965,9 @@
             const reached = good.length ? Math.max.apply(null, good.map(g => g.idx)) + 1 : 0;
             return {
                 total, matched, wrong, reached,
+                // les notes ATTENDUES qui ont trouve reponse, pour pouvoir
+                // les montrer une a une sur la partition
+                hits: new Set(good.map(g => g.idx)),
                 accuracy: total ? matched / total * 100 : 0,
                 covered: total ? reached / total * 100 : 0,
                 stops: stops.length, longest, cv, offMs, drift, rate,
@@ -1235,7 +1238,7 @@
 
             adaptLevel(v);
             showVerdict(a, v);
-            hideScore();
+            showResultScore(a);
             setPhase('done', v.cleanRun ? 'Lecture menée sans casser.' :
                 v.brokeDown ? 'La lecture a cassé — la suivante sera plus facile.' :
                     'Lecture terminée.', performance.now() + VERDICT_MS);
@@ -1261,6 +1264,22 @@
             if (S.upStreak >= UP_STREAK && S.level < 8) { S.level++; S.upStreak = 0; }
             else if (S.downStreak >= DOWN_STREAK && S.level > 1) { S.level--; S.downStreak = 0; }
             saveLevel();
+        }
+
+        // Un pourcentage dit combien on a rate ; la partition coloriee dit
+        // OU. C'est le « ou » qui sert a preparer la prochaine lecture.
+        const COL_OK = '#1e56d6', COL_MISS = '#cf2222';
+        function showResultScore(a) {
+            showScore(S.piece, false, true);
+            for (let i = 0; i < S.tl.length; i++) {
+                const e = S.tl[i];
+                const head = $('paper').querySelector('.sr-head[data-bar="' + e.bar
+                    + '"][data-on="' + e.on + '"][data-midi="' + e.midi + '"]');
+                if (head) head.setAttribute('fill', a.hits.has(i) ? COL_OK : COL_MISS);
+            }
+            $('sysnav').hidden = false;
+            $('sysnav').innerHTML = '<span style="color:' + COL_OK + '">■</span> jouée'
+                + ' &nbsp; <span style="color:' + COL_MISS + '">■</span> manquée';
         }
 
         function showVerdict(a, v) {
@@ -1706,8 +1725,18 @@
                     .filter(h => h.bar < systems[0].to).length);
             SightRender.clearHotspots($('score'));
             check('les repères de pré-lecture s\'effacent', $('score').querySelectorAll('.sr-hot').length === 0);
+            // On cherche ce qu'on veut vraiment interdire : un element de
+            // clavier, et une hauteur portee HORS de la partition. Une
+            // tete de note porte legitimement sa hauteur — c'est ce qui
+            // permet de la colorier ; un div qui en porte une serait une
+            // touche deguisee.
             check('aucun clavier n\'est affiché sur la page',
-                !document.querySelector('.key, #piano, [data-midi]'));
+                !document.querySelector('.key, #piano, #pianoScaler'));
+            check('aucune hauteur n\'est portée hors de la partition',
+                [...document.querySelectorAll('[data-midi]')]
+                    .every(e => e.closest('#paper')),
+                [...document.querySelectorAll('[data-midi]')]
+                    .filter(e => !e.closest('#paper')).length + ' hors partition');
             hideScore();
 
             // -- 8. le niveau monte et descend, sans sortir des bornes

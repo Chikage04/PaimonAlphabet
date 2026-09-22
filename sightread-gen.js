@@ -743,6 +743,9 @@
                     if (n.rest) continue;
                     out.push({
                         hand: hand === 'rh' ? 'R' : 'L', midi: n.midi,
+                        // on garde la position DANS la mesure : c'est elle
+                        // qui identifie la note dans le dessin
+                        on: n.on,
                         tick: base + n.on, ms: (base + n.on) * msPerTick,
                         durMs: n.dur * msPerTick, bar: m,
                         leap: !!n.leap, shift: !!n.shift, acc: !!n.acc

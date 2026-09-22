@@ -78,7 +78,7 @@
     // ---------------------------------------------------------------
     // Les chemins sont exprimes en interlignes : une seule mise a
     // l'echelle suffit, et tous les symboles restent proportionnes.
-    function glyph(svg, name, x, y, cls) {
+    function glyph(svg, name, x, y, cls, attrs) {
         var g = GL[name];
         if (!g) return null;
         var e = el('path', {
@@ -86,14 +86,17 @@
             transform: 'translate(' + r2(x) + ' ' + r2(y) + ') scale(' + GAP + ')'
         });
         if (cls) e.setAttribute('class', cls);
+        // de quoi retrouver une note precise dans le dessin, pour la
+        // colorier apres coup
+        if (attrs) for (var k in attrs) e.setAttribute(k, attrs[k]);
         svg.appendChild(e);
         return g;
     }
     // centre horizontalement sur x
-    function glyphMid(svg, name, x, y, cls) {
+    function glyphMid(svg, name, x, y, cls, attrs) {
         var g = GL[name];
         if (!g) return null;
-        return glyph(svg, name, x - (g.box[0] + g.box[2]) / 2 * GAP, y, cls);
+        return glyph(svg, name, x - (g.box[0] + g.box[2]) / 2 * GAP, y, cls, attrs);
     }
     function halfWidth(name) {
         var g = GL[name];
@@ -388,7 +391,9 @@
                     x1: x - half, y1: ly, x2: x + half, y2: ly, stroke: INK, 'stroke-width': W_LEDGER
                 }));
 
-            glyphMid(svg, head, x, y, 'sr-head');
+            glyphMid(svg, head, x, y, 'sr-head', {
+                'data-bar': barIndex, 'data-on': n.on, 'data-midi': n.midi
+            });
 
             // Alteration : seulement si elle differe de ce qui est deja en
             // vigueur dans la mesure — c'est la regle de lecture reelle.
