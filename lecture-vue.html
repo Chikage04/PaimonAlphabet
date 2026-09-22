@@ -305,6 +305,7 @@
         const TAP_MS = 15000;          // frappe du rythme, optionnelle
         const VERDICT_MS = 9000;       // le temps de lire le bilan
         const LEADIN_BARS = 2;         // decompte avant d'entrer
+        const ABANDON_BEATS = 10;      // silence au-dela duquel on conclut
         const FLASH_MS = 2500;         // duree d'apparition d'une mesure en mode flash
         const FLASH_WAIT = 9000;       // au-dela, on passe a la mesure suivante
         const MATCH_WINDOW = 6;        // notes explorees en avant pour apparier
@@ -930,10 +931,14 @@
                 ? (mean(hot) / mean(norm) - 1) * 100 : null;
 
             const total = tl.length;
+            // la note attendue la plus avancee qui ait trouve reponse ; le
+            // rattrapage peut apparier dans le desordre, donc on prend le
+            // maximum et non la derniere
+            const reached = good.length ? Math.max.apply(null, good.map(g => g.idx)) + 1 : 0;
             return {
-                total, matched, wrong,
+                total, matched, wrong, reached,
                 accuracy: total ? matched / total * 100 : 0,
-                covered: total ? (good.length ? good[good.length - 1].idx + 1 : 0) / total * 100 : 0,
+                covered: total ? reached / total * 100 : 0,
                 stops: stops.length, longest, cv, offMs, drift, rate,
                 recovery: recov.length ? mean(recov) : 0, errors: recov.length,
                 hesitation: hesit, bpmPlayed: piece.bpm / (rate || 1)
@@ -1173,8 +1178,18 @@
             if (now - (S.lastGauge || 0) < 200) return;
             S.lastGauge = now;
             const a = analyse(S.piece, S.tl, S.played);
+            showBoard(a, true);
+        }
+
+        // vivant : la justesse se rapporte a ce qui a ete atteint, sinon
+        // elle affiche 50 % au milieu d'une lecture parfaite.
+        // final : les chiffres du bilan, pour que les deux s'accordent.
+        function showBoard(a, live) {
             $('cStops').textContent = a.stops;
-            $('cAcc').textContent = Math.round(a.accuracy) + ' %';
+            const pct = live
+                ? (a.reached ? a.matched / a.reached * 100 : 100)
+                : a.accuracy;
+            $('cAcc').textContent = Math.round(pct) + ' %';
         }
 
         function finishReading() {
@@ -1183,6 +1198,9 @@
             S.phase = 'verdict';
             const a = analyse(S.piece, S.tl, S.played);
             const v = judge(a);
+            // le bilan fait foi : le tableau reprend ses chiffres, sinon
+            // les deux se contredisent sous les yeux de l'eleve
+            showBoard(a, false);
             markSeen(S.piece.level, S.piece.sig);
             S.items.push({ level: S.piece.level, a: a, clean: v.cleanRun, key: S.piece.keyName });
 
@@ -1240,7 +1258,10 @@
                 ['Notes fausses ou en trop', a.wrong, a.wrong === 0 ? 'g' : a.wrong < 5 ? 'w' : 'b'],
                 ['Arrêts', a.stops, a.stops === 0 ? 'g' : a.stops <= 2 ? 'w' : 'b'],
                 ['Plus long arrêt', Math.round(a.longest) + ' ms', a.longest < 500 ? 'g' : a.longest < 1500 ? 'w' : 'b'],
-                ['Écart au temps', Math.round(a.offMs) + ' ms', a.offMs < 45 ? 'g' : a.offMs < 90 ? 'w' : 'b'],
+                // « arrets exclus » : sans cette precision, un long arret a
+                // cote d'un faible ecart au temps se lit comme une erreur
+                ['Écart au temps, arrêts exclus', Math.round(a.offMs) + ' ms',
+                    a.offMs < 45 ? 'g' : a.offMs < 90 ? 'w' : 'b'],
                 ['Dérive de tempo', (a.drift > 0 ? '+' : '') + a.drift.toFixed(0) + ' %', Math.abs(a.drift) < 12 ? 'g' : 'w'],
                 ['Tempo réellement tenu', '♩≈ ' + Math.round(a.bpmPlayed), ''],
                 ['Pièce menée au bout', a.covered.toFixed(0) + ' %', a.covered > 95 ? 'g' : 'w']
@@ -1310,8 +1331,13 @@
                 const last = S.played.length ? S.played[S.played.length - 1].t : S.gridT0;
                 const quiet = now - last;
                 const budget = SightGen.durationMs(S.piece, S.piece.bpm) * 3 + 15000;
+                // La piece est jouee : un temps de silence suffit a conclure.
                 if (S.played.length >= S.tl.length && quiet > 1.2 * beat) finishReading();
-                else if (quiet > 4 * beat && S.played.length >= S.tl.length * 0.6) finishReading();
+                // Sinon il faut un ABANDON MANIFESTE. Un compte de notes ne
+                // decide pas qu'on a fini : en mode effacement, une
+                // hesitation de quelques secondes est le fonctionnement
+                // normal de l'exercice, pas une fin de lecture.
+                else if (quiet > ABANDON_BEATS * beat) finishReading();
                 else if (now - S.gridT0 > budget) finishReading();
             }
             if (now >= S.sessionEnd && S.phase !== 'read') endSession();

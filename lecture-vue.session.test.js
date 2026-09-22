@@ -387,6 +387,98 @@ section('7 bis. Partition entiere : rien ne tourne, et le masquage suit');
 }
 
 // ------------------------------------------------------------------
+section('7 ter. On ne coupe pas quelqu\'un qui hesite');
+
+{
+    // En mode effacement, chaque mesure se finit de memoire : une pause de
+    // quelques secondes est le fonctionnement normal de l'exercice, pas
+    // une fin de lecture. Un compte de notes ne doit pas en decider.
+    for (const pause of [3, 5, 8]) {
+        w.localStorage.clear();
+        CLOCK = 1000;
+        w.startSession();
+        w.eval("S.manual=true;S.calibrating=false;S.level=1;S.view='all';S.occl='erase';");
+        w.startItem();
+        until('read', 0);
+        const tl = S().tl, t0 = S().gridT0, beat = 60000 / S().piece.bpm;
+
+        // on joue les deux tiers, puis on hesite, puis on finit
+        const coupe = Math.floor(tl.length * 0.68);
+        for (let i = 0; i < coupe; i++) {
+            CLOCK = t0 + tl[i].ms;
+            midi(CLOCK, tl[i].midi);
+        }
+        const avant = S().phase;
+        for (let k = 0; k < pause * 4; k++) { CLOCK += 250; w.tick(); }
+        check('pause de ' + pause + ' s apres ' + coupe + '/' + tl.length
+            + ' notes : la lecture continue',
+            S().phase === 'read', 'phase ' + S().phase + ' (etait ' + avant + ')');
+
+        if (S().phase === 'read') {
+            for (let i = coupe; i < tl.length; i++) {
+                CLOCK += 600;
+                midi(CLOCK, tl[i].midi);
+            }
+            let q = 0;
+            while (S().phase === 'read' && q++ < 200) { CLOCK += 200; w.tick(); }
+            const a = S().items[S().items.length - 1].a;
+            check('pause de ' + pause + ' s : la piece est bien menee au bout',
+                a.covered > 99, a.covered.toFixed(0) + ' %');
+        }
+        w.endSession();
+    }
+
+    // Un abandon franc, lui, doit conclure.
+    w.localStorage.clear();
+    CLOCK = 1000;
+    w.startSession();
+    w.eval("S.manual=true;S.calibrating=false;S.level=1;");
+    w.startItem();
+    until('read', 0);
+    const tl2 = S().tl, t02 = S().gridT0;
+    for (let i = 0; i < 4; i++) { CLOCK = t02 + tl2[i].ms; midi(CLOCK, tl2[i].midi); }
+    let g2 = 0;
+    while (S().phase === 'read' && g2++ < 400) { CLOCK += 250; w.tick(); }
+    check('un silence prolonge conclut quand meme la lecture',
+        S().phase !== 'read', S().phase);
+    w.endSession();
+}
+
+// ------------------------------------------------------------------
+section('7 quater. Le tableau de bord et le bilan disent la meme chose');
+
+{
+    // Ils sont lus a quelques secondes d'intervalle par la meme personne.
+    // S'ils divergent, l'un des deux ment, et on cherche un defaut la ou
+    // il n'y en a pas.
+    for (const cas of ['parfait', 'fausses', 'arrets']) {
+        w.localStorage.clear();
+        CLOCK = 1000;
+        w.startSession();
+        w.eval("S.manual=true;S.calibrating=false;S.level=1;S.view='all';S.occl='none';");
+        w.startItem();
+        until('read', 0);
+        const tl = S().tl, t0 = S().gridT0;
+        let extra = 0;
+        for (let i = 0; i < tl.length; i++) {
+            if (cas === 'arrets' && i > 0 && i % 7 === 0) extra += 3000;
+            CLOCK = t0 + tl[i].ms + extra;
+            midi(CLOCK, cas === 'fausses' && i % 9 === 4 ? tl[i].midi + 1 : tl[i].midi);
+        }
+        let q = 0;
+        while (S().phase === 'read' && q++ < 200) { CLOCK += 200; w.tick(); }
+        const a = S().items[S().items.length - 1].a;
+        check('cas ' + cas + ' : meme pourcentage de notes justes des deux cotes',
+            $('cAcc').textContent === Math.round(a.accuracy) + ' %',
+            'tableau ' + $('cAcc').textContent + ', bilan ' + Math.round(a.accuracy) + ' %');
+        check('cas ' + cas + ' : meme nombre d\'arrets des deux cotes',
+            $('cStops').textContent === String(a.stops),
+            'tableau ' + $('cStops').textContent + ', bilan ' + a.stops);
+        w.endSession();
+    }
+}
+
+// ------------------------------------------------------------------
 section('8. Le premier temps n\'arrive pas par surprise');
 
 {
