@@ -185,6 +185,7 @@
             <button data-c="fifths">Quintes</button>
             <button data-c="fifths7">Quintes et 7èmes</button>
             <button data-c="chords">Accords</button>
+            <button data-c="arpeggio">Arpèges</button>
         </span>
     </div>
     <div class="controls">
@@ -1529,7 +1530,8 @@
         const HANDS_LABEL = { both: 'deux mains', rh: 'main droite', lh: 'main gauche' };
         const CONTENT_LABEL = {
             melody: 'mélodie', fifths: 'quintes',
-            fifths7: 'quintes et septièmes', chords: 'accords'
+            fifths7: 'quintes et septièmes', chords: 'accords',
+            arpeggio: 'arpèges'
         };
         const variantLabel = () => (S.hands === 'both' && S.content === 'melody')
             ? '' : ' · ' + HANDS_LABEL[S.hands] + ', ' + CONTENT_LABEL[S.content];
@@ -1542,9 +1544,13 @@
                 : S.content === 'fifths' ? 'Des quintes à lire d\'un coup d\'œil.'
                     : S.content === 'fifths7'
                         ? 'Quintes et septièmes mêlées — les deux se ressemblent sur la portée, et c\'est justement ce qu\'on confond.'
-                        : 'Des accords de trois et quatre sons, empilés par tierces.';
+                        : S.content === 'chords'
+                        ? 'Des accords de trois et quatre sons, empilés par tierces.'
+                        : 'Le même accord, mais déroulé : une note par temps, du grave vers l\'aigu.';
             const plus = S.content === 'melody' ? ''
-                : ' Les valeurs descendent au temps et la basse se tient : l\'exercice porte sur les intervalles.';
+                : S.content === 'arpeggio'
+                    ? ' Une note par temps, et la basse se tient : l\'exercice porte sur la figure.'
+                    : ' Les valeurs descendent au temps et la basse se tient : l\'exercice porte sur les intervalles.';
             $('varHint').textContent = h + ' ' + c + plus;
         }
         wireSeg('handsSeg', 'h', v => { S.hands = v; showVarHint(); refreshModeChip(); });

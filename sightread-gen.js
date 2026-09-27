@@ -511,7 +511,7 @@
     // ---------------------------------------------------------------
     // 10. Variantes : quelle main, quel contenu
     // ---------------------------------------------------------------
-    var CONTENTS = ['melody', 'fifths', 'fifths7', 'chords'];
+    var CONTENTS = ['melody', 'fifths', 'fifths7', 'chords', 'arpeggio'];
     var HANDSETS = ['both', 'rh', 'lh'];
 
     function normOpts(o) {
@@ -527,6 +527,42 @@
         if (content === 'fifths') return [4];
         if (content === 'fifths7') return [r() < 0.5 ? 4 : 6];
         return r() < 0.5 ? [2, 4] : [2, 4, 6];
+    }
+
+    // Le representant d'un degre dans une bande de sept degres. La bande
+    // en couvrant exactement une octave diatonique, la reponse existe
+    // toujours et elle est unique.
+    function degreeInBand(deg, tonicD, loBase) {
+        for (var k = loBase; k < loBase + 7; k++)
+            if (((k - tonicD) % 7 + 7) % 7 === deg) return k;
+        return loBase;
+    }
+
+    // L'accord se deroule : une note par temps, du grave vers l'aigu. Le
+    // motif revient sur la tierce en quatrieme position plutot que de
+    // monter indefiniment — c'est ce qui en fait une figure reconnaissable
+    // et non une gamme brisee.
+    // ARP_LO : la base de l'arpege se pose dans cette bande, et l'accord
+    // monte de six degres au plus. Main droite la3-sol4, sommet fa5 ; main
+    // gauche do2-si2, sommet la3. Ce sont les deux portees, a une ligne
+    // supplementaire pres.
+    var ARP_LO = { rh: 26, lh: 14 };
+
+    function arpeggiate(r, bars, ctx, plan, loBase) {
+        for (var m = 0; m < bars.length; m++) {
+            var row = bars[m], notes = [], i;
+            for (i = 0; i < row.length; i++) if (!row[i].rest) notes.push(i);
+            if (!notes.length) continue;
+            var base = degreeInBand(plan[m] % 7, ctx.tonicD, loBase);
+            var offs = r() < 0.5 ? [0, 2, 4, 2] : [0, 2, 4, 6];
+            for (i = 0; i < notes.length; i++) {
+                var old = row[notes[i]];
+                var n = mkNote(base + offs[i % offs.length], old.on, old.dur, ctx);
+                n.leap = i > 0 && Math.abs(offs[i % offs.length]
+                    - offs[(i - 1) % offs.length]) >= 3;
+                row[notes[i]] = n;
+            }
+        }
     }
 
     function emptyBars(n) {
@@ -601,6 +637,10 @@
                 });
             });
             if (!lvl.rhythm.length) lvl.rhythm = ['q'];
+            // Un arpege se deroule note a note : un temps chacune, et rien
+            // d'autre. Trois sons sur une noire demanderaient des triolets,
+            // et l'exercice porte sur la figure, pas sur le rythme.
+            if (O.content === 'arpeggio') lvl.rhythm = [compound ? 'c1' : 'q'];
             // Demander des quintes et recevoir une basse d'Alberti par
             // dessous n'est pas ce qu'on a demande : quand le contenu est
             // empile, la basse se tient et l'exercice porte sur les
@@ -616,8 +656,13 @@
             // Quand elle porte des accords, c'est l'empilement qui occupe
             // la place : la ligne, elle, bouge alors d'une tierce au plus.
             lvl.span = Math.min(lvl.span, O.content === 'melody' ? 7 : 2);
-            var deep = O.content === 'melody' ? 0 : 6;
-            var lowD = 14 + deep, hiD = 28 - lvl.span;
+            // Un accord plaque s'empile vers le bas pour tenir sur la portee
+            // de fa ; un arpege monte. La place a reserver change donc de
+            // cote : au-dessus de la base, et non en dessous.
+            var monte = O.content === 'arpeggio';
+            var deep = (O.content === 'melody' || monte) ? 0 : 6;
+            var haut = monte ? 6 : 0;
+            var lowD = 14 + deep, hiD = 28 - lvl.span - haut;
             // la fenetre couvre au moins sept degres, donc chaque tonalite
             // y a exactement un representant
             tonicD = nearTo(tonicStep, Math.round((lowD + hiD) / 2));
@@ -635,6 +680,14 @@
         }
 
         var rh = buildMelody(r, lvl, ctx, plan, rhythms, beat);
+
+        // L'arpege change tout le registre de la main droite. La basse
+        // plafonne sur la note la plus grave de cette main : il faut donc
+        // derouler AVANT de la construire, sinon elle plafonne sur une
+        // ligne melodique qui n'existe plus et les mains se croisent.
+        if (O.content === 'arpeggio')
+            arpeggiate(r, rh, ctx, plan, ARP_LO[O.hands === 'lh' ? 'lh' : 'rh']);
+
         var lh = O.hands === 'both'
             ? buildBass(r, lvl, ctx, plan, rh, beat)
             : emptyBars(lvl.bars);
@@ -643,7 +696,10 @@
         // ainsi qu'on ecrit un accord de main gauche, et c'est ce qui le
         // garde sur sa portee.
         var dir = O.hands === 'lh' ? -1 : 1;
-        if (O.content !== 'melody') stackBars(r, rh, ctx, O.content, dir);
+        // les accords plaques s'empilent VERS LE HAUT : le plafond de la
+        // basse, lui, reste la note la plus grave, donc l'ordre importe peu
+        if (O.content !== 'melody' && O.content !== 'arpeggio')
+            stackBars(r, rh, ctx, O.content, dir);
         if (O.hands === 'lh') { lh = rh; rh = emptyBars(lvl.bars); }
 
         var measures = [];

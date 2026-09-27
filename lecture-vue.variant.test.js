@@ -132,6 +132,49 @@ function stacks(tl) {
 }
 
 {
+    // L'ARPEGE : le meme accord, mais deroule. Une note par temps, jamais
+    // deux ensemble, et une figure qui monte.
+    const w = boot();
+    const S = item(w, 'rh', 'arpeggio', 3);
+    const tl = S().tl;
+    const st = stacks(tl);
+    check('arpege : jamais deux notes au meme instant',
+        st.every(v => v.length === 1), [...new Set(st.map(v => v.length))].join(','));
+    const durs = [...new Set(tl.map(e => Math.round(e.durMs)))];
+    check('arpege : une seule valeur, plus la cadence',
+        durs.length <= 2, durs.join(', ') + ' ms');
+    // la figure monte a l'interieur de chaque mesure
+    let descend = 0;
+    for (let b = 0; b < S().piece.bars - 1; b++) {
+        const v = tl.filter(e => e.bar === b).map(e => e.midi);
+        if (v.length > 1 && v[1] < v[0]) descend++;
+    }
+    check('arpege : la figure monte depuis sa base', descend === 0, descend + ' mesures');
+    check('arpege : la partition porte des notes',
+        w.document.getElementById('score').querySelectorAll('.sr-head').length > 0);
+    w.endSession();
+}
+
+{
+    // arpege a la main gauche : il monte aussi, mais depuis le grave
+    const w = boot();
+    const S = item(w, 'lh', 'arpeggio', 3);
+    const tl = S().tl;
+    check('arpege main gauche : tout est a la main gauche',
+        tl.every(e => e.hand === 'L'));
+    const hors = tl.filter(e => e.midi < 35 || e.midi > 58);
+    check('arpege main gauche : tout tient sur la portee de fa',
+        hors.length === 0, hors.length + ' notes hors do2-la3');
+    let descend = 0;
+    for (let b = 0; b < S().piece.bars - 1; b++) {
+        const v = tl.filter(e => e.bar === b).map(e => e.midi);
+        if (v.length > 1 && v[1] < v[0]) descend++;
+    }
+    check('arpege main gauche : la figure monte aussi', descend === 0, descend);
+    w.endSession();
+}
+
+{
     // main gauche ET accords : l'empilement descend, et tout reste en bas
     const w = boot();
     const S = item(w, 'lh', 'chords', 3);

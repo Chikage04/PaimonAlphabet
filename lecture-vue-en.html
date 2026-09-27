@@ -185,6 +185,7 @@
             <button data-c="fifths">Fifths</button>
             <button data-c="fifths7">Fifths and 7ths</button>
             <button data-c="chords">Chords</button>
+            <button data-c="arpeggio">Arpeggios</button>
         </span>
     </div>
     <div class="controls">
@@ -1529,7 +1530,8 @@
         const HANDS_LABEL = { both: 'both hands', rh: 'right hand', lh: 'left hand' };
         const CONTENT_LABEL = {
             melody: 'melody', fifths: 'fifths',
-            fifths7: 'fifths and sevenths', chords: 'chords'
+            fifths7: 'fifths and sevenths', chords: 'chords',
+            arpeggio: 'arpeggios'
         };
         const variantLabel = () => (S.hands === 'both' && S.content === 'melody')
             ? '' : ' · ' + HANDS_LABEL[S.hands] + ', ' + CONTENT_LABEL[S.content];
@@ -1542,9 +1544,13 @@
                 : S.content === 'fifths' ? 'Fifths, to be taken in at a glance.'
                     : S.content === 'fifths7'
                         ? 'Fifths and sevenths mixed — the two look alike on the stave, and those are exactly the ones people confuse.'
-                        : 'Chords of three and four notes, stacked in thirds.';
+                        : S.content === 'chords'
+                        ? 'Chords of three and four notes, stacked in thirds.'
+                        : 'The same chord, unrolled: one note per beat, from the bottom up.';
             const plus = S.content === 'melody' ? ''
-                : ' Note values come down to the beat and the bass is held: the drill is about the intervals.';
+                : S.content === 'arpeggio'
+                    ? ' One note per beat, and the bass is held: the drill is about the shape.'
+                    : ' Note values come down to the beat and the bass is held: the drill is about the intervals.';
             $('varHint').textContent = h + ' ' + c + plus;
         }
         wireSeg('handsSeg', 'h', v => { S.hands = v; showVarHint(); refreshModeChip(); });

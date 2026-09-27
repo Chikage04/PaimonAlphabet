@@ -241,6 +241,47 @@ for (const lvl of G.LEVELS) {
 }
 
 {
+    // L'ARPEGE : l'accord se deroule au lieu d'etre plaque. Une note par
+    // temps, du grave vers l'aigu, et sur la portee de la main qui joue.
+    let horsAccord = 0, horsBande = 0, horsTemps = 0, descend = 0, tot = 0;
+    for (const hands of ['rh', 'lh', 'both'])
+        for (let lv = 1; lv <= 8; lv++)
+            for (let i = 0; i < 40; i++) {
+                const p = G.generate(lv, 6600 + i * 313, { hands, content: 'arpeggio' });
+                const main = hands === 'lh' ? 'lh' : 'rh';
+                const beat = p.compound ? p.tpq * 1.5 : p.tpq;
+                for (let m = 0; m < p.measures.length; m++) {
+                    const row = p.measures[m][main].filter(n => !n.rest);
+                    if (!row.length) continue;
+                    tot++;
+                    // toutes les notes appartiennent a l'accord de la mesure
+                    const tonic = Math.round((28 - p.tonicStep) / 7) * 7 + p.tonicStep;
+                    const deg = p.plan[m];
+                    const tons = [deg % 7, (deg + 2) % 7, (deg + 4) % 7, (deg + 6) % 7];
+                    for (const n of row)
+                        if (tons.indexOf(((n.d - tonic) % 7 + 7) % 7) < 0) horsAccord++;
+                    // une note par temps, sauf la mesure cadentielle
+                    if (m < p.measures.length - 1)
+                        for (const n of row) if (n.dur !== beat) horsTemps++;
+                    // la figure monte depuis sa base
+                    if (row.length > 1 && row[1].d < row[0].d) descend++;
+                    // et elle tient sur sa portee
+                    for (const n of row) {
+                        const lo = main === 'lh' ? 35 : 56, hi = main === 'lh' ? 58 : 78;
+                        if (n.midi < lo || n.midi > hi) horsBande++;
+                    }
+                }
+            }
+    check('arpege : toutes les notes appartiennent a l\'accord de la mesure',
+        horsAccord === 0, horsAccord);
+    check('arpege : une note par temps hors cadence', horsTemps === 0, horsTemps);
+    check('arpege : la figure monte depuis sa base', descend === 0,
+        descend + ' mesures sur ' + tot);
+    check('arpege : elle tient sur la portee de la main qui joue',
+        horsBande === 0, horsBande);
+}
+
+{
     // un accord ne se lit pas en doubles croches
     let tropCourt = 0;
     for (const content of ['fifths', 'fifths7', 'chords'])
@@ -260,7 +301,11 @@ for (const lvl of G.LEVELS) {
     for (const hands of G.HANDSETS)
         for (const content of G.CONTENTS)
             sigs.add(G.generate(3, 12345, { hands, content }).sig);
-    check('chaque variante a sa propre empreinte', sigs.size === 12, sigs.size + ' sur 12');
+    // derive du nombre d'options, pas ecrit en dur : ajouter un contenu
+    // doit etendre la verification, pas la casser
+    const attendu = G.HANDSETS.length * G.CONTENTS.length;
+    check('chaque variante a sa propre empreinte', sigs.size === attendu,
+        sigs.size + ' sur ' + attendu);
 }
 
 {
