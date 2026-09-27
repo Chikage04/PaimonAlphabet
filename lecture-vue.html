@@ -307,6 +307,8 @@
         const VERDICT_MS = 9000;       // le temps de lire le bilan
         const LEADIN_BARS = 2;         // decompte avant d'entrer
         const ABANDON_BEATS = 10;      // silence au-dela duquel on conclut
+        const NEAR_END = 0.9;          // « pratiquement fini », en part de la piece
+        const NEAR_BEATS = 4;          // silence qui suffit alors a conclure
         const FLASH_MS = 2500;         // duree d'apparition d'une mesure en mode flash
         const FLASH_WAIT = 9000;       // au-dela, on passe a la mesure suivante
         const MATCH_WINDOW = 6;        // notes explorees en avant pour apparier
@@ -351,6 +353,7 @@
             played: [],            // { t, midi }
             taps: [],
             itemIndex: 0, items: [], early: 0, dupes: 0, lastOn: new Map(),
+            reached: 0,
             grazed: 0, brushed: 0,
             sessionEnd: 0, phaseEnd: 0,
             gridT0: null, cursor: 0,
@@ -901,6 +904,20 @@
             return sd(keep.length >= res.length * 0.75 ? keep : res);
         }
 
+        // On situe la derniere note jouee sur la grille ajustee, puis on
+        // compte les notes ecrites jusque-la. La tolerance d'un demi-temps
+        // absorbe l'imprecision de la derniere attaque.
+        function reachedAt(tl, gaps, good, played, rate, piece) {
+            if (!played.length || !good.length) return 0;
+            if (!(rate > 0)) return good.length;
+            const off = median(good.map(g => g.played.t - rate * g.exp.ms));
+            const fin = (played[played.length - 1].t - off) / rate
+                + 60000 / piece.bpm / 2;
+            let n = 0;
+            for (const e of tl) if (e.ms <= fin) n++;
+            return Math.min(tl.length, Math.max(n, 1));
+        }
+
         function analyse(piece, tl, played) {
             const { pairs } = matchAligned(tl, played);
             const good = pairs.filter(p => p.exp);
@@ -960,10 +977,12 @@
                 ? (mean(hot) / mean(norm) - 1) * 100 : null;
 
             const total = tl.length;
-            // la note attendue la plus avancee qui ait trouve reponse ; le
-            // rattrapage peut apparier dans le desordre, donc on prend le
-            // maximum et non la derniere
-            const reached = good.length ? Math.max.apply(null, good.map(g => g.idx)) + 1 : 0;
+            // Jusqu'ou est-on alle dans la partition. La question est
+            // TEMPORELLE : on s'arrete a un moment, pas a une note. La
+            // deduire de l'appariement donnait 28 sur 28 pour dix-huit
+            // notes jouees — l'alignement est global, il repartit ce qu'on
+            // lui donne sur toute la piece.
+            const reached = reachedAt(tl, gaps, good, played, rate, piece);
             return {
                 total, matched, wrong, reached,
                 // les notes ATTENDUES qui ont trouve reponse, pour pouvoir
@@ -1057,6 +1076,7 @@
             S.played = []; S.taps = []; S.cursor = 0; S.early = 0;
             S.dupes = 0; S.lastOn = new Map();
             S.grazed = 0; S.brushed = 0;
+            S.reached = 0; S.lastReach = 0;
             $('verdict').hidden = true;
             $('cItem').textContent = S.itemIndex;
             $('cLevel').textContent = S.level;
@@ -1211,6 +1231,7 @@
             if (now - (S.lastGauge || 0) < 200) return;
             S.lastGauge = now;
             const a = analyse(S.piece, S.tl, S.played);
+            S.reached = a.reached;
             showBoard(a, true);
         }
 
@@ -1382,12 +1403,27 @@
                 const last = S.played.length ? S.played[S.played.length - 1].t : S.gridT0;
                 const quiet = now - last;
                 const budget = SightGen.durationMs(S.piece, S.piece.bpm) * 3 + 15000;
-                // La piece est jouee : un temps de silence suffit a conclure.
-                if (S.played.length >= S.tl.length && quiet > 1.2 * beat) finishReading();
-                // Sinon il faut un ABANDON MANIFESTE. Un compte de notes ne
-                // decide pas qu'on a fini : en mode effacement, une
-                // hesitation de quelques secondes est le fonctionnement
-                // normal de l'exercice, pas une fin de lecture.
+
+                // Ou en est-on DANS LA PARTITION ? L'affichage direct est
+                // espace pour ne pas recalculer a chaque touche ; des que le
+                // clavier se tait, on rafraichit, parce que c'est cette
+                // reponse qui decide de conclure.
+                if (quiet > 250 && now - (S.lastReach || 0) > 250) {
+                    S.lastReach = now;
+                    S.reached = analyse(S.piece, S.tl, S.played).reached;
+                }
+                const fin = S.reached >= S.tl.length;
+                const presque = S.reached >= S.tl.length * NEAR_END;
+
+                // La fin est atteinte : un temps et demi suffit. Manquer des
+                // notes au milieu ne doit pas faire attendre.
+                if (fin && quiet > 1.2 * beat) finishReading();
+                // Presque : la derniere note a peut-etre rate, on ne fait pas
+                // patienter dix temps pour autant.
+                else if (presque && quiet > NEAR_BEATS * beat) finishReading();
+                // Ailleurs, il faut un ABANDON MANIFESTE : en mode
+                // effacement, une hesitation de quelques secondes est le
+                // fonctionnement normal de l'exercice.
                 else if (quiet > ABANDON_BEATS * beat) finishReading();
                 else if (now - S.gridT0 > budget) finishReading();
             }
