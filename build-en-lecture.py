@@ -506,6 +506,90 @@ T = [
 ("Math.floor(SESSION_MS / worst) >= 9, Math.floor(SESSION_MS / worst) + ' pièces');",
  "Math.floor(SESSION_MS / worst) >= 9, Math.floor(SESSION_MS / worst) + ' pieces');"),
 ("+ ' vérifications passées</b></li>'", "+ ' checks passed</b></li>'"),
+# ------------------------------------------- atelier de reconnaissance ------
+("<h2>Atelier de reconnaissance</h2>", "<h2>Recognition workshop</h2>"),
+("<p>D'après la méthode de Richard Yang. Ici, <b>les règles sont inversées</b> : pas de",
+ "<p>After Richard Yang's method. Here <b>the rules are reversed</b>: no metronome, no"),
+("métronome, pas de temps imposé, aucun arrêt compté. On prend le temps qu'on veut et",
+ "time limit, no stop counted. Take all the time you want and only accuracy is"),
+("seule la justesse est jugée — parce que ce n'est pas de la lecture à vue, c'est ce qui",
+ "judged — because this is not sight-reading, it is what comes before it."),
+("la précède. Reconnaître une forme et la porter à la main.</p>",
+ "Recognising a shape and carrying it to the hand.</p>"),
+('<button class="btn" data-drill="intervals">Intervalles</button>',
+ '<button class="btn" data-drill="intervals">Intervals</button>'),
+('<button class="btn" data-drill="octaves">Octaves et grands écarts</button>',
+ '<button class="btn" data-drill="octaves">Octaves and wide leaps</button>'),
+('<button class="btn" data-drill="shape">Mesure repliée en un accord</button>',
+ '<button class="btn" data-drill="shape">Bar folded into one chord</button>'),
+('<button class="btn ghost" id="drillStop" disabled>Arrêter</button>',
+ '<button class="btn ghost" id="drillStop" disabled>Stop</button>'),
+('<p class="lead" id="drillInfo">Choisis un exercice. Ton piano suffit — rien à cliquer.</p>',
+ '<p class="lead" id="drillInfo">Pick a drill. Your piano is enough — nothing to click.</p>'),
+
+("<p><b>L'atelier suit d'autres règles, et c'est voulu.</b> Richard Yang enseigne de",
+ "<p><b>The workshop follows different rules, on purpose.</b> Richard Yang teaches you to"),
+("jouer si lentement que tout soit juste, de trouver l'accord entièrement avant de le",
+ "play so slowly that everything comes out right, to work the whole chord out before"),
+("jouer, et de faire passer les notes avant le rythme. La séance de lecture dit",
+ "playing it, and to put the notes before the rhythm. The reading session says the"),
+("l'inverse : ne jamais s'arrêter, la continuité avant les notes justes. Les deux ont",
+ "opposite: never stop, continuity before correct notes. Both are right, about two"),
+("raison, sur deux exercices différents — ce qu'il décrit est la <i>préparation</i>,",
+ "different exercises — what he describes is <i>preparation</i>, where a wrong note"),
+("où une note fausse entre en mémoire musculaire et coûte cher à désapprendre ; la",
+ "enters muscle memory and is expensive to unlearn; sight-reading is"),
+("lecture à vue est la <i>performance</i>, où s'arrêter est le seul vrai échec.</p>",
+ "<i>performance</i>, where stopping is the only real failure.</p>"),
+
+("label: 'Intervalles', total: 12, offs: [2, 3, 4, 5],",
+ "label: 'Intervals', total: 12, offs: [2, 3, 4, 5],"),
+("aide: 'Joue les deux notes ensemble. Seul l\\'écart compte, pas la hauteur : '",
+ "aide: 'Play both notes together. Only the interval counts, not the pitch: '"),
+("+ 'tu peux partir d\\'où tu veux, avec le doigté que tu veux.'",
+ "+ 'start wherever you like, with whatever fingering you like.'"),
+("label: 'Octaves et grands écarts', total: 10, offs: [6, 7, 8, 9],",
+ "label: 'Octaves and wide leaps', total: 10, offs: [6, 7, 8, 9],"),
+("aide: 'Ne compte jamais les lignes supplémentaires : reconnais l\\'écart. '",
+ "aide: 'Never count ledger lines: recognise the interval. '"),
+("+ 'Les deux mains sont permises.'",
+ "+ 'Both hands are allowed.'"),
+("label: 'Mesure repliée en un accord', total: 8,",
+ "label: 'Bar folded into one chord', total: 8,"),
+("aide: 'Replie la mesure : joue toutes ses notes en même temps, comme un seul accord. '",
+ "aide: 'Fold the bar: play all of its notes at once, as a single chord. '"),
+("+ 'C\\'est la FORME qui est jugée, donc transposer ne compte pas comme une faute.'",
+ "+ 'The SHAPE is what is judged, so transposing does not count as a mistake.'"),
+("texte: midis.length + ' notes à replier'",
+ "texte: midis.length + ' notes to fold'"),
+("texte: NOM_ECART[off] || (off + 1) + 'e'",
+ "texte: NOM_ECART[off] || (off + 1) + 'th'"),
+("2: 'tierce', 3: 'quarte', 4: 'quinte', 5: 'sixte',",
+ "2: 'third', 3: 'fourth', 4: 'fifth', 5: 'sixth',"),
+("6: 'septième', 7: 'octave', 8: 'neuvième', 9: 'dixième'",
+ "6: 'seventh', 7: 'octave', 8: 'ninth', 9: 'tenth'"),
+("setPhase('prep', cfg.label + ' — ' + D.item + ' sur ' + cfg.total, 0);",
+ "setPhase('prep', cfg.label + ' — ' + D.item + ' of ' + cfg.total, 0);"),
+("bon ? 'Juste — ' + D.expect.texte",
+ "bon ? 'Right — ' + D.expect.texte"),
+(": 'Raté — c\\'était ' + D.expect.texte + ', tu as joué '",
+ ": 'Missed — it was ' + D.expect.texte + ', you played '"),
+("? 'un écart de ' + forme[forme.length - 1] + ' demi-tons'",
+ "? 'an interval of ' + forme[forme.length - 1] + ' semitones'"),
+(": forme.length + ' notes au lieu de ' + att.length),",
+ ": forme.length + ' notes instead of ' + att.length),"),
+("setPhase('', DRILLS[D.kind].label + ' terminé.');",
+ "setPhase('', DRILLS[D.kind].label + ' done.');"),
+("$('drillInfo').textContent = D.ok + ' sur ' + DRILLS[D.kind].total",
+ "$('drillInfo').textContent = D.ok + ' of ' + DRILLS[D.kind].total"),
+("+ (D.times.length ? ' — ' + (med / 1000).toFixed(1)",
+ "+ (D.times.length ? ' — ' + (med / 1000).toFixed(1)"),
+("+ ' s en moyenne pour reconnaître' : '')",
+ "+ ' s on average to recognise' : '')"),
+("? ' Rien à redire : passe à l\\'exercice suivant, ou à une séance.'",
+ "? ' Nothing to fix: move on to the next drill, or to a session.'"),
+(": ' Refais-le : c\\'est la reconnaissance immédiate qui est visée, pas le calcul.');",
+ ": ' Do it again: immediate recognition is the goal, not working it out.');"),
 ]
 
 
@@ -549,8 +633,35 @@ def main():
         if ACC.search(code) and re.search(r"'|\"|`|>[^<]+<", code):
             left.append((n, st[:120]))
 
+    # --- francais SANS accent : invisible au balayage precedent, et c'est
+    #     par la que des chaines sont passees trois fois de suite.
+    MOTS = (u'accord|aide|appareil|aucun|avec|clavier|dans|deux|doigt|elle|'
+            u'encore|ensemble|entre|est|fais|faut|ligne|main|mesure|note|'
+            u'notes|ou|partition|pas|piano|plus|pour|puis|quand|sans|seule|'
+            u'sur|tempo|toujours|tous|tout|tu|une|vous')
+    MOT = re.compile(r'(?<![\wéè-])(?:' + MOTS + r')(?![\wéè-])', re.I)
+    EN = re.compile(r'(?<![\w-])(?:the|and|you|your|with|this|that|for|not|'
+                    r'note|notes|bar|beat|hand|is|are|of|to|a|an|on|in|it)'
+                    r'(?![\w-])', re.I)
+    plats = []
+    for n, l in enumerate(out.split('\n'), 1):
+        st = l.strip()
+        if st.startswith('//') or st.startswith('*') or st.startswith('/*'):
+            continue
+        code = re.sub(r'\s//.*$', '', l)
+        for txt in re.findall(r"'([^'\\\\]{6,})'|\"([^\"]{6,})\"|>([^<>]{6,})<", code):
+            t = txt[0] or txt[1] or txt[2]
+            hits = MOT.findall(t)
+            if len(hits) >= 2 and not EN.search(t):
+                plats.append((n, t[:100]))
+                break
+
     print('lecture-vue-en.html genere : %d lignes, %d chaines traduites'
           % (len(lines), len(T)))
+    if plats:
+        print('\n%d chaine(s) semblent francaises sans porter d\'accent :' % len(plats))
+        for n, t in plats[:25]:
+            print('  %5d| %s' % (n, t))
     if left:
         print('\n%d ligne(s) portent encore du texte accentue a verifier :' % len(left))
         for n, l in left[:25]:

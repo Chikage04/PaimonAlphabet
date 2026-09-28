@@ -249,6 +249,22 @@
         <p id="rAdvice"></p>
     </div>
 
+    <div class="card" id="atelier">
+        <h2>Recognition workshop</h2>
+        <p>After Richard Yang's method. Here <b>the rules are reversed</b>: no metronome, no
+            time limit, no stop counted. Take all the time you want and only accuracy is
+            judged — because this is not sight-reading, it is what comes before it.
+            Recognising a shape and carrying it to the hand.</p>
+        <div class="controls">
+            <button class="btn" data-drill="intervals">Intervals</button>
+            <button class="btn" data-drill="octaves">Octaves and wide leaps</button>
+            <button class="btn" data-drill="shape">Bar folded into one chord</button>
+            <button class="btn ghost" id="drillStop" disabled>Stop</button>
+        </div>
+        <p class="lead" id="drillInfo">Pick a drill. Your piano is enough — nothing to click.</p>
+        <div class="chips" id="drillChips"></div>
+    </div>
+
     <div class="card">
         <h2>Why this drill is built the way it is</h2>
         <div class="why">
@@ -273,6 +289,13 @@
                 Gilman &amp; Underwood, 2003). No study has evaluated erasing the past: it is offered
                 here as an experiment, and this page measures enough for you to settle it
                 yourself by comparing your own sessions.</p>
+            <p><b>The workshop follows different rules, on purpose.</b> Richard Yang teaches you to
+                play so slowly that everything comes out right, to work the whole chord out before
+                playing it, and to put the notes before the rhythm. The reading session says the
+                opposite: never stop, continuity before correct notes. Both are right, about two
+                different exercises — what he describes is <i>preparation</i>, where a wrong note
+                enters muscle memory and is expensive to unlearn; sight-reading is
+                <i>performance</i>, where stopping is the only real failure.</p>
             <p><b>The whole score stays visible.</b> Cutting it into lines came from a
                 confusion: <i>scrolling</i> does impose its own reading tempo, but a fixed page
                 does not. A reader sees the whole page and turns it on reaching the end;
@@ -513,12 +536,23 @@
             const [st, pitch, vel] = e.data;
             if ((st & 0xf0) !== 0x90 || !vel) return;      // seules les attaques comptent
             const t = e.timeStamp || performance.now();
+            // Un effleurement n'est une note dans aucun mode — et il ne doit
+            // laisser AUCUNE trace : enregistre comme une attaque, il faisait
+            // passer pour un doublon la vraie note jouee juste apres.
+            if (vel < MIN_VEL) { S.grazed++; return; }
             const prev = S.lastOn.get(pitch);
             // en valeur absolue : deux messages peuvent arriver dans le
             // desordre de quelques millisecondes, et un ecart negatif
             // ferait passer une note legitime pour un doublon
             if (prev !== undefined && Math.abs(t - prev) < DUP_MS) { S.dupes++; return; }
             S.lastOn.set(pitch, Math.max(t, prev === undefined ? t : prev));
+            // L'atelier ecoute avant tout le reste : il a ses propres regles.
+            if (D.on) {
+                if (D.done) return;
+                D.buf.push({ t: t, midi: pitch });
+                D.last = t;
+                return;
+            }
             if (S.phase === 'tap') { S.taps.push(t); tone(880, 0.05, 0.08); return; }
             if (S.phase === 'flashPlay') {
                 S.flashBuf.push({ t: t, midi: pitch });
@@ -532,7 +566,6 @@
             // la lecture. On les compte pour pouvoir le dire, sans les
             // melanger a ce qui est joue sur la partition.
             if (S.gridT0 && t < S.gridT0 - 120) { S.early++; return; }
-            if (vel < MIN_VEL) { S.grazed++; return; }
 
             // Touche voisine accrochee : on ne compte qu'une frappe, et on
             // garde celle que la partition attend. La partition ne demande
@@ -1350,6 +1383,181 @@
         }
 
         // =====================================================================
+        //  9 bis. Atelier de reconnaissance  (methode Richard Yang)
+        // =====================================================================
+        // Ses regles, pas les notres : aucun tempo, aucun arret compte, et
+        // seule la justesse decide. C'est la preparation, pas la performance.
+        const D = {
+            on: false, kind: null, item: 0, total: 0, ok: 0,
+            buf: [], last: 0, expect: null, shown: 0, times: [], done: false
+        };
+        const DRILL_GAP = 450;      // silence apres lequel on juge la frappe
+        const DRILL_NEXT = 1400;    // temps de lecture du verdict
+
+        const DRILLS = {
+            intervals: {
+                label: 'Intervals', total: 12, offs: [2, 3, 4, 5],
+                aide: 'Play both notes together. Only the interval counts, not the pitch: '
+                    + 'start wherever you like, with whatever fingering you like.'
+            },
+            octaves: {
+                label: 'Octaves and wide leaps', total: 10, offs: [6, 7, 8, 9],
+                aide: 'Never count ledger lines: recognise the interval. '
+                    + 'Both hands are allowed.'
+            },
+            shape: {
+                label: 'Bar folded into one chord', total: 8,
+                aide: 'Fold the bar: play all of its notes at once, as a single chord. '
+                    + 'The SHAPE is what is judged, so transposing does not count as a mistake.'
+            }
+        };
+
+        // Le graveur sait dessiner n'importe quelle piece : il suffit de lui
+        // en fabriquer une d'une seule mesure.
+        function fragNote(d, on, dur, sharps) {
+            const oct = Math.floor(d / 7), step = d - oct * 7;
+            const alter = SightRender.keyAlter(step, sharps || 0);
+            return {
+                d: d, step: step, oct: oct, alter: alter,
+                midi: SightGen.midiOf(d, alter), on: on, dur: dur,
+                rest: false, acc: false, leap: false, shift: false
+            };
+        }
+        function fragment(rh, lh) {
+            return {
+                level: 0, levelLabel: '', seed: 0, sharps: 0, minor: false,
+                tonicStep: 0, keyName: '', ts: { num: 4, den: 4 }, barTicks: 192,
+                beatTicks: 48, compound: false, tpq: 48, bpm: 60, bars: 1,
+                plan: [0], measures: [{ rh: rh || [], lh: lh || [] }],
+                variant: { hands: 'both', content: 'melody' }, sig: ''
+            };
+        }
+
+        // --- un item -----------------------------------------------------
+        function drillItem(kind) {
+            const cfg = DRILLS[kind];
+            if (kind === 'shape') {
+                // une vraie mesure, prise dans une piece generee, assez
+                // petite pour tenir sous une main
+                for (let k = 0; k < 200; k++) {
+                    const p = SightGen.generate(1 + Math.floor(Math.random() * 3),
+                        (Math.random() * 4294967295) >>> 0, { hands: 'rh' });
+                    const m = p.measures[Math.floor(Math.random() * (p.bars - 1))];
+                    const midis = [...new Set(m.rh.filter(n => !n.rest).map(n => n.midi))]
+                        .sort((a, b) => a - b);
+                    if (midis.length < 2 || midis.length > 5) continue;
+                    if (midis[midis.length - 1] - midis[0] > 12) continue;
+                    return {
+                        piece: fragment(m.rh, []),
+                        shape: midis.map(x => x - midis[0]),
+                        texte: midis.length + ' notes to fold'
+                    };
+                }
+            }
+            // un intervalle : deux notes tenues, a une hauteur lisible
+            const off = cfg.offs[Math.floor(Math.random() * cfg.offs.length)];
+            const bas = 26 + Math.floor(Math.random() * 5);        // la3 a mi4
+            const a = fragNote(bas, 0, 192, 0), b = fragNote(bas + off, 0, 192, 0);
+            const grand = off >= 6;
+            return {
+                piece: grand ? fragment([b], [a]) : fragment([a, b], []),
+                shape: [0, b.midi - a.midi],
+                texte: NOM_ECART[off] || (off + 1) + 'th'
+            };
+        }
+        const NOM_ECART = {
+            2: 'third', 3: 'fourth', 4: 'fifth', 5: 'sixth',
+            6: 'seventh', 7: 'octave', 8: 'ninth', 9: 'tenth'
+        };
+
+        // --- deroulement --------------------------------------------------
+        function startDrill(kind) {
+            if (S.running) endSession();
+            D.on = true; D.kind = kind; D.item = 0; D.ok = 0; D.times = [];
+            D.done = false;
+            $('drillStop').disabled = false;
+            $('startBtn').disabled = true;
+            $('verdict').hidden = true; $('report').hidden = true;
+            $('drillChips').innerHTML = '';
+            if (!S.timer) S.timer = setInterval(tick, 100);
+            nextDrillItem();
+        }
+
+        function nextDrillItem() {
+            const cfg = DRILLS[D.kind];
+            if (D.item >= cfg.total) return endDrill();
+            D.item++;
+            D.expect = drillItem(D.kind);
+            D.buf = []; D.last = 0; D.done = false;
+            D.shown = performance.now();
+            showFragment(D.expect.piece);
+            setPhase('prep', cfg.label + ' — ' + D.item + ' of ' + cfg.total, 0);
+            $('drillInfo').textContent = cfg.aide;
+        }
+
+        function showFragment(piece) {
+            S.piece = piece;
+            systems = [{ from: 0, to: 1 }];
+            S.sys = 0;
+            $('scoreMore').innerHTML = '';
+            SightRender.draw($('score'), piece, {
+                fromBar: 0, toBar: 1, width: 940, showTimeSig: false
+            });
+            $('paper').classList.remove('hidden');
+            $('scoreCap').textContent = '';
+            $('sysnav').hidden = true;
+        }
+
+        function judgeDrill() {
+            D.done = true;
+            const joue = [...new Set(D.buf.map(n => n.midi))].sort((a, b) => a - b);
+            const forme = joue.map(x => x - joue[0]);
+            const att = D.expect.shape;
+            const bon = forme.length === att.length
+                && forme.every((v, i) => v === att[i]);
+            if (bon) { D.ok++; D.times.push(D.buf[0].t - D.shown); }
+
+            for (const h of $('paper').querySelectorAll('.sr-head'))
+                h.setAttribute('fill', bon ? COL_OK : COL_MISS);
+
+            const el = document.createElement('span');
+            el.className = 'chip ' + (bon ? 'ok' : 'no');
+            el.textContent = (bon ? '✓ ' : '✗ ') + D.expect.texte;
+            $('drillChips').appendChild(el);
+
+            setPhase(bon ? 'read' : 'done',
+                bon ? 'Right — ' + D.expect.texte
+                    : 'Missed — it was ' + D.expect.texte + ', you played '
+                        + (forme.length === att.length
+                            ? 'an interval of ' + forme[forme.length - 1] + ' semitones'
+                            : forme.length + ' notes instead of ' + att.length),
+                0);
+            tone(bon ? 880 : 420, 0.16, 0.1);
+        }
+
+        function endDrill() {
+            D.on = false;
+            $('drillStop').disabled = true;
+            $('startBtn').disabled = false;
+            hideScore();
+            const med = D.times.length
+                ? D.times.slice().sort((a, b) => a - b)[D.times.length >> 1] : 0;
+            setPhase('', DRILLS[D.kind].label + ' done.');
+            $('drillInfo').textContent = D.ok + ' of ' + DRILLS[D.kind].total
+                + (D.times.length ? ' — ' + (med / 1000).toFixed(1)
+                    + ' s on average to recognise' : '')
+                + (D.ok === DRILLS[D.kind].total
+                    ? ' Nothing to fix: move on to the next drill, or to a session.'
+                    : ' Do it again: immediate recognition is the goal, not working it out.');
+        }
+
+        function tickDrill() {
+            const now = performance.now();
+            if (!D.done && D.buf.length && now - D.last > DRILL_GAP) judgeDrill();
+            else if (D.done && now - D.last > DRILL_GAP + DRILL_NEXT) nextDrillItem();
+        }
+
+        // =====================================================================
         //  10. Seance
         // =====================================================================
         function startSession() {
@@ -1379,6 +1587,7 @@
         }
 
         function tick() {
+            if (D.on) { tickDrill(); return; }
             if (!S.running) return;
             $('cTime').textContent = mmss(S.sessionEnd - performance.now());
             const now = performance.now();
@@ -1538,6 +1747,11 @@
         // =====================================================================
         //  13. Cablage
         // =====================================================================
+        $('atelier').addEventListener('click', e => {
+            const b = e.target.closest('button[data-drill]');
+            if (b) startDrill(b.dataset.drill);
+        });
+        $('drillStop').addEventListener('click', () => { D.item = 99; endDrill(); });
         $('startBtn').addEventListener('click', startSession);
         $('stopBtn').addEventListener('click', endSession);
         $('clickOn').addEventListener('change', saveSettings);
