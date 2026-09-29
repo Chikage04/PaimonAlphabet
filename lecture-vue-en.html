@@ -937,14 +937,24 @@
             return sd(keep.length >= res.length * 0.75 ? keep : res);
         }
 
-        // On situe la derniere note jouee sur la grille ajustee, puis on
-        // compte les notes ecrites jusque-la. La tolerance d'un demi-temps
-        // absorbe l'imprecision de la derniere attaque.
+        // On situe la derniere note jouee sur la grille, puis on compte les
+        // notes ecrites jusque-la. La tolerance d'un demi-temps absorbe
+        // l'imprecision de la derniere attaque.
+        //
+        // L'ancre est la GRILLE DU METRONOME, jamais l'appariement. Cinq
+        // notes d'un accord parmi soixante-quatre s'alignent aussi bien sur
+        // le dernier accord de la piece que sur le premier — aux premiers
+        // niveaux c'est le meme accord, la tonique. Le decalage tire de
+        // l'appariement situait alors le joueur vingt secondes plus loin
+        // qu'il n'etait : la piece se croyait finie des le premier accord.
+        // Or l'heure du debut ne demande aucun appariement, le metronome la
+        // donne. La pente, elle, n'est retenue que si elle repose sur assez
+        // d'instants distincts pour vouloir dire quelque chose.
         function reachedAt(tl, gaps, good, played, rate, piece) {
-            if (!played.length || !good.length) return 0;
-            if (!(rate > 0)) return good.length;
-            const off = median(good.map(g => g.played.t - rate * g.exp.ms));
-            const fin = (played[played.length - 1].t - off) / rate
+            if (!played.length) return 0;
+            const r = (gaps.length >= 4 && rate > 0.4 && rate < 4) ? rate : 1;
+            const t0 = S.gridT0 || (played[0].t - r * tl[0].ms);
+            const fin = (played[played.length - 1].t - t0) / r
                 + 60000 / piece.bpm / 2;
             let n = 0;
             for (const e of tl) if (e.ms <= fin) n++;
