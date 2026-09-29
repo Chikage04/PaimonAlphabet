@@ -766,43 +766,99 @@
         // decaler tout ce qui suit. Trop couteux pour tourner a chaque
         // touche : reserve au bilan, la ou l'exactitude compte.
         const C_SUB = 3, C_GAP = 2;
-        function matchAligned(tl, playedRaw) {
-            const played = canonical(playedRaw);
+        // Les couts sont entiers : on les met a l'echelle pour glisser
+        // dessous un DEPARTAGEUR temporel. En mode accords une meme hauteur
+        // revient partout, donc deux lectures tres eloignees coutent souvent
+        // exactement le meme prix — et le retour en arriere en choisissait
+        // une au hasard. Mesure : une demi-piece jouee parfaitement voyait
+        // sa derniere note partir neuf secondes plus loin, et l'ecart au
+        // temps annonce montait a 1 539 ms pour un jeu sans defaut.
+        // La somme des departages reste inferieure a UNE unite de cout :
+        // ils ne tranchent que les ex aequo, jamais une decision de hauteur.
+        const SCALE = 1024;
+        function alignPass(tl, played, t0, r, mur) {
             const n = tl.length, m = played.length;
-            if (!n || !m || n * m > 600000) return matchGreedy(tl, played);
-
+            const span = Math.max(1, tl[n - 1].ms);
+            const PEN = Math.max(1, Math.floor(SCALE / (m + 2)));
+            // avance toleree, puis rampe jusqu'au prix d'une substitution
+            const TOL = Math.max(400, span * 0.05);
+            const RAMP = Math.max(800, span * 0.10);
             const W = m + 1;
             const cost = new Int32Array((n + 1) * W);
             const dir = new Uint8Array((n + 1) * W);   // 1 diag, 2 haut, 3 gauche
-            for (let j = 1; j <= m; j++) { cost[j] = j * C_GAP; dir[j] = 3; }
-            for (let i = 1; i <= n; i++) { cost[i * W] = i * C_GAP; dir[i * W] = 2; }
+            for (let j = 1; j <= m; j++) { cost[j] = j * C_GAP * SCALE; dir[j] = 3; }
+            for (let i = 1; i <= n; i++) { cost[i * W] = i * C_GAP * SCALE; dir[i * W] = 2; }
 
             for (let i = 1; i <= n; i++) {
                 const pi = tl[i - 1].midi, row = i * W, prev = (i - 1) * W;
+                const att = r * tl[i - 1].ms;
+                // Le mur d'avance se juge a la pente la plus RAPIDE qu'on
+                // puisse preter au joueur. Un arret rend la pente globale
+                // plus lente ; s'en servir ici reviendrait a declarer « en
+                // avance » tout ce qui precede l'arret, et un arret de huit
+                // secondes faisait alors tomber l'appariement complet de
+                // vingt pieces sur vingt a huit sur vingt.
+                const attMur = Math.min(r, 1) * tl[i - 1].ms;
                 for (let j = 1; j <= m; j++) {
                     const same = pi === played[j - 1].midi;
-                    let best = cost[prev + j - 1] + (same ? 0 : C_SUB), d = 1;
-                    const up = cost[prev + j] + C_GAP;
+                    const dev = Math.min(1,
+                        Math.abs(played[j - 1].t - t0 - att) / span);
+                    const ecart = played[j - 1].t - t0 - attMur;
+                    // ecart < 0 : la note ecrite est EN AVANCE sur le temps
+                    // ecoule. Un retard, lui, ne coute rien : c'est ce que
+                    // produit tout arret.
+                    const avance = -ecart - TOL;
+                    const bloc = (mur && avance > 0)
+                        ? Math.round(Math.min(2, avance / RAMP) * C_SUB * SCALE) : 0;
+                    let best = cost[prev + j - 1]
+                        + (same ? 0 : C_SUB * SCALE) + bloc + Math.round(dev * PEN);
+                    let d = 1;
+                    const up = cost[prev + j] + C_GAP * SCALE;
                     if (up < best) { best = up; d = 2; }
-                    const le = cost[row + j - 1] + C_GAP;
+                    const le = cost[row + j - 1] + C_GAP * SCALE;
                     if (le < best) { best = le; d = 3; }
                     cost[row + j] = best; dir[row + j] = d;
                 }
             }
 
             const byPlayed = new Array(m).fill(null);
-            let i = n, j = m, lastMatched = -1;
+            let i = n, j = m;
             while (i > 0 || j > 0) {
                 const d = (i > 0 && j > 0) ? dir[i * W + j] : (i > 0 ? 2 : 3);
                 if (d === 1) {
-                    if (tl[i - 1].midi === played[j - 1].midi) {
+                    if (tl[i - 1].midi === played[j - 1].midi)
                         byPlayed[j - 1] = { exp: tl[i - 1], idx: i - 1 };
-                        if (i - 1 > lastMatched) lastMatched = i - 1;
-                    }
                     i--; j--;
                 } else if (d === 2) i--;
                 else j--;
             }
+            return byPlayed;
+        }
+
+        // Pente du jeu : joue-t-on plus lentement que l'ecrit ? Inconnue au
+        // premier alignement, on l'estime sur son resultat et on realigne.
+        function slopeOf(byPlayed, played, t0) {
+            const rs = [];
+            for (let k = 0; k < played.length; k++) {
+                const b = byPlayed[k];
+                if (b && b.exp.ms > 0) rs.push((played[k].t - t0) / b.exp.ms);
+            }
+            return rs.length >= 4 ? median(rs) : 0;
+        }
+
+        function matchAligned(tl, playedRaw) {
+            const played = canonical(playedRaw);
+            const n = tl.length, m = played.length;
+            if (!n || !m || n * m > 600000) return matchGreedy(tl, played);
+
+            const t0 = S.gridT0 || (played[0].t - tl[0].ms);
+            // Premiere passe SANS mur : tant qu'on ignore la pente, on ne
+            // peut pas dire ce qui est en avance. Un jeu deux fois plus
+            // rapide que l'ecrit se faisait sinon condamner en bloc, et
+            // seules quatre pieces sur vingt s'appariaient encore.
+            const r0 = slopeOf(alignPass(tl, played, t0, 1, false), played, t0);
+            const r = (r0 > 0.3 && r0 < 4) ? r0 : 1;
+            const byPlayed = alignPass(tl, played, t0, r, true);
 
             repair(tl, played, byPlayed);
 
