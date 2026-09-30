@@ -375,23 +375,42 @@
         var hw = halfWidth(head);
         var minY = Infinity, maxY = -Infinity, sumD = 0;
 
-        notes.forEach(function (n) {
+        // Sens de la hampe, qu'il faut connaitre AVANT de poser les tetes :
+        // c'est lui qui dit de quel cote passe une seconde.
+        var mid0 = side === 't' ? 33 : 21, som = 0;
+        notes.forEach(function (n) { som += n.d; });
+        var monte = (som / notes.length) < mid0;
+
+        // On monte dans l'accord ; une note distante d'un degre de la
+        // precedente passe de l'autre cote de la hampe, et une note deja
+        // decalee ne decale pas la suivante — sinon un cluster partirait
+        // en escalier.
+        var ordre = notes.slice().sort(function (a, b) { return a.d - b.d; });
+        var avantD = null, avantDec = false;
+
+        ordre.forEach(function (n) {
             var y = yOf(n.d, side);
             minY = Math.min(minY, y); maxY = Math.max(maxY, y);
             sumD += n.d;
+
+            var dec = avantD !== null && n.d - avantD === 1 && !avantDec;
+            avantD = n.d; avantDec = dec;
+            var xh = x + (dec ? (monte ? 2 * hw : -2 * hw) : 0);
 
             // lignes supplementaires
             var ly, half = hw + 0.34 * GAP;
             if (y < top) for (ly = top - GAP; ly >= y - 1; ly -= GAP)
                 svg.appendChild(el('line', {
-                    x1: x - half, y1: ly, x2: x + half, y2: ly, stroke: INK, 'stroke-width': W_LEDGER
+                    x1: Math.min(x, xh) - half, y1: ly, x2: Math.max(x, xh) + half, y2: ly,
+                    stroke: INK, 'stroke-width': W_LEDGER
                 }));
             if (y > bottom) for (ly = bottom + GAP; ly <= y + 1; ly += GAP)
                 svg.appendChild(el('line', {
-                    x1: x - half, y1: ly, x2: x + half, y2: ly, stroke: INK, 'stroke-width': W_LEDGER
+                    x1: Math.min(x, xh) - half, y1: ly, x2: Math.max(x, xh) + half, y2: ly,
+                    stroke: INK, 'stroke-width': W_LEDGER
                 }));
 
-            glyphMid(svg, head, x, y, 'sr-head', {
+            glyphMid(svg, head, xh, y, 'sr-head', {
                 'data-bar': barIndex, 'data-on': n.on, 'data-midi': n.midi
             });
 
@@ -402,25 +421,27 @@
             if (n.alter !== eff) {
                 var an = n.alter === 1 ? 'accidentalSharp'
                     : n.alter === -1 ? 'accidentalFlat' : 'accidentalNatural';
-                glyph(svg, an, x - hw - 0.28 * GAP - GL[an].box[2] * GAP, y, 'sr-acc');
+                glyph(svg, an, Math.min(x, xh) - hw - 0.28 * GAP - GL[an].box[2] * GAP,
+                    y, 'sr-acc');
                 acc[key] = n.alter;
             }
 
             if (lk.dot) {
                 var ref = side === 't' ? T_REF : B_REF;
                 var onLine = (((n.d - ref) % 2) + 2) % 2 === 0;
-                glyph(svg, 'augmentationDot', x + hw + 0.3 * GAP, y - (onLine ? STEP : 0), 'sr-dot');
+                glyph(svg, 'augmentationDot', Math.max(x, xh) + hw + 0.3 * GAP,
+                    y - (onLine ? STEP : 0), 'sr-dot');
             }
 
             positions.push({
                 bar: barIndex, on: n.on, midi: n.midi, hand: side === 't' ? 'R' : 'L',
-                x: x, y: y, leap: !!n.leap, shift: !!n.shift, acc: !!n.acc
+                x: xh, y: y, leap: !!n.leap, shift: !!n.shift, acc: !!n.acc
             });
 
             // pre-lecture : on montre l'endroit difficile, puis on l'efface
             if (opts.showHotspots && (n.acc || n.shift || n.leap)) {
                 var halo = el('circle', {
-                    cx: x, cy: y, r: 13, fill: 'none',
+                    cx: xh, cy: y, r: 13, fill: 'none',
                     stroke: n.acc ? '#c2410c' : n.shift ? '#7c3aed' : '#2563eb',
                     'stroke-width': 2, opacity: 0.75
                 });
@@ -429,10 +450,9 @@
             }
         });
 
-        var mid = side === 't' ? 33 : 21;
         return {
             x: x, minY: minY, maxY: maxY, flags: lk.flags, hw: hw,
-            up: (sumD / notes.length) < mid, noStem: lk.head === 'w'
+            up: monte, noStem: lk.head === 'w'
         };
     }
 

@@ -230,6 +230,43 @@ section('7. Les trois exercices couvrent bien ce qu\'ils annoncent');
     check('et elle tient toujours sous une main', true);
 }
 
+// ------------------------------------------------------------------
+section('8. La serie sans fin');
+
+{
+    const w = boot();
+    const { D, $, jouer, suivant } = outils(w);
+    w.startDrill('endless');
+
+    const tires = new Set();
+    let vus = 0, justes = 0;
+    for (let k = 0; k < 40; k++) {
+        vus++;
+        tires.add(w.eval('D.sous'));
+        const att = D().expect.shape.slice();
+        // deux fois sur trois on repond juste, pour verifier le decompte
+        if (k % 3 === 2) { jouer([0, att[att.length - 1] + 1], 60); }
+        else { jouer(att, 60); justes++; }
+        suivant();
+    }
+    check('quarante items et la serie tourne toujours', D().on, 'item ' + D().item);
+    check('elle tire bien les trois exercices', tires.size === 3,
+        [...tires].join(', '));
+    check('le decompte des justes suit', D().ok === justes,
+        D().ok + ' pour ' + justes);
+    check('une pastille par item', $('drillChips').children.length === vus,
+        $('drillChips').children.length + ' pour ' + vus);
+
+    // et elle s'arrete quand ON l'arrete, sur le total joue
+    w.endDrill();
+    check('l\'arret conclut la serie', !D().on);
+    check('le bilan compte ce qui a ete joue, pas un total prevu',
+        $('drillInfo').textContent.indexOf(String(vus)) >= 0
+        && $('drillInfo').textContent.indexOf('Infinity') < 0,
+        $('drillInfo').textContent.slice(0, 70));
+    check('la partition est rangee', $('paper').classList.contains('hidden'));
+}
+
 console.log('\n' + (fail === 0 ? 'TOUT PASSE' : 'ECHECS')
     + ' : ' + pass + ' verifications ok, ' + fail + ' en echec');
 process.exit(fail ? 1 : 0);

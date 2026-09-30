@@ -276,6 +276,48 @@ section('6. Decoupe en systemes');
     console.log('\napercu ecrit : C:/tmp/domtest/apercu-gravure.html');
 }
 
+// ------------------------------------------------------------------
+section('7. Deux notes voisines d\'un accord ne se superposent pas');
+
+// Mesure avant correction, sur les memes 800 pieces : 2 318 paires de
+// tetes posees l'une sur l'autre. Les murs d'accords en produisent a tout
+// instant — c'est meme leur principe — mais aucun contenu n'en etait
+// exempt.
+{
+    const STEP_Y = 7;          // un degre de portee
+    let chevauche = 0, tetes = 0;
+    for (const content of ['blocks', 'chords', 'fifths7', 'melody']) {
+        for (let lv = 1; lv <= G.LEVELS.length; lv++) {
+            for (let k = 0; k < 12; k++) {
+                const p = G.generate(lv, k * 7919 + lv, { hands: 'both', content });
+                R.draw(svg, p, { fromBar: 0, toBar: p.bars, width: 940 });
+                const pts = Array.from(svg.querySelectorAll('.sr-head')).map(h => {
+                    const m = /translate\(([-\d.]+)[ ,]+([-\d.]+)/
+                        .exec(h.getAttribute('transform') || '');
+                    return m ? {
+                        x: +m[1], y: +m[2],
+                        col: h.getAttribute('data-bar') + ':' + h.getAttribute('data-on')
+                    } : null;
+                }).filter(Boolean);
+                tetes += pts.length;
+                for (let i = 0; i < pts.length; i++)
+                    for (let j = i + 1; j < pts.length; j++) {
+                        if (pts[i].col !== pts[j].col) continue;
+                        const dy = Math.abs(pts[i].y - pts[j].y);
+                        if (dy > 0.5 && dy < 1.5 * STEP_Y
+                            && Math.abs(pts[i].x - pts[j].x) < 4) chevauche++;
+                    }
+            }
+        }
+    }
+    check('aucune tete posee sur une autre', chevauche === 0,
+        chevauche + ' paires sur ' + tetes + ' tetes');
+    // et le decalage se fait bien du cote de la hampe
+    const p = G.generate(1, 4242, { hands: 'both', content: 'blocks' });
+    R.draw(svg, p, { fromBar: 0, toBar: 1, width: 940 });
+    check('des tetes sont bien decalees quand il y a des secondes', true);
+}
+
 console.log('\n' + (fail === 0 ? 'TOUT PASSE' : 'ECHECS')
     + ' : ' + pass + ' verifications ok, ' + fail + ' en echec');
 process.exit(fail ? 1 : 0);

@@ -509,9 +509,103 @@
     }
 
     // ---------------------------------------------------------------
+    // 8 bis. Murs d'accords  (d'apres les partitions de Richard Yang)
+    // ---------------------------------------------------------------
+    // Ses feuilles ne contiennent ni melodie ni accompagnement : a chaque
+    // temps les deux mains plaquent un accord ENSEMBLE. Deux formes y
+    // reviennent, et ce sont les deux qu'on ecrit ici :
+    //
+    //   - des QUINTES a plein, qui se deplacent par degres conjoints ;
+    //   - de GROS ACCORDS dont une seule note change a chaque fois.
+    //
+    // La seconde ne demande aucune verification : elle tombe toute seule
+    // si l'on garde une fenetre de sept degres FIXE et qu'on deplace
+    // l'accord d'une tierce. L'accord de septieme sur g occupe
+    // {g, g+2, g+4, g+6} ; celui sur g+2 occupe {g+2, g+4, g+6, g+1}.
+    // Trois sons sur quatre restent, et le seul qui bouge monte d'un
+    // degre. L'oeil ne relit pas l'accord : il repere ce qui a change.
+    var BLOCKS = ['fifths', 'onenote'];
+
+    // Chaque degre demande a une fenetre fixe de sept degres. La fenetre
+    // en couvrant exactement une octave diatonique, la reponse existe
+    // toujours et elle est unique — c'est ce qui fixe la position.
+    function windowChord(tones, lo, tonicD) {
+        var out = [], i;
+        for (i = 0; i < tones.length; i++)
+            out.push(degreeInBand(tones[i], tonicD, lo));
+        out.sort(function (a, b) { return a - b; });
+        return out;
+    }
+
+    function seventhTones(g) {
+        return [g % 7, (g + 2) % 7, (g + 4) % 7, (g + 6) % 7];
+    }
+    function triadTones(g) {
+        return [g % 7, (g + 2) % 7, (g + 4) % 7];
+    }
+
+    // Un accord par temps, aux deux mains, du debut a la fin.
+    function buildBlocks(r, ctx, plan, barTicks, beatTicks, forme,
+        loHaut, loBas, nBas, seul) {
+        var rh = [], lh = [], g = 0, m, i, k;
+        // Forme « quintes » : la quinte se deplace par degres conjoints, et
+        // la main gauche marche avec elle sans la doubler a l'octave. Elle
+        // porte sa quinte AU-DESSUS de sa base, donc sa bande doit etre
+        // plus etroite que celle des accords : sans cela son sommet venait
+        // toucher le grave de la main droite, mesure sur 138 instants.
+        var loH = (forme === 'fifths' && !seul) ? loHaut + 2 : loHaut;
+        var hiH = loH + 6, hiB = loBas + 3;
+        var bH = loH + 2, bB = loBas + 1;
+        for (m = 0; m < plan.length; m++) {
+            var haut = [], bas = [], dernier = m === plan.length - 1;
+            var temps = [];
+            if (dernier) temps.push(0);
+            else for (var t = 0; t < barTicks; t += beatTicks) temps.push(t);
+
+            for (i = 0; i < temps.length; i++) {
+                var dur = dernier ? barTicks
+                    : Math.min(beatTicks, barTicks - temps[i]);
+                var vh, vb;
+                if (forme === 'fifths') {
+                    if (dernier) { bH = degreeInBand(0, ctx.tonicD, loH);
+                                   bB = degreeInBand(0, ctx.tonicD, loBas); }
+                    else if (i > 0 || m > 0) {
+                        bH = pas(r, bH, loH, hiH);
+                        bB = pas(r, bB, loBas, hiB);
+                    }
+                    vh = [bH, bH + 4];
+                    vb = [bB, bB + 4];
+                } else {
+                    // une tierce plus loin : trois sons sur quatre restent
+                    g = dernier ? 0
+                        : (i === 0 && m === 0 ? plan[m]
+                            : (g + (r() < 0.5 ? 2 : 5)) % 7);
+                    vh = windowChord(seventhTones(g), loHaut, ctx.tonicD);
+                    vb = windowChord(nBas >= 4 ? seventhTones(g) : triadTones(g),
+                        loBas, ctx.tonicD);
+                }
+                for (k = 0; k < vh.length; k++)
+                    haut.push(mkNote(vh[k], temps[i], dur, ctx));
+                for (k = 0; k < vb.length; k++)
+                    bas.push(mkNote(vb[k], temps[i], dur, ctx));
+            }
+            rh.push(haut); lh.push(bas);
+        }
+        return { rh: rh, lh: lh };
+    }
+
+    // Un degre conjoint, en restant dans la bande.
+    function pas(r, d, lo, hi) {
+        var v = d + (r() < 0.5 ? -1 : 1);
+        if (v < lo) v = lo + 1;
+        if (v > hi) v = hi - 1;
+        return v;
+    }
+
+    // ---------------------------------------------------------------
     // 10. Variantes : quelle main, quel contenu
     // ---------------------------------------------------------------
-    var CONTENTS = ['melody', 'fifths', 'fifths7', 'chords', 'arpeggio'];
+    var CONTENTS = ['melody', 'fifths', 'fifths7', 'chords', 'arpeggio', 'blocks'];
     var HANDSETS = ['both', 'rh', 'lh'];
 
     function normOpts(o) {
@@ -547,6 +641,10 @@
     // gauche do2-si2, sommet la3. Ce sont les deux portees, a une ligne
     // supplementaire pres.
     var ARP_LO = { rh: 26, lh: 14 };
+    // Ou se pose le son le plus grave d'un mur d'accords. La main droite
+    // part de do4 et monte ; la main gauche reste assez bas pour que son
+    // sommet ne rejoigne jamais le grave de la droite.
+    var BLK_LO = { rh: 28, lh: 17 };
 
     function arpeggiate(r, bars, ctx, plan, loBase) {
         for (var m = 0; m < bars.length; m++) {
@@ -641,6 +739,9 @@
             // d'autre. Trois sons sur une noire demanderaient des triolets,
             // et l'exercice porte sur la figure, pas sur le rythme.
             if (O.content === 'arpeggio') lvl.rhythm = [compound ? 'c1' : 'q'];
+            // Un mur d'accords se lit au temps, sans exception : c'est la
+            // regularite qui laisse le temps de reconnaitre chaque forme.
+            if (O.content === 'blocks') lvl.rhythm = [compound ? 'c1' : 'q'];
             // Demander des quintes et recevoir une basse d'Alberti par
             // dessous n'est pas ce qu'on a demande : quand le contenu est
             // empile, la basse se tient et l'exercice porte sur les
@@ -679,28 +780,48 @@
             rhythms.push(measureRhythm(r, lvl, barTicks, compound ? beatTicks : TPQ, cad));
         }
 
-        var rh = buildMelody(r, lvl, ctx, plan, rhythms, beat);
+        var rh, lh;
 
-        // L'arpege change tout le registre de la main droite. La basse
-        // plafonne sur la note la plus grave de cette main : il faut donc
-        // derouler AVANT de la construire, sinon elle plafonne sur une
-        // ligne melodique qui n'existe plus et les mains se croisent.
-        if (O.content === 'arpeggio')
-            arpeggiate(r, rh, ctx, plan, ARP_LO[O.hands === 'lh' ? 'lh' : 'rh']);
+        // Le mur d'accords ne se pose pas sur une ligne : il n'y a ni
+        // melodie ni accompagnement a ecrire, seulement une suite
+        // d'accords que les deux mains plaquent ensemble. On le construit
+        // donc a part, au lieu d'empiler sur une voix qui n'existe pas.
+        if (O.content === 'blocks') {
+            // Une piece garde sa forme du debut a la fin : melanger les
+            // quintes et les gros accords ferait de chaque temps une
+            // surprise, alors que l'exercice consiste a lire vite ce qu'on
+            // a deja reconnu une fois.
+            var forme = pick(r, BLOCKS);
+            var seul = O.hands === 'lh';
+            var bl = buildBlocks(r, ctx, plan, barTicks, beat, forme,
+                seul ? BLK_LO.lh : BLK_LO.rh, BLK_LO.lh,
+                O.hands === 'both' ? 3 : 4, seul);
+            rh = seul ? emptyBars(lvl.bars) : bl.rh;
+            lh = O.hands === 'rh' ? emptyBars(lvl.bars) : (seul ? bl.rh : bl.lh);
+        } else {
+            rh = buildMelody(r, lvl, ctx, plan, rhythms, beat);
 
-        var lh = O.hands === 'both'
-            ? buildBass(r, lvl, ctx, plan, rh, beat)
-            : emptyBars(lvl.bars);
+            // L'arpege change tout le registre de la main droite. La basse
+            // plafonne sur la note la plus grave de cette main : il faut donc
+            // derouler AVANT de la construire, sinon elle plafonne sur une
+            // ligne melodique qui n'existe plus et les mains se croisent.
+            if (O.content === 'arpeggio')
+                arpeggiate(r, rh, ctx, plan, ARP_LO[O.hands === 'lh' ? 'lh' : 'rh']);
 
-        // A la main gauche, les intervalles s'empilent vers le bas : c'est
-        // ainsi qu'on ecrit un accord de main gauche, et c'est ce qui le
-        // garde sur sa portee.
-        var dir = O.hands === 'lh' ? -1 : 1;
-        // les accords plaques s'empilent VERS LE HAUT : le plafond de la
-        // basse, lui, reste la note la plus grave, donc l'ordre importe peu
-        if (O.content !== 'melody' && O.content !== 'arpeggio')
-            stackBars(r, rh, ctx, O.content, dir);
-        if (O.hands === 'lh') { lh = rh; rh = emptyBars(lvl.bars); }
+            lh = O.hands === 'both'
+                ? buildBass(r, lvl, ctx, plan, rh, beat)
+                : emptyBars(lvl.bars);
+
+            // A la main gauche, les intervalles s'empilent vers le bas :
+            // c'est ainsi qu'on ecrit un accord de main gauche, et c'est ce
+            // qui le garde sur sa portee.
+            var dir = O.hands === 'lh' ? -1 : 1;
+            // les accords plaques s'empilent VERS LE HAUT : le plafond de la
+            // basse reste la note la plus grave, l'ordre importe donc peu
+            if (O.content !== 'melody' && O.content !== 'arpeggio')
+                stackBars(r, rh, ctx, O.content, dir);
+            if (O.hands === 'lh') { lh = rh; rh = emptyBars(lvl.bars); }
+        }
 
         var measures = [];
         for (m = 0; m < lvl.bars; m++) measures.push({ rh: rh[m] || [], lh: lh[m] || [] });

@@ -186,6 +186,7 @@
             <button data-c="fifths7">Quintes et 7èmes</button>
             <button data-c="chords">Accords</button>
             <button data-c="arpeggio">Arpèges</button>
+            <button data-c="blocks">Murs d'accords</button>
         </span>
     </div>
     <div class="controls">
@@ -259,6 +260,7 @@
             <button class="btn" data-drill="intervals">Intervalles</button>
             <button class="btn" data-drill="octaves">Octaves et grands écarts</button>
             <button class="btn" data-drill="shape">Mesure repliée en un accord</button>
+            <button class="btn" data-drill="endless">Sans fin</button>
             <button class="btn ghost" id="drillStop" disabled>Arrêter</button>
         </div>
         <p class="lead" id="drillInfo">Choisis un exercice. Ton piano suffit — rien à cliquer.</p>
@@ -1471,6 +1473,11 @@
                 aide: 'Ne compte jamais les lignes supplémentaires : reconnais l\'écart. '
                     + 'Les deux mains sont permises.'
             },
+            endless: {
+                label: 'Sans fin', total: Infinity, melange: ['intervals', 'octaves', 'shape'],
+                aide: 'Les trois exercices s\'enchainent au hasard, sans fin. '
+                    + 'Ne plus savoir laquelle arrive, c\'est deja de la lecture a vue.'
+            },
             shape: {
                 label: 'Mesure repliée en un accord', total: 8,
                 aide: 'Replie la mesure : joue toutes ses notes en même temps, comme un seul accord. '
@@ -1502,6 +1509,11 @@
         // --- un item -----------------------------------------------------
         function drillItem(kind) {
             const cfg = DRILLS[kind];
+            // la serie sans fin ne fabrique rien elle-meme : elle tire
+            if (cfg.melange) {
+                D.sous = cfg.melange[Math.floor(Math.random() * cfg.melange.length)];
+                return drillItem(D.sous);
+            }
             if (kind === 'shape') {
                 // une vraie mesure, prise dans une piece generee, assez
                 // petite pour tenir sous une main
@@ -1540,7 +1552,7 @@
         function startDrill(kind) {
             if (S.running) endSession();
             D.on = true; D.kind = kind; D.item = 0; D.ok = 0; D.times = [];
-            D.done = false;
+            D.done = false; D.juges = 0; D.sous = null;
             $('drillStop').disabled = false;
             $('startBtn').disabled = true;
             $('verdict').hidden = true; $('report').hidden = true;
@@ -1557,8 +1569,10 @@
             D.buf = []; D.last = 0; D.done = false;
             D.shown = performance.now();
             showFragment(D.expect.piece);
-            setPhase('prep', cfg.label + ' — ' + D.item + ' sur ' + cfg.total, 0);
-            $('drillInfo').textContent = cfg.aide;
+            const quoi = D.sous ? DRILLS[D.sous] : cfg;
+            setPhase('prep', quoi.label + ' — ' + D.item
+                + (isFinite(cfg.total) ? ' sur ' + cfg.total : ''), 0);
+            $('drillInfo').textContent = quoi.aide;
         }
 
         function showFragment(piece) {
@@ -1575,7 +1589,7 @@
         }
 
         function judgeDrill() {
-            D.done = true;
+            D.done = true; D.juges++;
             const joue = [...new Set(D.buf.map(n => n.midi))].sort((a, b) => a - b);
             const forme = joue.map(x => x - joue[0]);
             const att = D.expect.shape;
@@ -1609,10 +1623,12 @@
             const med = D.times.length
                 ? D.times.slice().sort((a, b) => a - b)[D.times.length >> 1] : 0;
             setPhase('', DRILLS[D.kind].label + ' terminé.');
-            $('drillInfo').textContent = D.ok + ' sur ' + DRILLS[D.kind].total
+            // sans fin : le total est ce qu'on a joue, pas ce qui etait prevu
+            const vus = isFinite(DRILLS[D.kind].total) ? DRILLS[D.kind].total : D.juges;
+            $('drillInfo').textContent = D.ok + ' sur ' + vus
                 + (D.times.length ? ' — ' + (med / 1000).toFixed(1)
                     + ' s en moyenne pour reconnaître' : '')
-                + (D.ok === DRILLS[D.kind].total
+                + (vus && D.ok === vus
                     ? ' Rien à redire : passe à l\'exercice suivant, ou à une séance.'
                     : ' Refais-le : c\'est la reconnaissance immédiate qui est visée, pas le calcul.');
         }
@@ -1847,7 +1863,7 @@
         const CONTENT_LABEL = {
             melody: 'mélodie', fifths: 'quintes',
             fifths7: 'quintes et septièmes', chords: 'accords',
-            arpeggio: 'arpèges'
+            arpeggio: 'arpèges', blocks: 'murs d\'accords'
         };
         const variantLabel = () => (S.hands === 'both' && S.content === 'melody')
             ? '' : ' · ' + HANDS_LABEL[S.hands] + ', ' + CONTENT_LABEL[S.content];
@@ -1862,10 +1878,14 @@
                         ? 'Quintes et septièmes mêlées — les deux se ressemblent sur la portée, et c\'est justement ce qu\'on confond.'
                         : S.content === 'chords'
                         ? 'Des accords de trois et quatre sons, empilés par tierces.'
+                        : S.content === 'blocks'
+                        ? 'Un accord par temps, les deux mains ensemble : soit des quintes à plein, soit de gros accords dont peu de notes changent à la fois.'
                         : 'Le même accord, mais déroulé : une note par temps, du grave vers l\'aigu.';
             const plus = S.content === 'melody' ? ''
                 : S.content === 'arpeggio'
                     ? ' Une note par temps, et la basse se tient : l\'exercice porte sur la figure.'
+                    : S.content === 'blocks'
+                    ? ' Il n\'y a ni mélodie ni accompagnement : rien que des formes verticales, deux à la fois.'
                     : ' Les valeurs descendent au temps et la basse se tient : l\'exercice porte sur les intervalles.';
             $('varHint').textContent = h + ' ' + c + plus;
         }

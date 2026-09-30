@@ -340,6 +340,114 @@ for (const lvl of G.LEVELS) {
 }
 
 // ------------------------------------------------------------------
+section('1 quater. Murs d\'accords (methode Richard Yang)');
+
+// Regroupe les notes par INSTANT, main par main.
+function instants(p) {
+    const out = [];
+    p.measures.forEach((m, mi) => {
+        const par = new Map();
+        const ajoute = (n, cote) => {
+            if (n.rest) return;
+            if (!par.has(n.on)) par.set(n.on, { h: [], b: [], dur: n.dur });
+            par.get(n.on)[cote].push(n.midi);
+        };
+        m.rh.forEach(n => ajoute(n, 'h'));
+        m.lh.forEach(n => ajoute(n, 'b'));
+        [...par.keys()].sort((a, b) => a - b).forEach(on => {
+            const v = par.get(on);
+            out.push({ bar: mi, on, dur: v.dur,
+                h: v.h.sort((a, b) => a - b), b: v.b.sort((a, b) => a - b) });
+        });
+    });
+    return out;
+}
+
+{
+    let ensemble = 0, tropPres = 99, surTemps = 0, tenue = 0, n = 0;
+    let quintes = 0, gros = 0, changes = { 0: 0, 1: 0, 2: 0, 3: 0, plus: 0 };
+    for (let lv = 1; lv <= G.LEVELS.length; lv++) {
+        for (let k = 0; k < 60; k++) {
+            const p = G.generate(lv, k * 7919 + lv, { hands: 'both', content: 'blocks' });
+            n++;
+            const ins = instants(p);
+            // les deux mains frappent ensemble, sans exception
+            if (ins.every(i => i.h.length && i.b.length)) ensemble++;
+            // un accord par temps, et la derniere mesure se tient
+            if (ins.every(i => i.bar === p.bars - 1 || i.dur === p.beatTicks)) surTemps++;
+            const fin = ins.filter(i => i.bar === p.bars - 1);
+            if (fin.length === 1 && fin[0].dur === p.barTicks) tenue++;
+            // jamais deux mains a portee de doigt l'une de l'autre
+            for (const i of ins)
+                tropPres = Math.min(tropPres, i.h[0] - i.b[i.b.length - 1]);
+            // la forme tenue d'un bout a l'autre de la piece
+            if (ins.every(i => i.h.length === 2)) quintes++;
+            else if (ins.every(i => i.h.length >= 3)) gros++;
+            // combien de notes changent d'un accord au suivant
+            for (let j = 1; j < ins.length; j++) {
+                if (ins[j].h.length !== ins[j - 1].h.length) continue;
+                if (ins[j].h.length < 3) continue;   // deux quintes conjointes
+                                                     // changent leurs deux notes
+                const d = ins[j].h.filter(x => ins[j - 1].h.indexOf(x) < 0).length;
+                changes[d > 3 ? 'plus' : d]++;
+            }
+        }
+    }
+    check('les deux mains frappent toujours ensemble', ensemble === n, ensemble + ' / ' + n);
+    check('un accord par temps, sauf la resolution', surTemps === n, surTemps + ' / ' + n);
+    check('la derniere mesure est une ronde plaquee', tenue === n, tenue + ' / ' + n);
+    // Une tierce au moins : a un ton d'ecart les deux mains se disputent
+    // les memes touches. Mesure avant correction : 138 instants fautifs.
+    check('les mains ne se touchent jamais', tropPres >= 3, tropPres + ' demi-tons');
+    // Les deux formes de ses feuilles, et une seule par piece
+    check('les deux formes sortent, et une piece garde la sienne',
+        quintes + gros === n && quintes > n * 0.2 && gros > n * 0.2,
+        quintes + ' pieces de quintes, ' + gros + ' d\'accords, sur ' + n);
+    // Un accord qui bouge d'une tierce garde trois sons sur quatre. Ce
+    // n'est pas une regle a respecter — il le dit lui-meme, il peut y en
+    // avoir plus — mais c'est ce qui domine, et c'est ce qui se lit vite.
+    const suites = Object.values(changes).reduce((a, b) => a + b, 0);
+    check('le plus souvent, une seule note change',
+        changes[1] > suites * 0.8, (100 * changes[1] / suites).toFixed(0) + ' %');
+    check('mais il arrive qu\'il en change plusieurs',
+        changes[2] + changes[3] > 0, changes[2] + ' fois deux, ' + changes[3] + ' fois trois');
+}
+
+// une quinte reste une quinte, et une seule main laisse l'autre portee vide
+{
+    let quintesJustes = 0, quintesTotal = 0, videD = 0, videG = 0, nn = 0;
+    for (let k = 0; k < 200; k++) {
+        const p = G.generate(1 + (k % 8), k * 104729, { hands: 'both', content: 'blocks' });
+        for (const m of p.measures) {
+            const par = new Map();
+            for (const nt of m.rh) if (!nt.rest) {
+                if (!par.has(nt.on)) par.set(nt.on, []);
+                par.get(nt.on).push(nt.d);
+            }
+            for (const ds of par.values()) {
+                if (ds.length !== 2) continue;
+                quintesTotal++;
+                // une quinte, c'est quatre degres de portee — toujours. Le
+                // nombre de demi-tons depend du mode : en mineur harmonique
+                // la sensible haussee en donne une augmentee, qui s'ecrit
+                // exactement pareil et se lit donc pareil.
+                ds.sort((a, b) => a - b);
+                if (ds[1] - ds[0] === 4) quintesJustes++;
+            }
+        }
+        const d = G.generate(1 + (k % 8), k * 15485863, { hands: 'rh', content: 'blocks' });
+        const g = G.generate(1 + (k % 8), k * 32452843, { hands: 'lh', content: 'blocks' });
+        nn++;
+        if (d.measures.every(m => !m.lh.length)) videD++;
+        if (g.measures.every(m => !m.rh.length)) videG++;
+    }
+    check('toutes les quintes ecrites en sont vraiment',
+        quintesJustes === quintesTotal, quintesJustes + ' / ' + quintesTotal);
+    check('main droite seule : la portee de fa reste vide', videD === nn, videD + ' / ' + nn);
+    check('main gauche seule : la portee de sol reste vide', videG === nn, videG + ' / ' + nn);
+}
+
+// ------------------------------------------------------------------
 section('2. La difficulte ne recule jamais d\'un niveau au suivant');
 
 for (let i = 1; i < G.LEVELS.length; i++) {
