@@ -260,6 +260,7 @@
             <button class="btn" data-drill="intervals">Intervalles</button>
             <button class="btn" data-drill="octaves">Octaves et grands écarts</button>
             <button class="btn" data-drill="shape">Mesure repliée en un accord</button>
+            <button class="btn" data-drill="walls">Mur d'accords</button>
             <button class="btn" data-drill="endless">Sans fin</button>
             <button class="btn ghost" id="drillStop" disabled>Arrêter</button>
         </div>
@@ -1473,8 +1474,14 @@
                 aide: 'Ne compte jamais les lignes supplémentaires : reconnais l\'écart. '
                     + 'Les deux mains sont permises.'
             },
+            walls: {
+                label: 'Mur d\'accords', total: 8,
+                aide: 'Plaque l\'accord entier, les deux mains ensemble. '
+                    + 'La FORME seule est jugee : pars d\'ou tu veux.'
+            },
             endless: {
-                label: 'Sans fin', total: Infinity, melange: ['intervals', 'octaves', 'shape'],
+                label: 'Sans fin', total: Infinity,
+                melange: ['intervals', 'octaves', 'shape', 'walls'],
                 aide: 'Les trois exercices s\'enchainent au hasard, sans fin. '
                     + 'Ne plus savoir laquelle arrive, c\'est deja de la lecture a vue.'
             },
@@ -1513,6 +1520,33 @@
             if (cfg.melange) {
                 D.sous = cfg.melange[Math.floor(Math.random() * cfg.melange.length)];
                 return drillItem(D.sous);
+            }
+            if (kind === 'walls') {
+                // un accord du mur, pris tel quel dans une piece generee :
+                // les deux portees a la fois, comme sur ses feuilles
+                for (let k = 0; k < 200; k++) {
+                    const p = SightGen.generate(1 + Math.floor(Math.random() * 3),
+                        (Math.random() * 4294967295) >>> 0,
+                        { hands: 'both', content: 'blocks' });
+                    const m = p.measures[Math.floor(Math.random() * (p.bars - 1))];
+                    const ons = [...new Set(m.rh.filter(n => !n.rest).map(n => n.on))];
+                    if (!ons.length) continue;
+                    const on = ons[Math.floor(Math.random() * ons.length)];
+                    const md = m.rh.filter(n => !n.rest && n.on === on);
+                    const mg = m.lh.filter(n => !n.rest && n.on === on);
+                    if (!md.length || !mg.length) continue;
+                    const midis = [...new Set(md.concat(mg).map(n => n.midi))]
+                        .sort((a, b) => a - b);
+                    const pose = ns => ns.map(n => {
+                        const c = {}; for (const key in n) c[key] = n[key];
+                        c.on = 0; c.dur = 192; return c;
+                    });
+                    return {
+                        piece: fragment(pose(md), pose(mg)),
+                        shape: midis.map(x => x - midis[0]),
+                        texte: md.length + ' + ' + mg.length + ' sons'
+                    };
+                }
             }
             if (kind === 'shape') {
                 // une vraie mesure, prise dans une piece generee, assez

@@ -61,7 +61,7 @@ function outils(w) {
 // ------------------------------------------------------------------
 section('1. Ce qui est juge est la FORME, pas la hauteur');
 
-for (const kind of ['intervals', 'octaves', 'shape']) {
+for (const kind of ['intervals', 'octaves', 'shape', 'walls']) {
     const w = boot();
     const { D, $, jouer } = outils(w);
     w.startDrill(kind);
@@ -187,7 +187,7 @@ section('6. Les filtres d\'entree valent aussi dans l\'atelier');
 }
 
 // ------------------------------------------------------------------
-section('7. Les trois exercices couvrent bien ce qu\'ils annoncent');
+section('7. Les exercices couvrent bien ce qu\'ils annoncent');
 
 {
     const w = boot();
@@ -250,7 +250,7 @@ section('8. La serie sans fin');
         suivant();
     }
     check('quarante items et la serie tourne toujours', D().on, 'item ' + D().item);
-    check('elle tire bien les trois exercices', tires.size === 3,
+    check('elle tire bien les quatre exercices', tires.size === 4,
         [...tires].join(', '));
     check('le decompte des justes suit', D().ok === justes,
         D().ok + ' pour ' + justes);
@@ -265,6 +265,34 @@ section('8. La serie sans fin');
         && $('drillInfo').textContent.indexOf('Infinity') < 0,
         $('drillInfo').textContent.slice(0, 70));
     check('la partition est rangee', $('paper').classList.contains('hidden'));
+}
+
+// ------------------------------------------------------------------
+section('9. Le mur d\'accords, dans l\'atelier');
+
+{
+    const w = boot();
+    const { D, $, jouer } = outils(w);
+    let deuxMains = 0, gros = 0;
+    for (let k = 0; k < 20; k++) {
+        w.startDrill('walls');
+        const p = D().expect.piece, m = p.measures[0];
+        // les deux portees portent des notes, au MEME instant
+        if (m.rh.length && m.lh.length
+            && m.rh.every(n => n.on === 0) && m.lh.every(n => n.on === 0)) deuxMains++;
+        if (D().expect.shape.length >= 4) gros++;
+        w.eval('D.item = 99'); w.endDrill();
+    }
+    check('un item de mur occupe les deux portees', deuxMains === 20, deuxMains + ' / 20');
+    check('et c\'est bien un gros accord', gros === 20, gros + ' / 20');
+
+    // le jugement reste celui de l'atelier : la forme, pas la hauteur
+    w.startDrill('walls');
+    const att = D().expect.shape.slice();
+    jouer(att, 55);
+    check('un mur transpose compte juste', D().ok === 1,
+        'forme de ' + att.length + ' sons jouee ailleurs');
+    w.eval('D.item = 99'); w.endDrill();
 }
 
 console.log('\n' + (fail === 0 ? 'TOUT PASSE' : 'ECHECS')
