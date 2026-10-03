@@ -43,6 +43,18 @@ let pass = 0, fail = 0;
 const check = (n, ok, d) => { if (ok) pass++; else { fail++; console.log('  ECHEC  ' + n + (d ? '  [' + d + ']' : '')); } };
 const section = t => console.log('\n' + t);
 
+// Un ecart qui n'est aucune realisation de l'ecart ecrit : c'est cela,
+// une fausse reponse. Ajouter un demi-ton n'en est pas une — une tierce
+// vaut trois ou quatre demi-tons selon la note de depart.
+function faux(w, forme, degs) {
+    const sortie = forme.slice();
+    const possibles = w.ecartsPossibles(degs[degs.length - 1]);
+    let v = forme[forme.length - 1];
+    while (possibles.indexOf(v) >= 0) v++;
+    sortie[sortie.length - 1] = v;
+    return sortie;
+}
+
 function outils(w) {
     const D = () => w.eval('D');
     const $ = i => w.document.getElementById(i);
@@ -86,18 +98,38 @@ section('2. Une forme fausse ne passe pas');
     w.startDrill('intervals');
     const att = D().expect.shape.slice();
 
-    // un demi-ton de trop : ce n'est plus le meme ecart
-    jouer([0, att[1] + 1], 64);
-    check('un ecart faux d\'un demi-ton est refuse', D().ok === 0);
+    // Un ecart faux, c'est un ecart d'une autre taille SUR LA PORTEE. Un
+    // demi-ton de plus ne suffit pas a le dire : une tierce vaut trois ou
+    // quatre demi-tons selon la note de depart, et l'atelier invite a
+    // partir d'ou l'on veut — c'est tout l'objet de l'exercice.
+    const possibles = w.ecartsPossibles(D().expect.degs[1]);
+    let mauvais = att[1];
+    while (possibles.indexOf(mauvais) >= 0) mauvais++;
+    jouer([0, mauvais], 64);
+    check('un ecart d\'une autre taille est refuse', D().ok === 0,
+        mauvais + ' demi-tons pour ' + att[1] + ' attendus');
 
+    // ... et toutes les realisations diatoniques du bon ecart passent
+    let passees = 0;
+    for (let essai = 0; essai < 6; essai++) {
+        suivant();
+        const ok = w.ecartsPossibles(D().expect.degs[1]);
+        jouer([0, ok[essai % ok.length]], 64);
+        passees++;
+    }
+    check('toutes les realisations du bon ecart passent',
+        D().ok === passees, D().ok + ' sur ' + passees);
+
+    let avant = D().ok;
     suivant();
     const att2 = D().expect.shape.slice();
     jouer([0, att2[1], att2[1] + 3], 64);          // une note de trop
-    check('une note en trop est refusee', D().ok === 0);
+    check('une note en trop est refusee', D().ok === avant);
 
+    avant = D().ok;
     suivant();
     jouer([0], 64);                                  // une note de moins
-    check('une note manquante est refusee', D().ok === 0);
+    check('une note manquante est refusee', D().ok === avant);
     w.eval('D.item = 99'); w.endDrill();
 }
 
@@ -134,7 +166,7 @@ section('4. Une serie complete, et son bilan');
         vus++;
         const att = D().expect.shape.slice();
         // une fois sur trois on se trompe, pour verifier le decompte
-        jouer(vus % 3 === 0 ? [0, att[1] + 1] : att, 62);
+        jouer(vus % 3 === 0 ? faux(w, att, D().expect.degs) : att, 62);
         suivant();
     }
     check('la serie compte le nombre d\'items annonce', vus === total,
@@ -245,7 +277,7 @@ section('8. La serie sans fin');
         tires.add(w.eval('D.sous'));
         const att = D().expect.shape.slice();
         // deux fois sur trois on repond juste, pour verifier le decompte
-        if (k % 3 === 2) { jouer([0, att[att.length - 1] + 1], 60); }
+        if (k % 3 === 2) { jouer(faux(w, att, D().expect.degs), 60); }
         else { jouer(att, 60); justes++; }
         suivant();
     }

@@ -778,11 +778,73 @@
         // temps annonce montait a 1 539 ms pour un jeu sans defaut.
         // La somme des departages reste inferieure a UNE unite de cout :
         // ils ne tranchent que les ex aequo, jamais une decision de hauteur.
-        const SCALE = 1024;
-        function alignPass(tl, played, t0, r, mur) {
+        const SCALE = 65536;
+        // L'ecart typique entre deux instants ecrits : la pulsation reelle
+        // de la piece, sans avoir a la lui demander.
+        function pasMedian(tl) {
+            const ms = [];
+            for (const e of tl) if (!ms.length || e.ms !== ms[ms.length - 1]) ms.push(e.ms);
+            const d = [];
+            for (let i = 1; i < ms.length; i++) if (ms[i] > ms[i - 1]) d.push(ms[i] - ms[i - 1]);
+            return d.length ? median(d) : 500;
+        }
+
+        // La derive du jeu, note par note : de combien le joueur est-il
+        // en retard sur l'ecrit a cet endroit precis. Mediane glissante,
+        // pour qu'une note mal appariee ne tire pas la courbe ; interpolee
+        // pour les notes restees orphelines.
+        function localOffsets(byPlayed, played, t0, r) {
+            const idx = [], res = [];
+            for (let k = 0; k < played.length; k++) {
+                const b = byPlayed[k];
+                if (!b) continue;
+                idx.push(k); res.push(played[k].t - t0 - r * b.exp.ms);
+            }
+            if (idx.length < 4) return null;
+            const L = 3;                       // demi-fenetre
+            const lisse = res.map(function (_, i) {
+                return median(res.slice(Math.max(0, i - L), i + L + 1));
+            });
+            // Irregularite locale : de combien les residus s'ecartent de
+            // leur propre courbe. C'est elle qui dit ce qui est anormal
+            // POUR CE JOUEUR — sans quoi un jeu en marches d'escalier se
+            // fait punir d'etre regulierement irregulier.
+            const ecart = res.map(function (v, i) { return Math.abs(v - lisse[i]); });
+            const irr = res.map(function (_, i) {
+                return median(ecart.slice(Math.max(0, i - L), i + L + 1));
+            });
+            const out = new Array(played.length), sca = new Array(played.length);
+            let p = 0;
+            for (let k = 0; k < played.length; k++) {
+                while (p + 1 < idx.length && idx[p + 1] <= k) p++;
+                if (k <= idx[0]) { out[k] = lisse[0]; sca[k] = irr[0]; }
+                else if (k >= idx[idx.length - 1]) {
+                    out[k] = lisse[lisse.length - 1]; sca[k] = irr[irr.length - 1];
+                } else {
+                    const a = idx[p], b2 = idx[p + 1];
+                    const u = b2 === a ? 0 : (k - a) / (b2 - a);
+                    out[k] = lisse[p] + u * (lisse[p + 1] - lisse[p]);
+                    sca[k] = Math.max(irr[p], irr[p + 1]);
+                }
+            }
+            return { off: out, irr: sca };
+        }
+
+        function alignPass(tl, played, t0, r, mur, off) {
             const n = tl.length, m = played.length;
             const span = Math.max(1, tl[n - 1].ms);
             const PEN = Math.max(1, Math.floor(SCALE / (m + 2)));
+            // L'ecart se juge a l'echelle de quelques temps, pas de la
+            // piece entiere : rapporte a la piece, une seconde et
+            // cinquante millisecondes tombaient dans le meme cran, et le
+            // departage ne departageait plus rien.
+            const PAS = pasMedian(tl);
+            const HOR = Math.max(200, 4 * PAS);
+            // Une fois la derive connue, l'ecart QUI RESTE est anormal :
+            // on lui laisse de quoi peser plus qu'un trou, sans quoi
+            // l'appariement prefere decaler tout un accord pour recuperer
+            // une note oubliee au passage.
+            const TOL2 = 0.35 * PAS, HOR2 = Math.max(120, 0.25 * PAS);
             // avance toleree, puis rampe jusqu'au prix d'une substitution
             const TOL = Math.max(400, span * 0.05);
             const RAMP = Math.max(800, span * 0.10);
@@ -805,7 +867,7 @@
                 for (let j = 1; j <= m; j++) {
                     const same = pi === played[j - 1].midi;
                     const dev = Math.min(1,
-                        Math.abs(played[j - 1].t - t0 - att) / span);
+                        Math.abs(played[j - 1].t - t0 - att) / HOR);
                     const ecart = played[j - 1].t - t0 - attMur;
                     // ecart < 0 : la note ecrite est EN AVANCE sur le temps
                     // ecoule. Un retard, lui, ne coute rien : c'est ce que
@@ -813,8 +875,17 @@
                     const avance = -ecart - TOL;
                     const bloc = (mur && avance > 0)
                         ? Math.round(Math.min(2, avance / RAMP) * C_SUB * SCALE) : 0;
+                    let loin = 0;
+                    if (off) {
+                        const e2 = Math.abs(played[j - 1].t - t0 - att - off.off[j - 1]);
+                        const ir = off.irr[j - 1] || 0;
+                        const tol = Math.max(TOL2, 2 * ir), hor = Math.max(HOR2, 1.5 * ir);
+                        if (e2 > tol)
+                            loin = Math.round(Math.min(4, (e2 - tol) / hor)
+                                * C_GAP * SCALE);
+                    }
                     let best = cost[prev + j - 1]
-                        + (same ? 0 : C_SUB * SCALE) + bloc + Math.round(dev * PEN);
+                        + (same ? 0 : C_SUB * SCALE) + bloc + loin + Math.round(dev * PEN);
                     let d = 1;
                     const up = cost[prev + j] + C_GAP * SCALE;
                     if (up < best) { best = up; d = 2; }
@@ -859,9 +930,19 @@
             // peut pas dire ce qui est en avance. Un jeu deux fois plus
             // rapide que l'ecrit se faisait sinon condamner en bloc, et
             // seules quatre pieces sur vingt s'appariaient encore.
-            const r0 = slopeOf(alignPass(tl, played, t0, 1, false), played, t0);
+            const r0 = slopeOf(alignPass(tl, played, t0, 1, false, null), played, t0);
             const r = (r0 > 0.3 && r0 < 4) ? r0 : 1;
-            const byPlayed = alignPass(tl, played, t0, r, true);
+            let byPlayed = alignPass(tl, played, t0, r, true, null);
+            // On refait une passe en jugeant chaque candidat par rapport a
+            // la derive locale, et non plus a la grille nominale.
+            // Deux tours : la premiere derive est tiree d'un appariement
+            // encore fautif, donc elle l'est un peu aussi. La seconde part
+            // d'un appariement deja redresse.
+            for (let tour = 0; tour < 2; tour++) {
+                const off = localOffsets(byPlayed, played, t0, r);
+                if (!off) break;
+                byPlayed = alignPass(tl, played, t0, r, true, off);
+            }
 
             repair(tl, played, byPlayed);
 
@@ -1541,9 +1622,15 @@
                         const c = {}; for (const key in n) c[key] = n[key];
                         c.on = 0; c.dur = 192; return c;
                     });
+                    const notes = md.concat(mg).slice()
+                        .sort((a, b) => a.midi - b.midi);
+                    const vus = {}, ds = [];
+                    for (const nt of notes)
+                        if (!vus[nt.midi]) { vus[nt.midi] = 1; ds.push(nt.d); }
                     return {
                         piece: fragment(pose(md), pose(mg)),
                         shape: midis.map(x => x - midis[0]),
+                        degs: ds.map(x => x - ds[0]),
                         texte: md.length + ' + ' + mg.length + ' sons'
                     };
                 }
@@ -1555,13 +1642,17 @@
                     const p = SightGen.generate(1 + Math.floor(Math.random() * 3),
                         (Math.random() * 4294967295) >>> 0, { hands: 'rh' });
                     const m = p.measures[Math.floor(Math.random() * (p.bars - 1))];
-                    const midis = [...new Set(m.rh.filter(n => !n.rest).map(n => n.midi))]
-                        .sort((a, b) => a - b);
+                    const utiles = m.rh.filter(n => !n.rest)
+                        .slice().sort((a, b) => a.midi - b.midi);
+                    const vus = {}, midis = [], ds = [];
+                    for (const nt of utiles)
+                        if (!vus[nt.midi]) { vus[nt.midi] = 1; midis.push(nt.midi); ds.push(nt.d); }
                     if (midis.length < 2 || midis.length > 5) continue;
                     if (midis[midis.length - 1] - midis[0] > 12) continue;
                     return {
                         piece: fragment(m.rh, []),
                         shape: midis.map(x => x - midis[0]),
+                        degs: ds.map(x => x - ds[0]),
                         texte: midis.length + ' notes à replier'
                     };
                 }
@@ -1574,6 +1665,7 @@
             return {
                 piece: grand ? fragment([b], [a]) : fragment([a, b], []),
                 shape: [0, b.midi - a.midi],
+                degs: [0, off],
                 texte: NOM_ECART[off] || (off + 1) + 'e'
             };
         }
@@ -1622,13 +1714,34 @@
             $('sysnav').hidden = true;
         }
 
+        // Un ecart se lit sur la PORTEE, et une tierce reste une tierce
+        // qu'elle fasse trois ou quatre demi-tons selon la note de depart.
+        // L'atelier invitant a partir d'ou l'on veut, il doit accepter
+        // toutes les realisations diatoniques du meme ecart ecrit.
+        const MAJ = [0, 2, 4, 5, 7, 9, 11];
+        function ecartsPossibles(deg) {
+            const out = [];
+            for (let s = 0; s < 7; s++) {
+                let somme = 0;
+                for (let i = 0; i < deg; i++)
+                    somme += (MAJ[(s + i + 1) % 7] - MAJ[(s + i) % 7] + 12) % 12;
+                if (out.indexOf(somme) < 0) out.push(somme);
+            }
+            return out;
+        }
+        function formeJuste(forme, att, degs) {
+            if (forme.length !== att.length) return false;
+            if (forme.every((v, i) => v === att[i])) return true;
+            if (!degs || degs.length !== forme.length) return false;
+            return forme.every((v, i) => ecartsPossibles(degs[i]).indexOf(v) >= 0);
+        }
+
         function judgeDrill() {
             D.done = true; D.juges++;
             const joue = [...new Set(D.buf.map(n => n.midi))].sort((a, b) => a - b);
             const forme = joue.map(x => x - joue[0]);
             const att = D.expect.shape;
-            const bon = forme.length === att.length
-                && forme.every((v, i) => v === att[i]);
+            const bon = formeJuste(forme, att, D.expect.degs);
             if (bon) { D.ok++; D.times.push(D.buf[0].t - D.shown); }
 
             for (const h of $('paper').querySelectorAll('.sr-head'))

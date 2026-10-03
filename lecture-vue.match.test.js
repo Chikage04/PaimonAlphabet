@@ -159,6 +159,74 @@ section('5. Une note ne repond jamais a un endroit non encore atteint');
         loin === 0, loin + ' sur ' + total + ' paires');
 }
 
+// ------------------------------------------------------------------
+section('6. Chaque note est creditee a la bonne note ecrite');
+
+// Les objets joues traversent l'appariement : on peut donc les etiqueter
+// et verifier, note par note, ou chacune a ete creditee.
+{
+    let graine = 12345;
+    const alea = () => (graine = (graine * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff;
+
+    function jeu(p, tl, opt) {
+        const played = [];
+        let retard = 0;
+        for (let i = 0; i < tl.length; i++) {
+            if (opt.stop && i >= tl.length * opt.stop) break;
+            if (opt.omet && alea() < opt.omet) continue;
+            if (opt.arret && alea() < 0.03) retard += 400 + alea() * 1200;
+            const f = opt.faux && alea() < opt.faux;
+            played.push({
+                midi: tl[i].midi + (f ? (alea() < 0.5 ? 1 : 2) : 0),
+                t: T0 + tl[i].ms + retard + (alea() - 0.5) * 2 * (opt.jit || 0),
+                v: 80, src: i, faux: f
+            });
+        }
+        played.sort((a, b) => a.t - b.t);
+        return played;
+    }
+
+    // --- jeu parfait : aucune excuse
+    for (const content of ['melody', 'chords', 'blocks']) {
+        let mal = 0, n = 0;
+        for (let seed = 1; seed <= 20; seed++) {
+            const p = piece(seed, content), tl = w.SightGen.timeline(p);
+            const played = jeu(p, tl, { jit: 40 });
+            for (const pr of w.matchAligned(tl, played).pairs) {
+                if (!pr.exp) continue;
+                n++;
+                if (pr.idx !== pr.played.src) mal++;
+            }
+        }
+        check(content + ' : jeu propre, chaque note a sa place', mal === 0,
+            mal + ' mal creditees sur ' + n);
+    }
+
+    // --- jeu humain : on ne compte que les erreurs NETTES, celles ou la
+    //     note d'origine etait plus proche dans le temps que celle choisie.
+    //     Le reste est une vraie ambiguite : apres un arret, reprendre en
+    //     retard sur un accord ou a l'heure sur le suivant s'ecrit pareil.
+    graine = 12345;
+    for (const content of ['melody', 'chords', 'blocks']) {
+        let nettes = 0, n = 0;
+        for (let seed = 1; seed <= 20; seed++) {
+            const p = piece(seed, content), tl = w.SightGen.timeline(p);
+            const played = jeu(p, tl, { jit: 80, faux: 0.12, omet: 0.08, arret: 1, stop: 0.66 });
+            n += played.length;
+            for (const pr of w.matchAligned(tl, played).pairs) {
+                if (!pr.exp || pr.idx === pr.played.src) continue;
+                const choisi = Math.abs((pr.played.t - T0) - tl[pr.idx].ms);
+                const vrai = Math.abs((pr.played.t - T0) - tl[pr.played.src].ms);
+                if (vrai < choisi - 30) nettes++;
+            }
+        }
+        // mesure avant correction : 1,2 % en melodie, 3,6 % en accords
+        check(content + ' : jeu humain, moins de 2 % nettement mal creditees',
+            nettes <= n * 0.02, nettes + ' sur ' + n + ' notes jouees ('
+            + (100 * nettes / n).toFixed(1) + ' %)');
+    }
+}
+
 console.log('\n' + (fail === 0 ? 'TOUT PASSE' : 'ECHECS')
     + ' : ' + pass + ' verifications ok, ' + fail + ' en echec');
 process.exit(fail ? 1 : 0);
