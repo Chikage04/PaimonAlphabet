@@ -258,6 +258,7 @@
             la précède. Reconnaître une forme et la porter à la main.</p>
         <div class="controls">
             <button class="btn" data-drill="intervals">Intervalles</button>
+            <button class="btn" data-drill="intervalsInf">Intervalles sans fin</button>
             <button class="btn" data-drill="octaves">Octaves et grands écarts</button>
             <button class="btn" data-drill="shape">Mesure repliée en un accord</button>
             <button class="btn" data-drill="walls">Mur d'accords</button>
@@ -1540,17 +1541,37 @@
         // seule la justesse decide. C'est la preparation, pas la performance.
         const D = {
             on: false, kind: null, item: 0, total: 0, ok: 0,
-            buf: [], last: 0, expect: null, shown: 0, times: [], done: false
+            buf: [], last: 0, expect: null, shown: 0, times: [], done: false,
+            niv: 1, serie: 0, rates: 0, hautNiv: 1
         };
-        const DRILL_GAP = 450;      // silence apres lequel on juge la frappe
-        const DRILL_NEXT = 1400;    // temps de lecture du verdict
+        const LS_NIV = 'lecture.atelier.niveau';
+        const INT_UP = 3, INT_DOWN = 2;   // series qui font monter, puis descendre
+
+        // L'echelle de l'exercice d'intervalles. On ajoute, dans cet ordre :
+        // la cle de fa, la suite de notes, le mouvement descendant, les
+        // grands ecarts. Chaque niveau garde ce que le precedent a appris.
+        const NIV_INT = [
+            { n: 2, offs: [1, 2, 3], fa: false, bas: false },
+            { n: 2, offs: [1, 2, 3, 4, 5], fa: true, bas: false },
+            { n: 3, offs: [1, 2, 3], fa: false, bas: false },
+            { n: 3, offs: [1, 2, 3, 4, 5], fa: true, bas: true },
+            { n: 4, offs: [1, 2, 3, 4, 5], fa: true, bas: true },
+            { n: 4, offs: [1, 2, 3, 4, 5, 6, 7], fa: true, bas: true },
+            { n: 5, offs: [1, 2, 3, 4, 5, 6, 7], fa: true, bas: true },
+            { n: 6, offs: [1, 2, 3, 4, 5, 6, 7, 8, 9], fa: true, bas: true }
+        ];
+        // Signale : l'attente entre deux items est trop longue. On resserre
+        // un peu les deux temps — sans les supprimer : le verdict doit
+        // rester lisible, et juger trop vite couperait un accord etale.
+        const DRILL_GAP = 380;      // silence apres lequel on juge la frappe
+        const DRILL_NEXT = 1000;    // temps de lecture du verdict
 
         const DRILLS = {
             intervals: {
                 // trente, et non douze : avec cinq ecarts tires au hasard,
                 // douze lectures n'en font que deux par ecart, et une seule
                 // hesitation fausse la moyenne.
-                label: 'Intervalles', total: 30, offs: [1, 2, 3, 4, 5],
+                label: 'Intervalles', total: 30, echelle: true,
                 aide: 'Joue les deux notes ensemble. Seul l\'écart compte, pas la hauteur : '
                     + 'tu peux partir d\'où tu veux, avec le doigté que tu veux. '
                     + 'Une lecture sur deux est en clé de fa.'
@@ -1559,6 +1580,11 @@
                 label: 'Octaves et grands écarts', total: 10, offs: [6, 7, 8, 9],
                 aide: 'Ne compte jamais les lignes supplémentaires : reconnais l\'écart. '
                     + 'Les deux mains sont permises.'
+            },
+            intervalsInf: {
+                label: 'Intervalles sans fin', total: Infinity, echelle: true,
+                aide: 'Meme exercice, sans limite : le niveau monte apres trois bonnes '
+                    + 'reponses d\'affilee et redescend apres deux fautes.'
             },
             walls: {
                 label: 'Mur d\'accords', total: 8,
@@ -1610,6 +1636,49 @@
             if (midis[n - 1] - midis[0] > ETENDUE[n]) return false;
             for (let i = 1; i < n; i++) if (midis[i] - midis[i - 1] > 5) return false;
             return true;
+        }
+
+        // Une paire se plaque, une suite se joue note apres note. Dans les
+        // deux cas, ce qui est lu est la SUCCESSION des ecarts — et c'est
+        // elle qu'on juge, signe compris.
+        function intervalItem(niv) {
+            const grave = niv.fa && Math.random() < 0.5;
+            // on garde la suite dans une fenetre lisible, sans excursion
+            const LO = grave ? 13 : 24, HI = grave ? 24 : 35;
+            let d = Math.round((LO + HI) / 2);
+            const pas = [], notes = [];
+            for (let k = 0; k < niv.n; k++) {
+                if (k) {
+                    const choix = [];
+                    for (const o of niv.offs) {
+                        if (d + o <= HI) choix.push(o);
+                        if (niv.bas && d - o >= LO) choix.push(-o);
+                    }
+                    if (!choix.length) break;
+                    const p = choix[Math.floor(Math.random() * choix.length)];
+                    pas.push(p); d += p;
+                }
+                notes.push(d);
+            }
+            const suite = notes.length > 2;
+            const objets = notes.map((x, i) => fragNote(x, suite ? i * 48 : 0,
+                suite ? 48 : 192, 0));
+            const midis = objets.map(o => o.midi);
+            return {
+                piece: grave ? fragment([], objets) : fragment(objets, []),
+                // suite : les ecarts successifs, dans l'ordre joue.
+                // paire : la forme, comme avant, du grave vers l'aigu.
+                suite: suite,
+                shape: suite ? midis.slice(1).map((v, i) => v - midis[i])
+                    : [0, midis[1] - midis[0]],
+                degs: suite ? pas.slice() : [0, pas[0]],
+                pas: pas.slice(),
+                grave: grave,
+                cle: suite ? null : (NOM_ECART[pas[0]] || (pas[0] + 1) + 'e'),
+                deg: suite ? null : pas[0],
+                texte: suite ? notes.length + ' notes'
+                    : (NOM_ECART[pas[0]] || (pas[0] + 1) + 'e') + (grave ? ' (fa)' : '')
+            };
         }
 
         function drillItem(kind) {
@@ -1678,11 +1747,12 @@
                     };
                 }
             }
+            // --- l'echelle d'intervalles : une paire, ou une suite
+            if (cfg.echelle) return intervalItem(NIV_INT[D.niv - 1]);
+
             // un intervalle : deux notes tenues, a une hauteur lisible
             const off = cfg.offs[Math.floor(Math.random() * cfg.offs.length)];
             const grand = off >= 6;
-            // Une lecture sur deux en cle de fa : c'est la qu'on se met a
-            // compter les lignes au lieu de reconnaitre la forme.
             const grave = !grand && Math.random() < 0.5;
             const bas = grave ? 15 + Math.floor(Math.random() * 5)   // sol2 a re3
                 : 26 + Math.floor(Math.random() * 5);                // la3 a mi4
@@ -1703,10 +1773,26 @@
         };
 
         // --- deroulement --------------------------------------------------
+        // Ce que le barreau demande, en une ligne.
+        function NIV_TEXTE(niv) {
+            const gros = Math.max.apply(null, niv.offs);
+            return '(' + (niv.n === 2 ? 'deux notes plaquées'
+                : niv.n + ' notes à la suite')
+                + ', jusqu\'à la ' + (NOM_ECART[gros] || (gros + 1) + 'e')
+                + (niv.fa ? ', les deux clés' : ', clé de sol')
+                + (niv.bas ? ', ça peut descendre' : '') + ')';
+        }
+
         function startDrill(kind) {
             if (S.running) endSession();
             D.on = true; D.kind = kind; D.item = 0; D.ok = 0; D.times = [];
             D.done = false; D.juges = 0; D.sous = null; D.releve = {};
+            D.serie = 0; D.rates = 0; D.monte = null;
+            // on reprend ou on s'etait arrete, pas au premier barreau
+            let n0 = 1;
+            try { n0 = parseInt(localStorage.getItem(LS_NIV), 10) || 1; } catch (e) { }
+            D.niv = Math.max(1, Math.min(NIV_INT.length, n0));
+            D.hautNiv = D.niv;
             $('drillStop').disabled = false;
             $('startBtn').disabled = true;
             $('verdict').hidden = true; $('report').hidden = true;
@@ -1725,8 +1811,10 @@
             showFragment(D.expect.piece);
             const quoi = D.sous ? DRILLS[D.sous] : cfg;
             setPhase('prep', quoi.label + ' — ' + D.item
-                + (isFinite(cfg.total) ? ' sur ' + cfg.total : ''), 0);
-            $('drillInfo').textContent = quoi.aide;
+                + (isFinite(cfg.total) ? ' sur ' + cfg.total : '')
+                + (quoi.echelle ? ' · niveau ' + D.niv : ''), 0);
+            $('drillInfo').textContent = quoi.aide
+                + (quoi.echelle ? ' ' + NIV_TEXTE(NIV_INT[D.niv - 1]) : '');
         }
 
         function showFragment(piece) {
@@ -1764,22 +1852,63 @@
             return forme.every((v, i) => ecartsPossibles(degs[i]).indexOf(v) >= 0);
         }
 
+        // Un pas de suite : meme taille d'ecart, et meme sens. Monter une
+        // tierce et descendre une tierce ne se lisent pas pareil.
+        function pasJuste(demi, deg) {
+            if ((demi > 0) !== (deg > 0) && demi !== 0 && deg !== 0) return false;
+            return ecartsPossibles(Math.abs(deg)).indexOf(Math.abs(demi)) >= 0;
+        }
+        function suiteJuste(forme, degs) {
+            if (forme.length !== degs.length) return false;
+            return forme.every((v, i) => pasJuste(v, degs[i]));
+        }
+
         function judgeDrill() {
             D.done = true; D.juges++;
-            const joue = [...new Set(D.buf.map(n => n.midi))].sort((a, b) => a - b);
-            const forme = joue.map(x => x - joue[0]);
+            const sui = D.expect.suite;
+            // Une suite se lit dans l'ORDRE JOUE : ce sont les ecarts
+            // successifs qui comptent, signe compris. Une paire se plaque,
+            // et seule sa forme compte, du grave vers l'aigu.
+            const brut = D.buf.map(n => n.midi);
+            const joue = sui ? brut : [...new Set(brut)].sort((a, b) => a - b);
+            const forme = sui ? joue.slice(1).map((v, i) => v - joue[i])
+                : joue.map(x => x - joue[0]);
             const att = D.expect.shape;
-            const bon = formeJuste(forme, att, D.expect.degs);
+            const bon = sui ? suiteJuste(forme, D.expect.degs)
+                : formeJuste(forme, att, D.expect.degs);
             const mis = D.buf[0].t - D.shown;
             if (bon) { D.ok++; D.times.push(mis); }
+
+            // Le niveau suit ce qu'on sait faire : trois bonnes reponses
+            // d'affilee et il monte, deux fautes d'affilee et il redescend.
+            if (bon) { D.serie++; D.rates = 0; } else { D.rates++; D.serie = 0; }
+            if (DRILLS[D.kind].echelle) {
+                if (D.serie >= INT_UP && D.niv < NIV_INT.length) {
+                    D.niv++; D.serie = 0; D.monte = true;
+                } else if (D.rates >= INT_DOWN && D.niv > 1) {
+                    D.niv--; D.rates = 0; D.monte = false;
+                }
+                D.hautNiv = Math.max(D.hautNiv, D.niv);
+                try { localStorage.setItem(LS_NIV, String(D.niv)); } catch (e) { }
+            }
+
             // Releve par ecart : un pourcentage global ne dit pas QUOI
-            // travailler, le temps de reconnaissance par ecart si.
-            const cle = D.expect.cle;
-            if (cle) {
-                const r = D.releve[cle] || (D.releve[cle] = {
-                    n: 0, ok: 0, ms: [], deg: D.expect.deg
+            // travailler, le temps de reconnaissance par ecart si. Une
+            // suite alimente le releve de chacun de ses pas.
+            const pas = D.expect.pas || (D.expect.deg !== null
+                && D.expect.deg !== undefined ? [D.expect.deg] : []);
+            for (let i = 0; i < pas.length; i++) {
+                const deg = Math.abs(pas[i]);
+                const nom = NOM_ECART[deg] || (deg + 1) + 'e';
+                const r = D.releve[nom] || (D.releve[nom] = {
+                    n: 0, ok: 0, ms: [], deg: deg
                 });
-                r.n++; if (bon) { r.ok++; r.ms.push(mis); }
+                // un pas est juste si l'ecart joue a cet endroit l'est
+                const juste = sui
+                    ? (i < forme.length && pasJuste(forme[i], pas[i]))
+                    : bon;
+                r.n++;
+                if (juste) { r.ok++; if (!sui || bon) r.ms.push(mis / pas.length); }
             }
 
             for (const h of $('paper').querySelectorAll('.sr-head'))
@@ -1795,7 +1924,7 @@
                     : 'Raté — c\'était ' + D.expect.texte + ', tu as joué '
                         + (forme.length === att.length
                             ? 'un écart de ' + forme[forme.length - 1] + ' demi-tons'
-                            : forme.length + ' notes au lieu de ' + att.length),
+                            : (forme.length + 1) + ' notes au lieu de ' + (att.length + 1)),
                 0);
             tone(bon ? 880 : 420, 0.16, 0.1);
         }
@@ -1807,7 +1936,9 @@
             hideScore();
             const med = D.times.length
                 ? D.times.slice().sort((a, b) => a - b)[D.times.length >> 1] : 0;
-            setPhase('', DRILLS[D.kind].label + ' terminé.');
+            setPhase('', DRILLS[D.kind].label + ' terminé.'
+                + (DRILLS[D.kind].echelle ? ' Niveau ' + D.niv
+                    + (D.hautNiv > D.niv ? ', monté jusqu\'à ' + D.hautNiv : '') : ''));
             drillTable();
             // sans fin : le total est ce qu'on a joue, pas ce qui etait prevu
             const vus = isFinite(DRILLS[D.kind].total) ? DRILLS[D.kind].total : D.juges;
@@ -1847,7 +1978,16 @@
 
         function tickDrill() {
             const now = performance.now();
-            if (!D.done && D.buf.length && now - D.last > DRILL_GAP) judgeDrill();
+            // Une suite se joue note apres note : attendre un silence de
+            // 450 ms entre chacune reviendrait a juger a la premiere
+            // hesitation. On juge des que le compte y est, et sinon au bout
+            // d'un vrai silence.
+            const n = D.expect && D.expect.suite ? D.expect.shape.length + 1 : 0;
+            if (!D.done && n && D.buf.length >= n && now - D.last > 120) judgeDrill();
+            else if (!D.done && n && D.buf.length && now - D.last > 4 * DRILL_GAP)
+                judgeDrill();
+            else if (!D.done && !n && D.buf.length && now - D.last > DRILL_GAP)
+                judgeDrill();
             else if (D.done && now - D.last > DRILL_GAP + DRILL_NEXT) nextDrillItem();
         }
 

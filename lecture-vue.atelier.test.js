@@ -55,6 +55,42 @@ function faux(w, forme, degs) {
     return sortie;
 }
 
+// Repondre a un item, qu'il soit plaque ou en suite. `juste` a faux
+// fabrique une reponse qui n'est AUCUNE realisation de ce qui est ecrit.
+function repondre(w, it, juste, base) {
+    const midi = p => w.onMIDIMessage({
+        data: [0x90, p, 80], timeStamp: w.__T.now
+    });
+    const sh = it.shape, b = base === undefined ? 60 : base;
+    if (!it.suite) {
+        // un accord : tous les sons ensemble, du grave vers l'aigu
+        const der = sh.length - 1;
+        const poss = w.ecartsPossibles(it.degs[der]);
+        let v = sh[der];
+        if (!juste) while (poss.indexOf(v) >= 0) v++;
+        for (let i = 0; i < sh.length; i++) {
+            midi(b + (i === der ? v : sh[i]));
+            w.__T.now += 6;
+        }
+    } else {
+        let d = b;
+        midi(d);
+        for (let i = 0; i < sh.length; i++) {
+            w.__T.now += 150;
+            let p = sh[i];
+            if (!juste && i === 0) {
+                const poss = w.ecartsPossibles(Math.abs(it.degs[0]));
+                while (poss.indexOf(Math.abs(p)) >= 0) p += (p < 0 ? -1 : 1);
+            }
+            d += p; midi(d);
+        }
+    }
+    w.__T.now += 500; w.tick();
+}
+
+// Epingle le barreau : certains tests ont besoin d'une forme fixe.
+function epingle(w, niv) { w.eval('D.niv = ' + niv + '; D.serie = 0; D.rates = 0;'); }
+
 function outils(w) {
     const D = () => w.eval('D');
     const $ = i => w.document.getElementById(i);
@@ -102,17 +138,14 @@ section('2. Une forme fausse ne passe pas');
     // demi-ton de plus ne suffit pas a le dire : une tierce vaut trois ou
     // quatre demi-tons selon la note de depart, et l'atelier invite a
     // partir d'ou l'on veut — c'est tout l'objet de l'exercice.
-    const possibles = w.ecartsPossibles(D().expect.degs[1]);
-    let mauvais = att[1];
-    while (possibles.indexOf(mauvais) >= 0) mauvais++;
-    jouer([0, mauvais], 64);
-    check('un ecart d\'une autre taille est refuse', D().ok === 0,
-        mauvais + ' demi-tons pour ' + att[1] + ' attendus');
+    epingle(w, 1);
+    repondre(w, D().expect, false);
+    check('un ecart d\'une autre taille est refuse', D().ok === 0);
 
     // ... et toutes les realisations diatoniques du bon ecart passent
     let passees = 0;
     for (let essai = 0; essai < 6; essai++) {
-        suivant();
+        suivant(); epingle(w, 1);
         const ok = w.ecartsPossibles(D().expect.degs[1]);
         jouer([0, ok[essai % ok.length]], 64);
         passees++;
@@ -121,13 +154,13 @@ section('2. Une forme fausse ne passe pas');
         D().ok === passees, D().ok + ' sur ' + passees);
 
     let avant = D().ok;
-    suivant();
+    suivant(); epingle(w, 1);
     const att2 = D().expect.shape.slice();
     jouer([0, att2[1], att2[1] + 3], 64);          // une note de trop
     check('une note en trop est refusee', D().ok === avant);
 
     avant = D().ok;
-    suivant();
+    suivant(); epingle(w, 1);
     jouer([0], 64);                                  // une note de moins
     check('une note manquante est refusee', D().ok === avant);
     w.eval('D.item = 99'); w.endDrill();
@@ -140,6 +173,7 @@ section('3. Aucun tempo, aucune pression');
     const w = boot();
     const { D, $, jouer } = outils(w);
     w.startDrill('intervals');
+    epingle(w, 1);
     const att = D().expect.shape.slice();
 
     // trente secondes de reflexion : rien ne doit se passer
@@ -166,7 +200,7 @@ section('4. Une serie complete, et son bilan');
         vus++;
         const att = D().expect.shape.slice();
         // une fois sur trois on se trompe, pour verifier le decompte
-        jouer(vus % 3 === 0 ? faux(w, att, D().expect.degs) : att, 62);
+        repondre(w, D().expect, vus % 3 !== 0, 62);
         suivant();
     }
     check('la serie compte le nombre d\'items annonce', vus === total,
@@ -226,17 +260,32 @@ section('7. Les exercices couvrent bien ce qu\'ils annoncent');
     const { D, suivant, jouer } = outils(w);
     // les intervalles doivent couvrir les DEUX classes de sa regle :
     // ligne a ligne donne les impairs, ligne a interligne les pairs
-    const vus = new Set();
-    for (let essai = 0; essai < 40; essai++) {
-        w.startDrill('intervals');
-        vus.add(D().expect.shape[1]);
-        w.eval('D.item = 99'); w.endDrill();
+    // L'echelle : le premier barreau tire petit et plaque, le dernier
+    // tire grand et en suite. On regarde ce que chacun produit vraiment.
+    const parNiv = {};
+    for (const niv of [1, 4, 8]) {
+        const notes = new Set(), ecarts = new Set();
+        for (let essai = 0; essai < 25; essai++) {
+            w.startDrill('intervals');
+            epingle(w, niv);
+            w.eval('D.expect = drillItem("intervals")');
+            const it = D().expect;
+            notes.add(it.shape.length + (it.suite ? 1 : 0));
+            for (const p of it.pas) ecarts.add(Math.abs(p));
+            w.eval('D.item = 99'); w.endDrill();
+        }
+        parNiv[niv] = { notes: [...notes], ecarts: [...ecarts].sort((a, b) => a - b) };
     }
-    const demis = [...vus].sort((a, b) => a - b);
-    check('les intervalles tirent des tierces ET des quartes/sixtes',
-        demis.some(x => x === 3 || x === 4) && demis.some(x => x === 5)
-        && demis.some(x => x === 8 || x === 9),
-        demis.join(', ') + ' demi-tons');
+    check('le premier barreau reste sur deux notes plaquées',
+        parNiv[1].notes.every(x => x === 2), parNiv[1].notes.join(', '));
+    check('le premier barreau ne dépasse pas la quarte',
+        Math.max(...parNiv[1].ecarts) <= 3, parNiv[1].ecarts.join(', '));
+    check('le quatrième barreau donne des suites',
+        parNiv[4].notes.every(x => x >= 3), parNiv[4].notes.join(', '));
+    check('le dernier barreau est plus long et plus large',
+        Math.max(...parNiv[8].notes) > Math.max(...parNiv[4].notes)
+        && Math.max(...parNiv[8].ecarts) > Math.max(...parNiv[4].ecarts),
+        parNiv[8].notes.join('/') + ' notes, écarts ' + parNiv[8].ecarts.join(','));
 
     const gros = new Set();
     for (let essai = 0; essai < 40; essai++) {
@@ -275,10 +324,9 @@ section('8. La serie sans fin');
     for (let k = 0; k < 40; k++) {
         vus++;
         tires.add(w.eval('D.sous'));
-        const att = D().expect.shape.slice();
         // deux fois sur trois on repond juste, pour verifier le decompte
-        if (k % 3 === 2) { jouer(faux(w, att, D().expect.degs), 60); }
-        else { jouer(att, 60); justes++; }
+        repondre(w, D().expect, k % 3 !== 2, 60);
+        if (k % 3 !== 2) justes++;
         suivant();
     }
     check('quarante items et la serie tourne toujours', D().on, 'item ' + D().item);
@@ -340,24 +388,30 @@ section('10. L\'exercice d\'intervalles, en profondeur');
     // ecart, et une hesitation suffit a tout fausser.
     check('la serie est assez longue pour une moyenne', total >= 25, total + ' items');
 
+    // On epingle le deuxieme barreau : paires, les cinq ecarts, deux
+    // cles — ce qu'il faut pour juger le releve lui-meme.
     const ecarts = new Set(), clefs = new Set();
     let vus = 0, justes = 0;
     while (D().on && vus < total + 2) {
         vus++;
+        epingle(w, 2);
+        w.eval('D.expect = drillItem("intervals")');
+        w.showFragment(D().expect.piece);
         const it = w.eval('D.expect');
         ecarts.add(it.deg);
         clefs.add(!!it.grave);
         // on met du temps sur les grands ecarts, pour voir si le releve le voit
         w.__T.now += it.deg >= 4 ? 1500 : 300;
         const rate = it.deg === 5 && vus % 2 === 0;
-        const att = it.shape.slice();
-        jouer(rate ? faux(w, att, it.degs) : att, 62);
+        repondre(w, it, !rate, 62);
         if (!rate) justes++;
         suivant();
     }
 
     check('la serie va bien jusqu\'au bout', vus === total, vus + ' pour ' + total);
     check('la seconde fait partie du tirage', ecarts.has(1),
+        [...ecarts].sort().join(', '));
+    check('les écarts vont jusqu\'à la sixte', ecarts.has(5),
         [...ecarts].sort().join(', '));
     check('les deux clés sont lues', clefs.size === 2,
         [...clefs].join(', '));
@@ -409,6 +463,92 @@ section('10. L\'exercice d\'intervalles, en profondeur');
     check('et les autres écarts restent à 100 %',
         degs.every((d, i) => d === 5 || parseInt(lignes[i][3], 10) === 100),
         lignes.map(l => l[3]).join(' '));
+}
+
+// ------------------------------------------------------------------
+section('11. L\'echelle monte et redescend toute seule');
+
+{
+    const w = boot();
+    const { D, $ } = outils(w);
+    const suivant = () => { w.__T.now += 1800; w.tick(); };
+    try { w.localStorage.setItem('lecture.atelier.niveau', '1'); } catch (e) { }
+
+    w.startDrill('intervalsInf');
+    check('la série sans fin démarre au premier barreau', D().niv === 1, D().niv);
+
+    const suite = [];
+    for (let k = 0; k < 24; k++) {
+        suite.push({ niv: D().niv, n: D().expect.shape.length + (D().expect.suite ? 1 : 0) });
+        repondre(w, D().expect, k < 15);        // quinze justes, puis on rate
+        suivant();
+    }
+
+    // trois bonnes reponses d'affilee font monter : au quinzieme item on
+    // doit avoir gravi cinq barreaux
+    check('trois bonnes réponses d\'affilée font monter d\'un barreau',
+        suite[3].niv === 2 && suite[6].niv === 3 && suite[9].niv === 4,
+        suite.slice(0, 12).map(x => x.niv).join(' '));
+    check('et deux fautes d\'affilée font redescendre',
+        D().niv < suite[14].niv, suite[14].niv + ' puis ' + D().niv);
+    check('le plus haut barreau atteint est retenu',
+        D().hautNiv >= suite[14].niv, D().hautNiv);
+
+    // les barreaux hauts servent des suites, les bas des paires
+    check('les premiers barreaux sont des paires',
+        suite.slice(0, 6).every(x => x.n === 2),
+        suite.slice(0, 6).map(x => x.n).join(' '));
+    check('les barreaux suivants sont des suites de notes',
+        suite.filter(x => x.niv >= 3).every(x => x.n >= 3),
+        suite.filter(x => x.niv >= 3).map(x => x.n).join(' '));
+
+    // la serie sans fin ne s'arrete pas d'elle-meme
+    check('la série sans fin tourne toujours', D().on, 'item ' + D().item);
+    const atteint = D().niv;
+    w.endDrill();
+
+    // ... et le niveau est repris au lancement suivant
+    const w2 = boot();
+    w2.localStorage.setItem('lecture.atelier.niveau', String(atteint));
+    w2.startDrill('intervals');
+    check('le niveau atteint est repris à la fois suivante',
+        w2.eval('D.niv') === atteint, w2.eval('D.niv') + ' pour ' + atteint);
+    w2.eval('D.item = 99'); w2.endDrill();
+}
+
+// ------------------------------------------------------------------
+section('12. Une suite se lit dans l\'ordre, et le sens compte');
+
+{
+    const w = boot();
+    const { D } = outils(w);
+    const midi = p => w.onMIDIMessage({ data: [0x90, p, 80], timeStamp: w.__T.now });
+
+    // un barreau a suites, avec mouvement descendant possible
+    w.startDrill('intervalsInf');
+    epingle(w, 5);
+    w.eval('D.expect = drillItem("intervals")');
+    const it = D().expect;
+    check('le barreau sert bien une suite', !!it.suite,
+        it.shape.length + 1 + ' notes');
+
+    // jouee a l'endroit : juste
+    repondre(w, it, true, 60);
+    check('la suite jouée dans l\'ordre est juste', D().ok === 1);
+
+    // la meme suite a l'envers : les ecarts y sont, le sens non
+    w.__T.now += 1800; w.tick();
+    epingle(w, 5);
+    w.eval('D.expect = drillItem("intervals")');
+    const it2 = D().expect;
+    const sh = it2.shape;
+    let d = 60; midi(d);
+    for (let i = sh.length - 1; i >= 0; i--) { w.__T.now += 150; d += sh[i]; midi(d); }
+    w.__T.now += 500; w.tick();
+    const memeOrdre = sh.every((v, i) => v === sh[sh.length - 1 - i]);
+    check('la suite jouée à l\'envers est refusée',
+        memeOrdre || D().ok === 1, 'écarts ' + sh.join(','));
+    w.eval('D.item = 99'); w.endDrill();
 }
 
 console.log('\n' + (fail === 0 ? 'TOUT PASSE' : 'ECHECS')
