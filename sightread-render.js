@@ -211,6 +211,13 @@
         }
         var avail = W - headW - 18;
         var scale = totalW > 0 ? avail / totalW : 1;
+        // Mode serre : on ne dilue pas trois notes sur toute la largeur. On
+        // garde l'espacement de gravure et on reduit la zone dessinee a ce
+        // qu'elle contient ; la page agrandit ensuite le tout.
+        if (opts.compact) {
+            scale = 1;
+            W = Math.max(420, Math.min(W, headW + totalW + 18));
+        }
 
         // --- etendue verticale reelle (hampes et lignes suppl. comprises)
         var minY = T_TOP, maxY = B_BOTTOM;

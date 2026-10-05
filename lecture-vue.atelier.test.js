@@ -551,6 +551,51 @@ section('12. Une suite se lit dans l\'ordre, et le sens compte');
     w.eval('D.item = 99'); w.endDrill();
 }
 
+// ------------------------------------------------------------------
+section('13. Un fragment est gravé comme un extrait');
+
+{
+    const w = boot();
+    const { D, $ } = outils(w);
+    w.startDrill('intervalsInf');
+
+    for (let niv = 1; niv <= 8; niv++) {
+        epingle(w, niv);
+        const it = w.eval('drillItem("intervals")');
+        const p = it.piece;
+        const ns = p.measures[0].rh.length ? p.measures[0].rh : p.measures[0].lh;
+        w.showFragment(p);
+
+        // Mesure avant correction : au barreau 7 la cinquieme note tombait
+        // au top 192 d'une mesure de 192, donc apres la barre.
+        check('niveau ' + niv + ' : rien ne déborde de la mesure',
+            ns.every(n => n.on + n.dur <= p.barTicks),
+            ns.map(n => n.on + '+' + n.dur).join(' ') + ' pour ' + p.barTicks);
+
+        const svg = $('score');
+        const large = parseFloat(svg.getAttribute('viewBox').split(' ')[2]);
+        check('niveau ' + niv + ' : la zone dessinée tient dans l\'extrait',
+            large <= 520, large + ' px');
+
+        // ... et les notes d'une suite sont régulièrement espacées.
+        // Avant : 284 px entre deux têtes pour trois notes, soit dix-huit
+        // fois la largeur d'une tête.
+        const xs = [...svg.querySelectorAll('.sr-head')].map(h => {
+            const m = /translate\(([-\d.]+)/.exec(h.getAttribute('transform') || '');
+            return m ? Math.round(+m[1]) : null;
+        }).filter(x => x !== null);
+        const uniq = [...new Set(xs)].sort((a, b) => a - b);
+        if (uniq.length > 2) {
+            const gaps = uniq.slice(1).map((v, i) => v - uniq[i]);
+            check('niveau ' + niv + ' : les notes sont régulièrement espacées',
+                Math.max(...gaps) - Math.min(...gaps) <= 2, gaps.join(','));
+            check('niveau ' + niv + ' : et l\'espacement reste celui d\'une gravure',
+                Math.max(...gaps) <= 80, Math.max(...gaps) + ' px entre deux têtes');
+        }
+    }
+    w.eval('D.item = 99'); w.endDrill();
+}
+
 console.log('\n' + (fail === 0 ? 'TOUT PASSE' : 'ECHECS')
     + ' : ' + pass + ' verifications ok, ' + fail + ' en echec');
 process.exit(fail ? 1 : 0);

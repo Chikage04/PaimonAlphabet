@@ -1615,10 +1615,12 @@
                 rest: false, acc: false, leap: false, shift: false
             };
         }
-        function fragment(rh, lh) {
+        function fragment(rh, lh, tops) {
+            const bt = tops || 192;
             return {
                 level: 0, levelLabel: '', seed: 0, sharps: 0, minor: false,
-                tonicStep: 0, keyName: '', ts: { num: 4, den: 4 }, barTicks: 192,
+                tonicStep: 0, keyName: '',
+                ts: { num: Math.max(1, Math.round(bt / 48)), den: 4 }, barTicks: bt,
                 beatTicks: 48, compound: false, tpq: 48, bpm: 60, bars: 1,
                 plan: [0], measures: [{ rh: rh || [], lh: lh || [] }],
                 variant: { hands: 'both', content: 'melody' }, sig: ''
@@ -1664,8 +1666,11 @@
             const objets = notes.map((x, i) => fragNote(x, suite ? i * 48 : 0,
                 suite ? 48 : 192, 0));
             const midis = objets.map(o => o.midi);
+            // La mesure compte autant de temps qu'il y a de notes : sans
+            // cela, une suite de six noires s'ecrivait apres la barre.
+            const tops = suite ? objets.length * 48 : 192;
             return {
-                piece: grave ? fragment([], objets) : fragment(objets, []),
+                piece: grave ? fragment([], objets, tops) : fragment(objets, [], tops),
                 // suite : les ecarts successifs, dans l'ordre joue.
                 // paire : la forme, comme avant, du grave vers l'aigu.
                 suite: suite,
@@ -1823,7 +1828,7 @@
             S.sys = 0;
             $('scoreMore').innerHTML = '';
             SightRender.draw($('score'), piece, {
-                fromBar: 0, toBar: 1, width: 940, showTimeSig: false
+                fromBar: 0, toBar: 1, width: 940, showTimeSig: false, compact: true
             });
             $('paper').classList.remove('hidden');
             $('scoreCap').textContent = '';
