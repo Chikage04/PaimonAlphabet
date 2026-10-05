@@ -266,6 +266,7 @@
         </div>
         <p class="lead" id="drillInfo">Pick a drill. Your piano is enough — nothing to click.</p>
         <div class="chips" id="drillChips"></div>
+        <table class="rep" id="drillTable" hidden></table>
     </div>
 
     <div class="card">
@@ -1546,9 +1547,13 @@
 
         const DRILLS = {
             intervals: {
-                label: 'Intervals', total: 12, offs: [2, 3, 4, 5],
+                // trente, et non douze : avec cinq ecarts tires au hasard,
+                // douze lectures n'en font que deux par ecart, et une seule
+                // hesitation fausse la moyenne.
+                label: 'Intervals', total: 30, offs: [1, 2, 3, 4, 5],
                 aide: 'Play both notes together. Only the interval counts, not the pitch: '
-                    + 'start wherever you like, with whatever fingering you like.'
+                    + 'start wherever you like, with whatever fingering you like. '
+                    + 'Every other reading is in the bass clef.'
             },
             octaves: {
                 label: 'Octaves and wide leaps', total: 10, offs: [6, 7, 8, 9],
@@ -1595,6 +1600,18 @@
         }
 
         // --- un item -----------------------------------------------------
+        // Ce qu'une main attrape : l'etendue se resserre a mesure que les
+        // doigts se remplissent, et deux sons voisins ne s'ecartent jamais
+        // de plus d'une quarte.
+        const ETENDUE = { 2: 12, 3: 10, 4: 9, 5: 9 };
+        function tenable(midis) {
+            const n = midis.length;
+            if (n < 2 || n > 5) return false;
+            if (midis[n - 1] - midis[0] > ETENDUE[n]) return false;
+            for (let i = 1; i < n; i++) if (midis[i] - midis[i - 1] > 5) return false;
+            return true;
+        }
+
         function drillItem(kind) {
             const cfg = DRILLS[kind];
             // la serie sans fin ne fabrique rien elle-meme : elle tire
@@ -1616,6 +1633,11 @@
                     const md = m.rh.filter(n => !n.rest && n.on === on);
                     const mg = m.lh.filter(n => !n.rest && n.on === on);
                     if (!md.length || !mg.length) continue;
+                    const serre = ns => {
+                        const v = [...new Set(ns.map(n => n.midi))].sort((a, b) => a - b);
+                        return v.length <= 5 && v[v.length - 1] - v[0] <= 12;
+                    };
+                    if (!serre(md) || !serre(mg)) continue;
                     const midis = [...new Set(md.concat(mg).map(n => n.midi))]
                         .sort((a, b) => a - b);
                     const pose = ns => ns.map(n => {
@@ -1647,8 +1669,7 @@
                     const vus = {}, midis = [], ds = [];
                     for (const nt of utiles)
                         if (!vus[nt.midi]) { vus[nt.midi] = 1; midis.push(nt.midi); ds.push(nt.d); }
-                    if (midis.length < 2 || midis.length > 5) continue;
-                    if (midis[midis.length - 1] - midis[0] > 12) continue;
+                    if (!tenable(midis)) continue;
                     return {
                         piece: fragment(m.rh, []),
                         shape: midis.map(x => x - midis[0]),
@@ -1659,18 +1680,25 @@
             }
             // un intervalle : deux notes tenues, a une hauteur lisible
             const off = cfg.offs[Math.floor(Math.random() * cfg.offs.length)];
-            const bas = 26 + Math.floor(Math.random() * 5);        // la3 a mi4
-            const a = fragNote(bas, 0, 192, 0), b = fragNote(bas + off, 0, 192, 0);
             const grand = off >= 6;
+            // Une lecture sur deux en cle de fa : c'est la qu'on se met a
+            // compter les lignes au lieu de reconnaitre la forme.
+            const grave = !grand && Math.random() < 0.5;
+            const bas = grave ? 15 + Math.floor(Math.random() * 5)   // sol2 a re3
+                : 26 + Math.floor(Math.random() * 5);                // la3 a mi4
+            const a = fragNote(bas, 0, 192, 0), b = fragNote(bas + off, 0, 192, 0);
             return {
-                piece: grand ? fragment([b], [a]) : fragment([a, b], []),
+                piece: grand ? fragment([b], [a])
+                    : grave ? fragment([], [a, b]) : fragment([a, b], []),
                 shape: [0, b.midi - a.midi],
                 degs: [0, off],
-                texte: NOM_ECART[off] || (off + 1) + 'th'
+                cle: NOM_ECART[off] || (off + 1) + 'th',
+                deg: off, grave: grave,
+                texte: (NOM_ECART[off] || (off + 1) + 'th') + (grave ? ' (bass)' : '')
             };
         }
         const NOM_ECART = {
-            2: 'third', 3: 'fourth', 4: 'fifth', 5: 'sixth',
+            1: 'second', 2: 'third', 3: 'fourth', 4: 'fifth', 5: 'sixth',
             6: 'seventh', 7: 'octave', 8: 'ninth', 9: 'tenth'
         };
 
@@ -1678,7 +1706,7 @@
         function startDrill(kind) {
             if (S.running) endSession();
             D.on = true; D.kind = kind; D.item = 0; D.ok = 0; D.times = [];
-            D.done = false; D.juges = 0; D.sous = null;
+            D.done = false; D.juges = 0; D.sous = null; D.releve = {};
             $('drillStop').disabled = false;
             $('startBtn').disabled = true;
             $('verdict').hidden = true; $('report').hidden = true;
@@ -1742,7 +1770,17 @@
             const forme = joue.map(x => x - joue[0]);
             const att = D.expect.shape;
             const bon = formeJuste(forme, att, D.expect.degs);
-            if (bon) { D.ok++; D.times.push(D.buf[0].t - D.shown); }
+            const mis = D.buf[0].t - D.shown;
+            if (bon) { D.ok++; D.times.push(mis); }
+            // Releve par ecart : un pourcentage global ne dit pas QUOI
+            // travailler, le temps de reconnaissance par ecart si.
+            const cle = D.expect.cle;
+            if (cle) {
+                const r = D.releve[cle] || (D.releve[cle] = {
+                    n: 0, ok: 0, ms: [], deg: D.expect.deg
+                });
+                r.n++; if (bon) { r.ok++; r.ms.push(mis); }
+            }
 
             for (const h of $('paper').querySelectorAll('.sr-head'))
                 h.setAttribute('fill', bon ? COL_OK : COL_MISS);
@@ -1770,14 +1808,41 @@
             const med = D.times.length
                 ? D.times.slice().sort((a, b) => a - b)[D.times.length >> 1] : 0;
             setPhase('', DRILLS[D.kind].label + ' done.');
+            drillTable();
             // sans fin : le total est ce qu'on a joue, pas ce qui etait prevu
             const vus = isFinite(DRILLS[D.kind].total) ? DRILLS[D.kind].total : D.juges;
             $('drillInfo').textContent = D.ok + ' of ' + vus
                 + (D.times.length ? ' — ' + (med / 1000).toFixed(1)
-                    + ' s on average to recognise' : '')
+                    + ' s to recognise, median' : '')
                 + (vus && D.ok === vus
                     ? ' Nothing to fix: move on to the next drill, or to a session.'
                     : ' Do it again: immediate recognition is the goal, not working it out.');
+        }
+
+        // Le bilan par ecart. Sa regle pair/impair se lit a cote des temps :
+        // un ecart impair (tierce, quinte, septieme) va de ligne a ligne ou
+        // d'interligne a interligne ; un ecart pair change de nature.
+        function drillTable() {
+            const cles = Object.keys(D.releve || {});
+            const t = $('drillTable');
+            if (!t) return;
+            if (cles.length < 2) { t.innerHTML = ''; t.hidden = true; return; }
+            cles.sort((a, b) => D.releve[a].deg - D.releve[b].deg);
+            let h = '<tr><th>Interval</th><th>On the stave</th><th>Read</th>'
+                + '<th>Right</th><th>Recognised in</th></tr>';
+            for (const c of cles) {
+                const r = D.releve[c];
+                const med = r.ms.length
+                    ? (r.ms.slice().sort((x, y) => x - y)[r.ms.length >> 1] / 1000)
+                        .toFixed(1) + ' s'
+                    : '—';
+                h += '<tr><td>' + c + '</td><td>'
+                    + (r.deg % 2 === 0 ? 'line → line' : 'line → space')
+                    + '</td><td>' + r.n + '</td><td>'
+                    + Math.round(100 * r.ok / r.n) + ' %</td><td>' + med + '</td></tr>';
+            }
+            t.innerHTML = h;
+            t.hidden = false;
         }
 
         function tickDrill() {

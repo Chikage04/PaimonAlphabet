@@ -327,6 +327,90 @@ section('9. Le mur d\'accords, dans l\'atelier');
     w.eval('D.item = 99'); w.endDrill();
 }
 
+// ------------------------------------------------------------------
+section('10. L\'exercice d\'intervalles, en profondeur');
+
+{
+    const w = boot();
+    const { D, $, jouer, suivant } = outils(w);
+    w.startDrill('intervals');
+    const total = w.eval('DRILLS.intervals.total');
+
+    // Douze lectures pour cinq ecarts ne font pas une moyenne : deux par
+    // ecart, et une hesitation suffit a tout fausser.
+    check('la serie est assez longue pour une moyenne', total >= 25, total + ' items');
+
+    const ecarts = new Set(), clefs = new Set();
+    let vus = 0, justes = 0;
+    while (D().on && vus < total + 2) {
+        vus++;
+        const it = w.eval('D.expect');
+        ecarts.add(it.deg);
+        clefs.add(!!it.grave);
+        // on met du temps sur les grands ecarts, pour voir si le releve le voit
+        w.__T.now += it.deg >= 4 ? 1500 : 300;
+        const rate = it.deg === 5 && vus % 2 === 0;
+        const att = it.shape.slice();
+        jouer(rate ? faux(w, att, it.degs) : att, 62);
+        if (!rate) justes++;
+        suivant();
+    }
+
+    check('la serie va bien jusqu\'au bout', vus === total, vus + ' pour ' + total);
+    check('la seconde fait partie du tirage', ecarts.has(1),
+        [...ecarts].sort().join(', '));
+    check('les deux clés sont lues', clefs.size === 2,
+        [...clefs].join(', '));
+
+    // --- le releve
+    const t = $('drillTable');
+    check('un relevé par écart est affiché', !t.hidden && t.rows.length >= 3,
+        t.rows.length + ' lignes');
+    const lignes = [...t.rows].slice(1).map(r => [...r.cells].map(c => c.textContent));
+    check('chaque ligne porte le nombre lu, la justesse et un temps',
+        lignes.every(l => l.length === 5 && /\d/.test(l[2]) && /%/.test(l[3])),
+        JSON.stringify(lignes[0]));
+
+    // Le tableau est trie par ecart croissant : on retrouve donc le degre
+    // de chaque ligne dans l'etat, sans rien chercher dans le texte — ces
+    // verifications tombaient sinon sur la page anglaise.
+    const releve = w.eval('D.releve');
+    const degs = Object.keys(releve).map(k => releve[k].deg).sort((a, b) => a - b);
+    check('le tableau a une ligne par écart relevé', lignes.length === degs.length,
+        lignes.length + ' lignes pour ' + degs.length + ' écarts');
+
+    // Sa regle pair/impair : les ecarts de meme parite portent la meme
+    // mention, et les deux parites ne portent pas la meme.
+    const pairs = new Set(), impairs = new Set();
+    degs.forEach((d, i) => (d % 2 === 0 ? pairs : impairs).add(lignes[i][1]));
+    check('les écarts de même nature portent la même mention',
+        pairs.size <= 1 && impairs.size <= 1,
+        [...pairs].join('/') + ' contre ' + [...impairs].join('/'));
+    check('ligne → ligne et ligne → interligne sont distingués',
+        pairs.size === 1 && impairs.size === 1 && [...pairs][0] !== [...impairs][0],
+        [...pairs][0] + ' / ' + [...impairs][0]);
+
+    // Le temps de reconnaissance distingue ce qui a ete lent. Les grands
+    // ecarts (quinte, sixte : degres 4 et 5) ont ete joues lentement.
+    const temps = {};
+    degs.forEach((d, i) => { temps[d] = parseFloat(lignes[i][4]); });
+    const lent = degs.filter(d => d >= 4).map(d => temps[d]);
+    const vite = degs.filter(d => d < 4).map(d => temps[d]);
+    check('le relevé distingue les écarts lents des rapides',
+        lent.length && vite.length && Math.min(...lent) > Math.max(...vite),
+        'lents ' + lent.join('/') + ' contre rapides ' + vite.join('/'));
+
+    // et la justesse par ecart suit ce qui a ete joue : seul le degre 5
+    // a ete rate, une fois sur deux
+    const rang = degs.indexOf(5);
+    check('l\'écart raté ressort dans sa colonne de justesse',
+        rang >= 0 && parseInt(lignes[rang][3], 10) < 100,
+        rang >= 0 ? lignes[rang][3] : 'écart absent du relevé');
+    check('et les autres écarts restent à 100 %',
+        degs.every((d, i) => d === 5 || parseInt(lignes[i][3], 10) === 100),
+        lignes.map(l => l[3]).join(' '));
+}
+
 console.log('\n' + (fail === 0 ? 'TOUT PASSE' : 'ECHECS')
     + ' : ' + pass + ' verifications ok, ' + fail + ' en echec');
 process.exit(fail ? 1 : 0);
