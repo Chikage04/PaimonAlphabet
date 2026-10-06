@@ -596,6 +596,72 @@ section('13. Un fragment est gravé comme un extrait');
     w.eval('D.item = 99'); w.endDrill();
 }
 
+// ------------------------------------------------------------------
+section('14. Le barreau se règle à la main');
+
+{
+    const w = boot();
+    const { D, $ } = outils(w);
+    const clic = id => $(id).dispatchEvent(new w.Event('click'));
+    const suivant = () => { w.__T.now += 1800; w.tick(); };
+
+    check('le niveau est affiché dès l\'ouverture', $('nivNum').textContent === '1',
+        $('nivNum').textContent);
+    check('et ce qu\'il demande est écrit à côté', $('nivQuoi').textContent.length > 10,
+        $('nivQuoi').textContent);
+    check('on ne peut pas descendre sous le premier', $('nivMoins').disabled);
+
+    clic('nivPlus'); clic('nivPlus');
+    check('le bouton + monte le barreau', D().niv === 3, D().niv);
+    check('l\'affichage suit', $('nivNum').textContent === '3', $('nivNum').textContent);
+    clic('nivMoins');
+    check('le bouton − le redescend', D().niv === 2, D().niv);
+
+    const hauts = w.eval('NIV_INT.length');
+    for (let k = 0; k < hauts + 3; k++) clic('nivPlus');
+    check('on ne dépasse pas le dernier barreau', D().niv === hauts, D().niv);
+    check('et le bouton + s\'y désactive', $('nivPlus').disabled);
+
+    // le reglage tient pendant une serie : il prend effet a l'item suivant
+    w.startDrill('intervalsInf');
+    check('une série reprend le barreau réglé', D().niv === hauts, D().niv);
+    clic('nivMoins'); clic('nivMoins');
+    const vise = D().niv;
+    suivant();
+    repondre(w, D().expect, true);
+    suivant();
+    check('le barreau réglé en pleine série est bien celui servi',
+        D().expect.shape.length + 1 === w.eval('NIV_INT[' + (vise - 1) + '].n'),
+        (D().expect.shape.length + 1) + ' notes pour le barreau ' + vise);
+
+    // regler remet les series a zero : trois bonnes reponses d'avant le
+    // reglage ne doivent pas le faire remonter aussitot
+    w.eval('D.serie = 2');
+    clic('nivMoins');
+    check('régler remet la série en cours à zéro', D().serie === 0, D().serie);
+
+    const bas = D().niv;
+    repondre(w, D().expect, true); suivant();
+    check('et il faut bien trois bonnes réponses pour remonter',
+        D().niv === bas, D().niv + ' pour ' + bas);
+    w.eval('D.item = 99'); w.endDrill();
+
+    // Le barreau regle est ecrit la ou la page le relit au demarrage.
+    // (Chaque page de test a son propre stockage : on verifie donc
+    // l'ecriture ici, et la relecture avec un stockage prepare.)
+    check('le barreau réglé est écrit dans le stockage',
+        w.localStorage.getItem('lecture.atelier.niveau') === String(bas),
+        w.localStorage.getItem('lecture.atelier.niveau') + ' pour ' + bas);
+    const w2 = boot();
+    w2.localStorage.setItem('lecture.atelier.niveau', String(bas));
+    w2.startDrill('intervalsInf');
+    check('et il est repris à la réouverture',
+        w2.eval('D.niv') === bas && w2.document.getElementById('nivNum')
+            .textContent === String(bas),
+        w2.eval('D.niv') + ' pour ' + bas);
+    w2.eval('D.item = 99'); w2.endDrill();
+}
+
 console.log('\n' + (fail === 0 ? 'TOUT PASSE' : 'ECHECS')
     + ' : ' + pass + ' verifications ok, ' + fail + ' en echec');
 process.exit(fail ? 1 : 0);

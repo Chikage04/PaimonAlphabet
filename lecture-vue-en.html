@@ -265,6 +265,13 @@
             <button class="btn" data-drill="endless">Endless</button>
             <button class="btn ghost" id="drillStop" disabled>Stop</button>
         </div>
+        <div class="controls" id="nivBox">
+            <span class="lead" style="margin:0">Interval level</span>
+            <button class="btn ghost" id="nivMoins" title="One rung lower">−</button>
+            <b id="nivNum">1</b>
+            <button class="btn ghost" id="nivPlus" title="One rung higher">+</button>
+            <span class="lead" id="nivQuoi" style="margin:0"></span>
+        </div>
         <p class="lead" id="drillInfo">Pick a drill. Your piano is enough — nothing to click.</p>
         <div class="chips" id="drillChips"></div>
         <table class="rep" id="drillTable" hidden></table>
@@ -1788,6 +1795,26 @@
                 + (niv.bas ? ', it may go down' : '') + ')';
         }
 
+        // Le barreau se regle a la main, meme en pleine serie : il prend
+        // effet a l'item suivant. Les series en cours repartent de zero,
+        // sinon trois bonnes reponses d'avant le reglage le feraient
+        // remonter aussitot.
+        function setNiv(n) {
+            D.niv = Math.max(1, Math.min(NIV_INT.length, n));
+            D.serie = 0; D.rates = 0;
+            D.hautNiv = Math.max(D.hautNiv || 1, D.niv);
+            try { localStorage.setItem(LS_NIV, String(D.niv)); } catch (e) { }
+            showNiv();
+        }
+        function showNiv() {
+            $('nivNum').textContent = D.niv;
+            $('nivQuoi').textContent = NIV_TEXTE(NIV_INT[D.niv - 1]);
+            $('nivMoins').disabled = D.niv <= 1;
+            $('nivPlus').disabled = D.niv >= NIV_INT.length;
+        }
+        $('nivMoins').addEventListener('click', () => setNiv(D.niv - 1));
+        $('nivPlus').addEventListener('click', () => setNiv(D.niv + 1));
+
         function startDrill(kind) {
             if (S.running) endSession();
             D.on = true; D.kind = kind; D.item = 0; D.ok = 0; D.times = [];
@@ -1798,6 +1825,7 @@
             try { n0 = parseInt(localStorage.getItem(LS_NIV), 10) || 1; } catch (e) { }
             D.niv = Math.max(1, Math.min(NIV_INT.length, n0));
             D.hautNiv = D.niv;
+            showNiv();
             $('drillStop').disabled = false;
             $('startBtn').disabled = true;
             $('verdict').hidden = true; $('report').hidden = true;
@@ -1895,6 +1923,7 @@
                 }
                 D.hautNiv = Math.max(D.hautNiv, D.niv);
                 try { localStorage.setItem(LS_NIV, String(D.niv)); } catch (e) { }
+                showNiv();
             }
 
             // Releve par ecart : un pourcentage global ne dit pas QUOI
@@ -2248,6 +2277,13 @@
         }
         wireSeg('handsSeg', 'h', v => { S.hands = v; showVarHint(); refreshModeChip(); });
         wireSeg('contentSeg', 'c', v => { S.content = v; showVarHint(); });
+
+        // le barreau en cours, des l'ouverture de la page
+        try {
+            const n0 = parseInt(localStorage.getItem(LS_NIV), 10);
+            if (n0) D.niv = Math.max(1, Math.min(NIV_INT.length, n0));
+        } catch (e) { }
+        showNiv();
 
         const OCCL_HINT = {
             none: 'The score stays whole, as it would on paper.',

@@ -655,6 +655,13 @@ T = [
  r"""                + (niv.bas ? ', it may go down' : '') + ')';"""),
 (r"""                texte: suite ? notes.length + ' notes'""",
  r"""                texte: suite ? notes.length + ' notes'"""),
+# ------------------------------------------- reglage du barreau ------------
+(r"""<span class="lead" style="margin:0">Niveau d'intervalles</span>""",
+ r"""<span class="lead" style="margin:0">Interval level</span>"""),
+(r"""<button class="btn ghost" id="nivMoins" title="Un barreau plus bas">−</button>""",
+ r"""<button class="btn ghost" id="nivMoins" title="One rung lower">−</button>"""),
+(r"""<button class="btn ghost" id="nivPlus" title="Un barreau plus haut">+</button>""",
+ r"""<button class="btn ghost" id="nivPlus" title="One rung higher">+</button>"""),
 ]
 
 
