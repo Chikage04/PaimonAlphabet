@@ -264,28 +264,41 @@ section('7. Les exercices couvrent bien ce qu\'ils annoncent');
     // tire grand et en suite. On regarde ce que chacun produit vraiment.
     const parNiv = {};
     for (const niv of [1, 4, 8]) {
-        const notes = new Set(), ecarts = new Set();
+        const notes = new Set(), plaques = new Set(), ecarts = new Set();
         for (let essai = 0; essai < 25; essai++) {
             w.startDrill('intervals');
             epingle(w, niv);
             w.eval('D.expect = drillItem("intervals")');
             const it = D().expect;
-            notes.add(it.shape.length + (it.suite ? 1 : 0));
+            if (it.suite) notes.add(it.shape.length + 1);
+            else plaques.add(it.shape.length);
             for (const p of it.pas) ecarts.add(Math.abs(p));
             w.eval('D.item = 99'); w.endDrill();
         }
-        parNiv[niv] = { notes: [...notes], ecarts: [...ecarts].sort((a, b) => a - b) };
+        parNiv[niv] = {
+            notes: [...notes], plaques: [...plaques],
+            ecarts: [...ecarts].sort((a, b) => a - b)
+        };
     }
     check('le premier barreau reste sur deux notes plaquées',
-        parNiv[1].notes.every(x => x === 2), parNiv[1].notes.join(', '));
+        parNiv[1].notes.length === 0 && parNiv[1].plaques.every(x => x === 2),
+        parNiv[1].plaques.join(', '));
     check('le premier barreau ne dépasse pas la quarte',
         Math.max(...parNiv[1].ecarts) <= 3, parNiv[1].ecarts.join(', '));
     check('le quatrième barreau donne des suites',
-        parNiv[4].notes.every(x => x >= 3), parNiv[4].notes.join(', '));
+        parNiv[4].notes.some(x => x >= 3), parNiv[4].notes.join(', '));
+    // Signale en jeu : a partir du troisieme barreau il n'y avait plus que
+    // des suites, plus un seul accord plaque.
+    check('et il donne aussi des accords plaqués',
+        parNiv[4].plaques.some(x => x >= 2), parNiv[4].plaques.join(', '));
+    check('dont des accords de trois sons ou plus',
+        parNiv[4].plaques.some(x => x >= 3), parNiv[4].plaques.join(', '));
     check('le dernier barreau est plus long et plus large',
         Math.max(...parNiv[8].notes) > Math.max(...parNiv[4].notes)
         && Math.max(...parNiv[8].ecarts) > Math.max(...parNiv[4].ecarts),
         parNiv[8].notes.join('/') + ' notes, écarts ' + parNiv[8].ecarts.join(','));
+    check('et il plaque encore des accords',
+        parNiv[8].plaques.some(x => x >= 3), parNiv[8].plaques.join(', '));
 
     const gros = new Set();
     for (let essai = 0; essai < 40; essai++) {
@@ -479,7 +492,10 @@ section('11. L\'echelle monte et redescend toute seule');
 
     const suite = [];
     for (let k = 0; k < 24; k++) {
-        suite.push({ niv: D().niv, n: D().expect.shape.length + (D().expect.suite ? 1 : 0) });
+        suite.push({
+            niv: D().niv, plaque: !D().expect.suite,
+            n: D().expect.shape.length + (D().expect.suite ? 1 : 0)
+        });
         repondre(w, D().expect, k < 15);        // quinze justes, puis on rate
         suivant();
     }
@@ -496,11 +512,14 @@ section('11. L\'echelle monte et redescend toute seule');
 
     // les barreaux hauts servent des suites, les bas des paires
     check('les premiers barreaux sont des paires',
-        suite.slice(0, 6).every(x => x.n === 2),
+        suite.slice(0, 6).every(x => x.plaque && x.n === 2),
         suite.slice(0, 6).map(x => x.n).join(' '));
-    check('les barreaux suivants sont des suites de notes',
-        suite.filter(x => x.niv >= 3).every(x => x.n >= 3),
-        suite.filter(x => x.niv >= 3).map(x => x.n).join(' '));
+    // les barreaux hauts melangent : des suites ET des accords plaques
+    const hauts = suite.filter(x => x.niv >= 3);
+    check('les barreaux suivants servent des suites',
+        hauts.some(x => x.n >= 3), hauts.map(x => x.n).join(' '));
+    check('et ils servent encore des accords plaqués',
+        hauts.some(x => x.plaque), hauts.filter(x => x.plaque).length + ' sur ' + hauts.length);
 
     // la serie sans fin ne s'arrete pas d'elle-meme
     check('la série sans fin tourne toujours', D().on, 'item ' + D().item);
@@ -660,6 +679,99 @@ section('14. Le barreau se règle à la main');
             .textContent === String(bas),
         w2.eval('D.niv') + ' pour ' + bas);
     w2.eval('D.item = 99'); w2.endDrill();
+}
+
+// ------------------------------------------------------------------
+section('15. Les motifs ne tournent pas en rond');
+
+{
+    const w = boot();
+    const { D } = outils(w);
+    w.startDrill('intervalsInf');
+
+    // Mesure avant correction, 60 items par barreau : trois dessins
+    // distincts au premier barreau et dix-neuf fois le meme deux coups
+    // d'affilee, parce que la note de depart etait toujours la meme.
+    for (const niv of [1, 2, 4, 6, 8]) {
+        epingle(w, niv);
+        const sigs = [];
+        for (let k = 0; k < 60; k++) {
+            const it = w.eval('drillItem("intervals")');
+            const m = it.piece.measures[0];
+            const n0 = (m.rh[0] || m.lh[0]).d;
+            sigs.push((it.suite ? 'S' : 'P') + it.pas.join(',') + '@' + n0);
+        }
+        let colles = 0;
+        for (let i = 1; i < sigs.length; i++) if (sigs[i] === sigs[i - 1]) colles++;
+        const distincts = new Set(sigs).size;
+        check('niveau ' + niv + ' : jamais deux fois le même dessin de suite',
+            colles === 0, colles + ' fois');
+        check('niveau ' + niv + ' : assez de dessins différents',
+            distincts >= 12, distincts + ' sur 60');
+    }
+
+    // ... et les deux formes cohabitent des le troisieme barreau
+    for (const niv of [3, 5, 7]) {
+        epingle(w, niv);
+        let plaques = 0, suites = 0, gros = 0;
+        for (let k = 0; k < 60; k++) {
+            const it = w.eval('drillItem("intervals")');
+            if (it.suite) suites++;
+            else { plaques++; if (it.shape.length >= 3) gros++; }
+        }
+        check('niveau ' + niv + ' : des suites ET des accords plaqués',
+            plaques > 5 && suites > 5, plaques + ' plaqués, ' + suites + ' suites');
+        check('niveau ' + niv + ' : dont des accords de trois sons ou plus',
+            gros > 0, gros + ' accords');
+    }
+    w.eval('D.item = 99'); w.endDrill();
+}
+
+// ------------------------------------------------------------------
+section('16. Un accord plaqué se lit du grave vers l\'aigu');
+
+{
+    const w = boot();
+    const { D } = outils(w);
+    w.startDrill('intervalsInf');
+
+    // Un accord n'a pas de sens de lecture : ecrit de haut en bas ou de bas
+    // en haut, il se joue pareil. Sa forme doit donc toujours etre croissante
+    // — sans quoi une paire descendante etait injugeable, et son nom sortait
+    // en « -2e ».
+    let descendants = 0, formesOk = 0, nomsOk = 0, n = 0;
+    for (const niv of [2, 4, 6]) {
+        epingle(w, niv);
+        for (let k = 0; k < 60; k++) {
+            const it = w.eval('drillItem("intervals")');
+            if (it.suite) continue;
+            n++;
+            if (it.pas.some(p => p < 0)) descendants++;
+            if (it.shape.every((v, i) => i === 0 || v > it.shape[i - 1])) formesOk++;
+            if (!it.cle || !/^-/.test(it.cle)) nomsOk++;
+        }
+    }
+    check('des accords descendants sont bien tirés', descendants > 0,
+        descendants + ' sur ' + n);
+    check('leur forme reste croissante', formesOk === n, formesOk + ' sur ' + n);
+    check('et leur nom n\'est jamais négatif', nomsOk === n, nomsOk + ' sur ' + n);
+
+    // et une paire descendante, jouee du grave vers l'aigu, compte juste
+    epingle(w, 2);
+    let trouve = false;
+    for (let k = 0; k < 60 && !trouve; k++) {
+        const it = w.eval('drillItem("intervals")');
+        if (it.suite || !it.pas.some(p => p < 0)) continue;
+        trouve = true;
+        // on replace l'item tire dans l'etat, puis on y repond
+        D().expect = it;
+        D().buf = []; D().done = false; D().ok = 0;
+        repondre(w, it, true, 60);
+        check('une paire descendante jouée normalement compte juste',
+            D().ok === 1, 'écart ' + it.pas[0]);
+    }
+    check('un accord descendant a bien été testé', trouve);
+    w.eval('D.item = 99'); w.endDrill();
 }
 
 console.log('\n' + (fail === 0 ? 'TOUT PASSE' : 'ECHECS')

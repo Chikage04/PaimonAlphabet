@@ -135,42 +135,51 @@
             rhythm: ['h', 'q', 'w'], lh: 'drone', bpm: 60
         },
         {
-            n: 3, label: 'Croches, basse en tierces et quintes',
-            labelEn: 'Eighth notes, bass in thirds and fifths',
+            // Une seule idee nouvelle : la croche. La basse continue de
+            // tenir, pour que les deux mains ne changent pas ensemble.
+            n: 3, label: 'Croches a la main droite',
+            labelEn: 'Eighth notes in the right hand',
             bars: 8, ts: [[4, 4], [3, 4]], keys: [0], minor: false, chordsPerBar: 1,
             span: 4, maxLeap: 2, shift: false, acc: false,
-            rhythm: ['h', 'q', 'e'], lh: 'dyad', bpm: 63
+            rhythm: ['h', 'q', 'e', 'w'], lh: 'drone', bpm: 60
         },
         {
-            n: 4, label: 'Changement de position, basse d\'Alberti',
+            n: 4, label: 'La basse se met a bouger : tierces et quintes',
+            labelEn: 'The bass starts moving: thirds and fifths',
+            bars: 8, ts: [[4, 4], [3, 4]], keys: [0], minor: false, chordsPerBar: 1,
+            span: 4, maxLeap: 2, shift: false, acc: false,
+            rhythm: ['h', 'q', 'e'], lh: 'dyad', lh1: true, bpm: 63
+        },
+        {
+            n: 5, label: 'Changement de position, basse d\'Alberti',
             labelEn: 'Position shifts, Alberti bass',
             bars: 8, ts: [[4, 4], [3, 4]], keys: [0], minor: false, chordsPerBar: 1,
             span: 7, maxLeap: 4, shift: true, acc: false,
             rhythm: ['h', 'q', 'e', 'r'], lh: 'alberti', bpm: 63
         },
         {
-            n: 5, label: 'Une alteration a la cle, mains dissociees',
+            n: 6, label: 'Une alteration a la cle, mains dissociees',
             labelEn: 'One sharp or flat, hands in different rhythms',
             bars: 8, ts: [[4, 4], [3, 4]], keys: [1, -1], minor: false, chordsPerBar: 1,
             span: 7, maxLeap: 4, shift: true, acc: false,
             rhythm: ['h', 'q', 'e', 'r', 'dq'], lh: 'alberti', bpm: 66
         },
         {
-            n: 6, label: 'Deux alterations, sauts de sixte, doubles croches',
+            n: 7, label: 'Deux alterations, sauts de sixte, doubles croches',
             labelEn: 'Two sharps or flats, sixth leaps, sixteenth notes',
             bars: 8, ts: [[4, 4], [3, 4]], keys: [2, -2], minor: false, chordsPerBar: 2,
             span: 9, maxLeap: 5, shift: true, acc: false,
             rhythm: ['h', 'q', 'e', 'r', 'dq', 's'], lh: 'chord2', bpm: 66
         },
         {
-            n: 7, label: 'Mode mineur, accords a trois sons, syncopes',
+            n: 8, label: 'Mode mineur, accords a trois sons, syncopes',
             labelEn: 'Minor mode, three-note chords, syncopation',
             bars: 12, ts: [[4, 4], [3, 4]], keys: [0, 1, -1, -2], minor: true, chordsPerBar: 2,
             span: 11, maxLeap: 7, shift: true, acc: true,
             rhythm: ['h', 'q', 'e', 'r', 're', 'dq', 's', 'syn'], lh: 'chord3', bpm: 69
         },
         {
-            n: 8, label: 'Mesure composee, deux voix independantes',
+            n: 9, label: 'Mesure composee, deux voix independantes',
             labelEn: 'Compound metre, two independent voices',
             bars: 12, ts: [[6, 8]], keys: [0, 1, -1, 2, -2], minor: true, chordsPerBar: 1,
             span: 11, maxLeap: 7, shift: true, acc: true,
@@ -420,7 +429,7 @@
             if (lvl.lh === 'drone') {
                 notes.push(mkNote(root, 0, barTicks, ctx));
             } else if (lvl.lh === 'dyad') {
-                var halves = barTicks >= 144 ? [0, barTicks / 2] : [0];
+                var halves = (lvl.lh1 || barTicks < 144) ? [0] : [0, barTicks / 2];
                 for (var h = 0; h < halves.length; h++) {
                     var dur = barTicks / halves.length;
                     notes.push(mkNote(root, halves[h], dur, ctx));

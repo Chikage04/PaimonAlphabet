@@ -13,6 +13,11 @@ global.document = dom.window.document;
 global.window = dom.window;
 const R = require('C:/Users/Lucas/PaimonAlphabet/sightread-render.js');
 
+// Les barreaux qui portent ce qu'on veut graver, cherches et non nommes.
+const NIV_2B = (G.LEVELS.find(l => l.keys.indexOf(-2) >= 0) || {}).n;
+const NIV_MIN = (G.LEVELS.find(l => l.minor) || {}).n;
+const NIV_SIL = (G.LEVELS.find(l => l.rhythm.indexOf('r') >= 0) || {}).n;
+
 let pass = 0, fail = 0;
 const check = (n, ok, d) => { if (ok) pass++; else { fail++; console.log('  ECHEC  ' + n + (d ? '  [' + d + ']' : '')); } };
 const section = t => console.log('\n' + t);
@@ -130,10 +135,10 @@ section('3. Armature et alterations');
     // une piece a deux bemols : deux bemols par portee, donc quatre
     let two = null;
     for (let i = 0; i < 400 && !two; i++) {
-        const c = G.generate(6, 5000 + i);
+        const c = G.generate(NIV_2B, 5000 + i);
         if (c.sharps === -2) two = c;
     }
-    check('une piece a 2 bemols existe au niveau 6', !!two);
+    check('une piece a 2 bemols existe a son barreau', !!two, 'niveau ' + NIV_2B);
     if (two) {
         R.draw(svg, two, { width: 900 });
         const flats = many('.sr-key');
@@ -143,10 +148,10 @@ section('3. Armature et alterations');
     // mineur harmonique : la sensible haussee doit etre gravee
     let min = null;
     for (let i = 0; i < 400 && !min; i++) {
-        const c = G.generate(7, 9000 + i);
+        const c = G.generate(NIV_MIN, 9000 + i);
         if (c.minor) min = c;
     }
-    check('une piece en mineur existe au niveau 7', !!min);
+    check('une piece en mineur existe a son barreau', !!min, 'niveau ' + NIV_MIN);
     if (min) {
         R.draw(svg, min, { width: 900 });
         const marks = many('.sr-acc');
@@ -183,7 +188,7 @@ section('4. Silences, ligatures, lignes supplementaires');
 {
     let anyRest = null;
     for (let i = 0; i < 300 && !anyRest; i++) {
-        const c = G.generate(4, 4000 + i);
+        const c = G.generate(NIV_SIL, 4000 + i);
         if (restCount(c) > 0) anyRest = c;
     }
     check('les niveaux avec silences en produisent', !!anyRest);
@@ -243,7 +248,10 @@ section('5. Pre-lecture : montrer puis effacer');
 section('6. Decoupe en systemes');
 
 {
-    const p = G.generate(7, 1);
+    // le premier barreau a douze mesures, cherche et non nomme : un
+    // barreau ajoute a l'echelle ne doit pas faire echouer la gravure
+    const LONG = (G.LEVELS.find(l => l.bars >= 12) || G.LEVELS[G.LEVELS.length - 1]).n;
+    const p = G.generate(LONG, 1);
     const sys = R.systems(p, 4);
     check('12 mesures donnent 3 systemes de 4', sys.length === 3, sys.length);
     check('les systemes couvrent toute la piece, sans trou ni recouvrement',

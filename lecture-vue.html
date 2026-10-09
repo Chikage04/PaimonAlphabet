@@ -209,7 +209,7 @@
 
     <div class="controls" id="manualRow" hidden>
         <label class="toggle">Niveau
-            <input type="range" id="lvSlider" min="1" max="8" step="1" value="1" style="width:180px">
+            <input type="range" id="lvSlider" min="1" max="9" step="1" value="1" style="width:180px">
             <b id="lvVal">1</b>
         </label>
         <span class="chip" id="lvLabel"></span>
@@ -1463,9 +1463,10 @@
         // reellement le « deux a trois grades sous ton niveau » sans demander
         // a l'eleve d'estimer quelque chose qu'il ne peut pas estimer.
         function adaptLevel(v) {
+            const HAUT = SightGen.LEVELS.length;
             if (S.manual || S.occl === 'flash') return;
             if (S.calibrating) {
-                if (v.cleanRun && S.level < 8) { S.level = Math.min(8, S.level + 2); }
+                if (v.cleanRun && S.level < HAUT) { S.level = Math.min(HAUT, S.level + 2); }
                 else { S.calibrating = false; S.level = Math.max(1, S.level - 1); }
                 if (--S.calibLeft <= 0) S.calibrating = false;
                 saveLevel();
@@ -1475,7 +1476,7 @@
             else if (v.brokeDown) { S.downStreak++; S.upStreak = 0; }
             else { S.upStreak = 0; S.downStreak = 0; }
 
-            if (S.upStreak >= UP_STREAK && S.level < 8) { S.level++; S.upStreak = 0; }
+            if (S.upStreak >= UP_STREAK && S.level < HAUT) { S.level++; S.upStreak = 0; }
             else if (S.downStreak >= DOWN_STREAK && S.level > 1) { S.level--; S.downStreak = 0; }
             saveLevel();
         }
@@ -1557,15 +1558,26 @@
         // L'echelle de l'exercice d'intervalles. On ajoute, dans cet ordre :
         // la cle de fa, la suite de notes, le mouvement descendant, les
         // grands ecarts. Chaque niveau garde ce que le precedent a appris.
+        // `formes` dit ce que le barreau peut servir : une paire plaquee,
+        // une suite de notes, un accord plaque de plusieurs sons. Un
+        // barreau en melange plusieurs, sinon on n'y lit plus qu'une seule
+        // chose — c'est ce qui etait arrive aux accords plaques, disparus
+        // des le troisieme barreau.
         const NIV_INT = [
-            { n: 2, offs: [1, 2, 3], fa: false, bas: false },
-            { n: 2, offs: [1, 2, 3, 4, 5], fa: true, bas: false },
-            { n: 3, offs: [1, 2, 3], fa: false, bas: false },
-            { n: 3, offs: [1, 2, 3, 4, 5], fa: true, bas: true },
-            { n: 4, offs: [1, 2, 3, 4, 5], fa: true, bas: true },
-            { n: 4, offs: [1, 2, 3, 4, 5, 6, 7], fa: true, bas: true },
-            { n: 5, offs: [1, 2, 3, 4, 5, 6, 7], fa: true, bas: true },
-            { n: 6, offs: [1, 2, 3, 4, 5, 6, 7, 8, 9], fa: true, bas: true }
+            { n: 2, offs: [1, 2, 3], fa: false, bas: false, formes: ['paire'] },
+            { n: 2, offs: [1, 2, 3, 4, 5], fa: true, bas: true, formes: ['paire'] },
+            { n: 3, offs: [1, 2, 3], fa: false, bas: false, acc: 3,
+                formes: ['paire', 'suite', 'accord'] },
+            { n: 3, offs: [1, 2, 3, 4, 5], fa: true, bas: true, acc: 3,
+                formes: ['paire', 'suite', 'accord'] },
+            { n: 4, offs: [1, 2, 3, 4, 5], fa: true, bas: true, acc: 3,
+                formes: ['suite', 'accord'] },
+            { n: 4, offs: [1, 2, 3, 4, 5, 6, 7], fa: true, bas: true, acc: 4,
+                formes: ['suite', 'accord'] },
+            { n: 5, offs: [1, 2, 3, 4, 5, 6, 7], fa: true, bas: true, acc: 4,
+                formes: ['suite', 'accord'] },
+            { n: 6, offs: [1, 2, 3, 4, 5, 6, 7, 8, 9], fa: true, bas: true, acc: 4,
+                formes: ['suite', 'accord'] }
         ];
         // Signale : l'attente entre deux items est trop longue. On resserre
         // un peu les deux temps — sans les supprimer : le verdict doit
@@ -1651,12 +1663,67 @@
         // deux cas, ce qui est lu est la SUCCESSION des ecarts — et c'est
         // elle qu'on juge, signe compris.
         function intervalItem(niv) {
+            // On ne resert pas ce qu'on vient de servir : sans cette garde,
+            // trois motifs revenaient soixante fois au premier barreau,
+            // dont dix-neuf fois deux coups d'affilee.
+            for (let essai = 0; essai < 30; essai++) {
+                const it = tirerItem(niv);
+                if (!it) continue;
+                const sig = (it.suite ? 'S' : 'P') + it.pas.join(',')
+                    + '@' + (it.piece.measures[0].rh[0] || it.piece.measures[0].lh[0]).d;
+                if (D.derniers && D.derniers.indexOf(sig) >= 0) continue;
+                D.derniers = (D.derniers || []);
+                D.derniers.push(sig);
+                if (D.derniers.length > 4) D.derniers.shift();
+                return it;
+            }
+            return tirerItem(niv) || tirerItem({ n: 2, offs: [2], fa: false,
+                bas: false, formes: ['paire'] });
+        }
+
+        function tirerItem(niv) {
             const grave = niv.fa && Math.random() < 0.5;
-            // on garde la suite dans une fenetre lisible, sans excursion
             const LO = grave ? 13 : 24, HI = grave ? 24 : 35;
-            let d = Math.round((LO + HI) / 2);
+            const forme = niv.formes[Math.floor(Math.random() * niv.formes.length)];
+
+            // --- l'accord plaque : on empile les ecarts du barreau, donc
+            //     des secondes et des quartes des qu'il en contient. On ne
+            //     garde que ce qu'une main attrape.
+            if (forme === 'accord') {
+                const k = niv.acc || 3;
+                for (let essai = 0; essai < 40; essai++) {
+                    const pas = [], ds = [];
+                    let d = LO + Math.floor(Math.random() * 3);
+                    ds.push(d);
+                    for (let i = 1; i < k; i++) {
+                        const o = niv.offs[Math.floor(Math.random() * niv.offs.length)];
+                        pas.push(o); d += o; ds.push(d);
+                    }
+                    if (d > HI) continue;
+                    const objets = ds.map(x => fragNote(x, 0, 192, 0));
+                    // un accord se lit du grave vers l'aigu, comme il sera joue
+                    const midis = objets.map(o => o.midi).slice().sort((a, b) => a - b);
+                    if (!tenable(midis)) continue;
+                    return {
+                        piece: grave ? fragment([], objets) : fragment(objets, []),
+                        suite: false,
+                        shape: midis.map(x => x - midis[0]),
+                        degs: ds.map(x => x - ds[0]),
+                        pas: pas.slice(), grave: grave,
+                        cle: null, deg: null,
+                        texte: k + ' sons plaqués'
+                    };
+                }
+                return null;
+            }
+
+            // --- la paire ou la suite. La note de depart se tire : le meme
+            //     ecart ne doit pas toujours tomber au meme endroit.
+            const combien = forme === 'paire' ? 2 : niv.n;
+            const marge = Math.max(0, HI - LO - 7);
+            let d = LO + 3 + Math.floor(Math.random() * (marge + 1));
             const pas = [], notes = [];
-            for (let k = 0; k < niv.n; k++) {
+            for (let k = 0; k < combien; k++) {
                 if (k) {
                     const choix = [];
                     for (const o of niv.offs) {
@@ -1669,6 +1736,7 @@
                 }
                 notes.push(d);
             }
+            if (notes.length < 2) return null;
             const suite = notes.length > 2;
             const objets = notes.map((x, i) => fragNote(x, suite ? i * 48 : 0,
                 suite ? 48 : 192, 0));
@@ -1676,20 +1744,22 @@
             // La mesure compte autant de temps qu'il y a de notes : sans
             // cela, une suite de six noires s'ecrivait apres la barre.
             const tops = suite ? objets.length * 48 : 192;
+            // Une paire se plaque : elle n'a pas de sens de lecture, et sa
+            // forme se mesure du grave vers l'aigu — comme elle sera jouee.
+            const ecart = Math.abs(pas[0] || 0);
+            const nom = NOM_ECART[ecart] || (ecart + 1) + 'e';
+            const tri = midis.slice().sort((a, b) => a - b);
             return {
                 piece: grave ? fragment([], objets, tops) : fragment(objets, [], tops),
-                // suite : les ecarts successifs, dans l'ordre joue.
-                // paire : la forme, comme avant, du grave vers l'aigu.
                 suite: suite,
                 shape: suite ? midis.slice(1).map((v, i) => v - midis[i])
-                    : [0, midis[1] - midis[0]],
-                degs: suite ? pas.slice() : [0, pas[0]],
+                    : [0, tri[1] - tri[0]],
+                degs: suite ? pas.slice() : [0, ecart],
                 pas: pas.slice(),
                 grave: grave,
-                cle: suite ? null : (NOM_ECART[pas[0]] || (pas[0] + 1) + 'e'),
-                deg: suite ? null : pas[0],
-                texte: suite ? notes.length + ' notes'
-                    : (NOM_ECART[pas[0]] || (pas[0] + 1) + 'e') + (grave ? ' (fa)' : '')
+                cle: suite ? null : nom,
+                deg: suite ? null : ecart,
+                texte: suite ? notes.length + ' notes' : nom + (grave ? ' (fa)' : '')
             };
         }
 
@@ -1819,7 +1889,7 @@
             if (S.running) endSession();
             D.on = true; D.kind = kind; D.item = 0; D.ok = 0; D.times = [];
             D.done = false; D.juges = 0; D.sous = null; D.releve = {};
-            D.serie = 0; D.rates = 0; D.monte = null;
+            D.serie = 0; D.rates = 0; D.monte = null; D.derniers = [];
             // on reprend ou on s'etait arrete, pas au premier barreau
             let n0 = 1;
             try { n0 = parseInt(localStorage.getItem(LS_NIV), 10) || 1; } catch (e) { }
@@ -2483,9 +2553,11 @@
             S.upStreak = 0; S.downStreak = 0;
             adaptLevel({ brokeDown: true }); adaptLevel({ brokeDown: true });
             check('deux lectures cassées font redescendre', S.level === 4, S.level);
-            S.level = 8; S.upStreak = 0;
+            const haut = SightGen.LEVELS.length;
+            S.level = haut; S.upStreak = 0;
             adaptLevel({ cleanRun: true }); adaptLevel({ cleanRun: true });
-            check('le niveau ne dépasse jamais 8', S.level === 8, S.level);
+            check('le niveau ne dépasse jamais le dernier barreau',
+                S.level === haut, S.level);
             S.level = 1; S.downStreak = 0;
             adaptLevel({ brokeDown: true }); adaptLevel({ brokeDown: true });
             check('le niveau ne descend jamais sous 1', S.level === 1, S.level);

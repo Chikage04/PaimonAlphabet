@@ -49,6 +49,11 @@ Object.defineProperty(globalThis, 'CLOCK', {
     set: v => { w.__T.now = v; }
 });
 
+// Le premier barreau a douze mesures : c'est lui qu'on veut pour verifier
+// le decoupage en lignes, et il n'a pas a etre nomme en dur.
+const NIVEAUX = require(DIR + 'sightread-gen.js').LEVELS;
+const LONG = (NIVEAUX.find(l => l.bars >= 12) || NIVEAUX[NIVEAUX.length - 1]).n;
+
 let pass = 0, fail = 0;
 const check = (n, ok, d) => { if (ok) pass++; else { fail++; console.log('  ECHEC  ' + n + (d ? '  [' + d + ']' : '')); } };
 const section = t => console.log('\n' + t);
@@ -140,7 +145,8 @@ section('1. Une seance complete s\'enchaine toute seule');
     check('des lectures parfaites font monter le niveau',
         Math.max(...levels) > Math.min(...levels),
         'niveaux ' + Math.min(...levels) + ' a ' + Math.max(...levels));
-    check('le niveau ne depasse jamais 8', Math.max(...levels) <= 8, Math.max(...levels));
+    check('le niveau ne depasse jamais le dernier barreau',
+        Math.max(...levels) <= NIVEAUX.length, Math.max(...levels));
 }
 
 // ------------------------------------------------------------------
@@ -325,14 +331,15 @@ section('7. Ligne par ligne : la page tourne au bon moment');
     w.startSession();
     // le niveau doit etre pose AVANT que la piece ne soit tiree : la
     // changer en cours d'item ne toucherait que la piece suivante
-    w.eval("S.manual = true; S.calibrating = false; S.level = 7; S.view = 'line';");
+    w.eval("S.manual = true; S.calibrating = false; S.level = " + LONG + "; S.view = 'line';");
     w.startItem();                                   // 12 mesures : 3 systemes
     until('read', 0);
     check('en mode ligne par ligne, une seule portee est affichee',
         $('paper').querySelectorAll('svg').length === 1,
         $('paper').querySelectorAll('svg').length + ' portees');
     const nSys = w.eval('systems.length');
-    check('la piece tiree est bien au niveau 7', S().piece.level === 7, S().piece.level);
+    check('la piece tiree est bien au niveau demande', S().piece.level === LONG,
+        S().piece.level);
     check('une piece de 12 mesures tient sur 3 lignes', nSys === 3, nSys);
     const st = S(), tl = st.tl, t0 = st.gridT0;
     let turned = [];
@@ -356,7 +363,8 @@ section('7 bis. Partition entiere : rien ne tourne, et le masquage suit');
     w.localStorage.clear();
     CLOCK = 1000;
     w.startSession();
-    w.eval("S.manual = true; S.calibrating = false; S.level = 7; S.view = 'all'; S.occl = 'erase';");
+    w.eval("S.manual = true; S.calibrating = false; S.level = " + LONG
+        + "; S.view = 'all'; S.occl = 'erase';");
     w.startItem();
     until('read', 0);
 
