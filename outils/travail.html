@@ -99,6 +99,8 @@
             <div class="ligne" style="margin-top:12px">
                 <button id="go" class="fort">▶ Lancer</button>
                 <button id="stop" disabled>■ Arrêter</button>
+                <button id="enchaine">↻ Enchaîner</button>
+                <span class="doux">ou <b>Entrée</b> / <b>Espace</b> pour relancer</span>
                 <span class="doux" id="port">piano : recherche…</span>
             </div>
         </div>
@@ -114,6 +116,16 @@
             <p class="aide">Chaque barre est une note : vers le haut elle est en retard,
                 vers le bas en avance. Une haie régulière = un jeu égal.</p>
             <div id="detail"></div>
+        </div>
+
+        <div class="carte">
+            <h2>Tes essais <span class="doux" id="nEssais"></span></h2>
+            <div id="histo" class="doux">Aucun essai pour l'instant.</div>
+            <div class="ligne" style="margin-top:10px">
+                <button id="oublie">Effacer l'historique</button>
+            </div>
+            <p class="aide">Tout est aussi écrit dans le journal : je peux relire
+                chaque note de chaque essai, pas seulement ces totaux.</p>
         </div>
     </div>
 
@@ -151,8 +163,10 @@
         const S = {
             suite: [], sharps: -1, ex: 'entier', bpm: 60, div: 4,
             partie: 'A', cell: 0, on: false, t0: 0, joue: [], attendus: [],
-            timer: null, ctx: null, prochain: 0, clicT: 0
+            timer: null, ctx: null, prochain: 0, clicT: 0,
+            essais: [], enchaine: false, no: 0
         };
+        const LS_HISTO = 'travail.essais';
 
         // L'ecriture d'une hauteur dans la tonalite : en fa majeur, le si est
         // bemol, et c'est ainsi qu'il doit se LIRE — pas en la diese.
@@ -272,8 +286,19 @@
                 $('phase').className = 'joue';
                 $('phase').textContent = 'Joue — ' + notes.length + ' notes, toutes égales.';
             }, 250 + 4 * temps);
-            const total = 250 + 4 * temps + S.attendus[S.attendus.length - 1] + 2200;
-            S.timer = setTimeout(fin, total);
+            // On s'arrete quand IL a fini, pas quand la grille finit : jouer
+            // moins vite que demande est le cas NORMAL d'un entrainement a
+            // l'egalite, et couper la prise revenait a sanctionner le travail.
+            S.finGrille = performance.now() + 250 + 4 * temps
+                + S.attendus[S.attendus.length - 1];
+            S.plafond = performance.now() + 250 + 4 * temps
+                + S.attendus[S.attendus.length - 1] * 4 + 15000;
+            S.timer = setInterval(() => {
+                const now = performance.now();
+                const der = S.joue.length ? S.joue[S.joue.length - 1].t : S.t0;
+                if (now > S.plafond) return fin();
+                if (now > S.finGrille && now - der > 3000) return fin();
+            }, 200);
         }
 
         function arrete() { if (S.on) fin(); }
@@ -281,7 +306,7 @@
         function fin() {
             if (!S.on) return;
             S.on = false;
-            clearTimeout(S.timer);
+            clearInterval(S.timer);
             $('go').disabled = false; $('stop').disabled = true;
             $('phase').className = '';
             analyse();
@@ -306,16 +331,23 @@
                 if (i) ioi.push(j[i].t - j[i - 1].t);
             }
             const pas = 60000 / S.bpm / S.div;
-            const absEc = ecarts.map(Math.abs);
-            const irr = moy(ioi.map(x => Math.abs(x - med(ioi)))); // ecart moyen a la mediane
-            const pire = Math.max(...absEc);
+            // L'irregularite et le pire trou se mesurent sur TON allure, pas
+            // sur la grille : jouer plus lentement que demande est le cas
+            // normal d'un entrainement, et le mesurer contre la grille
+            // revenait a sanctionner un jeu parfaitement egal mais lent.
+            const mioi = med(ioi);
+            const irr = moy(ioi.map(x => Math.abs(x - mioi)));
+            const pire = ioi.length ? Math.max(...ioi.map(x => Math.abs(x - mioi))) : 0;
             const justesN = justes.filter(Boolean).length;
             const tenu = 60000 / (med(ioi) * S.div);
 
-            const pc = v => Math.round(100 * v / pas);
+            const pc = v => Math.round(100 * v / (mioi || pas));
             const classe = v => v <= 10 ? 'bon' : v <= 20 ? 'moyen' : 'mauvais';
+            // Une note non jouee n'est pas une faute : les deux comptes se
+            // disent separement, sinon un passage inachevé passe pour faux.
             $('board').innerHTML = [
-                ['Notes jouées', j.length + ' / ' + att.length, ''],
+                ['Passage joué', Math.round(100 * j.length / att.length) + ' %',
+                    classe(100 - 100 * j.length / att.length)],
                 ['Notes justes', justesN + ' / ' + n, classe(100 - 100 * justesN / n)],
                 ['Irrégularité', pc(irr) + ' %', classe(pc(irr))],
                 ['Pire écart', Math.round(pire) + ' ms', classe(pc(pire))],
@@ -324,7 +356,8 @@
             ].map(([k, v, c]) => '<div class="tuile"><div class="k">' + k
                 + '</div><div class="v ' + c + '">' + v + '</div></div>').join('');
 
-            // la haie des ecarts
+            // La haie, elle, se mesure bien contre la GRILLE : c'est elle qui
+            // montre la derive, et c'est une autre question que l'egalite.
             const h = 34;
             $('ecarts').innerHTML = ecarts.map((e, i) => {
                 const v = Math.max(-h, Math.min(h, e / pas * h));
@@ -362,22 +395,65 @@
             // Deux conditions, pas une : un jeu peut etre regulier EN MOYENNE
             // et porter un trou de trente pour cent une note sur huit — c'est
             // justement le defaut qu'on cherche.
-            const reussi = pc(irr) <= 10 && pc(pire) <= 30
-                && justesN === n && j.length >= att.length;
+            const fini = j.length >= att.length;
+            const reussi = pc(irr) <= 10 && pc(pire) <= 30 && justesN === n && fini;
             $('phase').textContent = reussi
                 ? 'Réussi à ♩=' + S.bpm + '. Monte de 4.'
+                : !fini ? 'Passage joué aux ' + Math.round(100 * j.length / att.length)
+                    + ' % — va jusqu\'au bout, le tempo viendra après.'
                 : (justesN < n ? (n - justesN) + ' fausse(s) note(s) — '
                     : pc(pire) > 30 ? 'Un trou de ' + Math.round(pire) + ' ms — '
                         : 'Irrégularité ' + pc(irr) + ' % — ')
                 + 'vise 10 % d\'irrégularité et moins de 30 % de trou avant de monter.';
-            pousse('travailBilan', {
-                ex: S.ex, bpm: S.bpm, div: S.div, partie: S.partie,
+            S.no++;
+            const essai = {
+                no: S.no, t: Date.now(), ex: S.ex, bpm: S.bpm, div: S.div,
+                partie: S.partie, cell: S.ex === 'cellule' ? S.cell + 1 : null,
                 notes: j.length, attendues: att.length, justes: justesN,
                 irregularite: pc(irr), pireEcart: Math.round(pire),
-                tempoTenu: Math.round(tenu), reussi,
+                tempoTenu: Math.round(tenu), reussi: reussi
+            };
+            S.essais.push(essai);
+            try { localStorage.setItem(LS_HISTO, JSON.stringify(S.essais.slice(-60))); } catch (e) { }
+            montreHisto();
+            pousse('travailBilan', Object.assign({}, essai, {
                 ecarts: ecarts.map(Math.round),
-                forces: j.map(x => x.vel)
-            });
+                forces: j.map(x => x.vel),
+                midis: j.map(x => x.midi)
+            }));
+
+            // Enchainer : on relance tout seul, le temps de lire le verdict.
+            if (S.enchaine) setTimeout(() => { if (!S.on) lance(); }, 2500);
+        }
+
+        // Ce que la suite des essais montre et qu'un essai seul ne dit pas :
+        // si le tempo tient, ou s'il se defait quand on y revient.
+        function montreHisto() {
+            const e = S.essais;
+            $('nEssais').textContent = e.length ? '— ' + e.length + ' au total' : '';
+            if (!e.length) { $('histo').textContent = 'Aucun essai pour l\'instant.'; return; }
+            const h = ['<table><tr><th>#</th><th>Exercice</th><th>Tempo</th>'
+                + '<th>Justes</th><th>Irrég.</th><th>Pire trou</th><th></th></tr>'];
+            for (const x of e.slice().reverse().slice(0, 12)) {
+                h.push('<tr><td>' + x.no + '</td><td>' + x.ex
+                    + (x.cell ? ' ' + x.cell : '') + ' · ' + x.partie + '</td>'
+                    + '<td>♩' + x.bpm + (x.div === 8 ? ' (32e)' : '') + '</td>'
+                    + '<td>' + x.justes + '/' + x.attendues + '</td>'
+                    + '<td>' + x.irregularite + ' %</td>'
+                    + '<td>' + x.pireEcart + ' ms</td>'
+                    + '<td>' + (x.reussi ? '<span style="color:var(--bon)">✓</span>'
+                        : '<span style="color:var(--doux)">—</span>') + '</td></tr>');
+            }
+            h.push('</table>');
+            // le meilleur tempo tenu proprement, par exercice
+            const bons = e.filter(x => x.reussi);
+            if (bons.length) {
+                const parEx = {};
+                for (const x of bons) parEx[x.ex] = Math.max(parEx[x.ex] || 0, x.bpm);
+                h.push('<p class="aide">Meilleur tempo réussi : '
+                    + Object.entries(parEx).map(([k, v]) => k + ' ♩' + v).join(' · ') + '</p>');
+            }
+            $('histo').innerHTML = h.join('');
         }
 
         // ------------------------------------------------------------------
@@ -444,6 +520,24 @@
         });
         $('go').addEventListener('click', lance);
         $('stop').addEventListener('click', arrete);
+        $('enchaine').addEventListener('click', () => {
+            S.enchaine = !S.enchaine;
+            $('enchaine').classList.toggle('actif', S.enchaine);
+            $('enchaine').textContent = S.enchaine ? '↻ Enchaîne' : '↻ Enchaîner';
+        });
+        $('oublie').addEventListener('click', () => {
+            S.essais = []; S.no = 0;
+            try { localStorage.removeItem(LS_HISTO); } catch (e) { }
+            montreHisto();
+        });
+        // Relancer doit couter un geste : la barre d'espace suffit.
+        addEventListener('keydown', e => {
+            if (e.target.tagName === 'SELECT' || e.target.tagName === 'INPUT') return;
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                if (S.on) arrete(); else lance();
+            }
+        });
 
         fetch('suite-main-droite.json').then(r => r.json()).then(d => {
             S.suite = d.notes; S.sharps = d.sharps;
@@ -456,6 +550,14 @@
                     + ' (notes ' + (i * 8 + 1) + '-' + (i * 8 + 8) + ')</option>').join('');
             majBpm(); majAide();
             dessine(passage(), 0);
+            try {
+                const vieux = JSON.parse(localStorage.getItem(LS_HISTO) || '[]');
+                if (vieux.length) {
+                    S.essais = vieux;
+                    S.no = vieux[vieux.length - 1].no || vieux.length;
+                }
+            } catch (e) { }
+            montreHisto();
         });
     </script>
 </body>
