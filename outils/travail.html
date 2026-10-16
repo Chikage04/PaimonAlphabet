@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Travail — jouer égal, vite</title>
+    <style>
+        :root {
+            --fond: #11131a; --carte: #1a1d26; --trait: #2b2f3c;
+            --texte: #e8eaf0; --doux: #959cb0; --accent: #4a8cff;
+            --bon: #38c172; --chaud: #e0a33e; --mauvais: #e0564a;
+        }
+        * { box-sizing: border-box; }
+        body {
+            margin: 0; padding: 20px 16px; background: var(--fond); color: var(--texte);
+            font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+        }
+        .page { max-width: 980px; margin: 0 auto; }
+        h1 { font-size: 21px; margin: 0 0 2px; }
+        h2 { font-size: 15px; margin: 0 0 10px; color: var(--doux); font-weight: 600; }
+        .doux { color: var(--doux); }
+        .carte {
+            background: var(--carte); border: 1px solid var(--trait);
+            border-radius: 14px; padding: 14px; margin-bottom: 12px;
+        }
+        .ligne { display: flex; gap: 9px; flex-wrap: wrap; align-items: center; }
+        button, select {
+            font: inherit; padding: 8px 14px; border-radius: 10px; cursor: pointer;
+            border: 1px solid var(--trait); background: #242836; color: var(--texte);
+        }
+        button.fort { background: var(--accent); border-color: var(--accent); color: #fff; }
+        button.actif { border-color: var(--accent); color: var(--accent); }
+        button:disabled { opacity: .45; cursor: default; }
+        .paper {
+            background: #fbfbf7; border-radius: 12px; padding: 8px 6px 4px; margin-bottom: 12px;
+        }
+        .paper svg { display: block; width: 100%; height: auto; }
+        .board { display: flex; gap: 10px; flex-wrap: wrap; margin: 12px 0 0; }
+        .tuile {
+            flex: 1 1 130px; background: #20242f; border: 1px solid var(--trait);
+            border-radius: 11px; padding: 9px 11px;
+        }
+        .tuile .k { font-size: 11.5px; color: var(--doux); text-transform: uppercase; letter-spacing: .04em; }
+        .tuile .v { font-size: 22px; font-weight: 600; font-variant-numeric: tabular-nums; }
+        .v.bon { color: var(--bon); } .v.moyen { color: var(--chaud); } .v.mauvais { color: var(--mauvais); }
+        #phase {
+            border: 1px solid var(--trait); border-radius: 11px; padding: 10px 13px;
+            margin-bottom: 12px; font-size: 16px;
+        }
+        #phase.compte { border-color: var(--chaud); color: var(--chaud); }
+        #phase.joue { border-color: var(--bon); color: var(--bon); }
+        #ecarts { display: flex; gap: 1px; align-items: flex-end; height: 72px; margin-top: 10px; }
+        #ecarts div { flex: 1; min-width: 1px; background: var(--accent); border-radius: 1px 1px 0 0; }
+        #ecarts div.tard { background: var(--mauvais); }
+        #ecarts div.tot { background: var(--chaud); }
+        table { width: 100%; border-collapse: collapse; font-size: 13.5px; margin-top: 10px; }
+        th, td { text-align: left; padding: 5px 8px; border-bottom: 1px solid var(--trait); }
+        th { color: var(--doux); font-weight: 600; }
+        .aide { font-size: 13px; color: var(--doux); margin-top: 8px; }
+    </style>
+</head>
+
+<body>
+    <div class="page">
+        <h1>Travail — jouer égal, et vite</h1>
+        <p class="doux" id="soustitre">chargement…</p>
+
+        <div class="carte">
+            <div class="ligne">
+                <b class="doux">Exercice</b>
+                <button class="btn actif" data-ex="entier">Entier</button>
+                <button class="btn" data-ex="cellule">Cellule</button>
+                <button class="btn" data-ex="pointe">Pointé</button>
+                <button class="btn" data-ex="accents">Accents</button>
+                <button class="btn" data-ex="blocs">Blocs</button>
+            </div>
+            <p class="aide" id="exAide"></p>
+            <div class="ligne" style="margin-top:10px">
+                <b class="doux">Tempo</b>
+                <button id="moins">−</button>
+                <b id="bpm" style="font-size:19px;min-width:3.4em;text-align:center">60</b>
+                <button id="plus">+</button>
+                <select id="valeur">
+                    <option value="4">doubles croches (4 par temps)</option>
+                    <option value="8">triples croches (8 par temps)</option>
+                </select>
+                <span class="doux" id="parNote"></span>
+            </div>
+            <div class="ligne" style="margin-top:10px">
+                <b class="doux">Passage</b>
+                <select id="partie">
+                    <option value="A">partie A (64 notes)</option>
+                    <option value="B">partie B — A à l'octave</option>
+                    <option value="AB">les deux (128 notes)</option>
+                </select>
+                <select id="cellule" hidden></select>
+            </div>
+            <div class="ligne" style="margin-top:12px">
+                <button id="go" class="fort">▶ Lancer</button>
+                <button id="stop" disabled>■ Arrêter</button>
+                <span class="doux" id="port">piano : recherche…</span>
+            </div>
+        </div>
+
+        <div id="phase">Prêt.</div>
+
+        <div class="paper"><svg id="score" viewBox="0 0 940 240"></svg></div>
+
+        <div class="carte">
+            <h2>Régularité</h2>
+            <div class="board" id="board"></div>
+            <div id="ecarts"></div>
+            <p class="aide">Chaque barre est une note : vers le haut elle est en retard,
+                vers le bas en avance. Une haie régulière = un jeu égal.</p>
+            <div id="detail"></div>
+        </div>
+    </div>
+
+    <script src="../sightread-glyphs.js"></script>
+    <script src="../sightread-gen.js"></script>
+    <script src="../sightread-render.js"></script>
+    <script>
+        const $ = i => document.getElementById(i);
+        const NOMS = ['do', 'do#', 'ré', 'mib', 'mi', 'fa', 'fa#', 'sol', 'sol#', 'la', 'sib', 'si'];
+        const nom = m => NOMS[m % 12] + (Math.floor(m / 12) - 1);
+        const med = a => a.length ? a.slice().sort((x, y) => x - y)[a.length >> 1] : 0;
+        const moy = a => a.length ? a.reduce((x, y) => x + y, 0) / a.length : 0;
+
+        const PRISE = 'travail-' + new Date().toISOString().slice(0, 19).replace(/[:T]/g, '');
+        const J = { file: [] };
+        function pousse(type, quoi) {
+            J.file.push(Object.assign({ t: Date.now(), prise: PRISE, type }, quoi || {}));
+            if (J.file.length > 120) videJ();
+        }
+        function videJ() {
+            if (!J.file.length) return;
+            const lot = J.file.splice(0, J.file.length);
+            fetch('/essais', {
+                method: 'POST', keepalive: true,
+                headers: { 'content-type': 'application/json' },
+                body: JSON.stringify(lot)
+            }).catch(() => { });
+        }
+        setInterval(videJ, 500);
+        addEventListener('beforeunload', videJ);
+
+        // ------------------------------------------------------------------
+        //  La suite, et sa mise en partition
+        // ------------------------------------------------------------------
+        const S = {
+            suite: [], sharps: -1, ex: 'entier', bpm: 60, div: 4,
+            partie: 'A', cell: 0, on: false, t0: 0, joue: [], attendus: [],
+            timer: null, ctx: null, prochain: 0, clicT: 0
+        };
+
+        // L'ecriture d'une hauteur dans la tonalite : en fa majeur, le si est
+        // bemol, et c'est ainsi qu'il doit se LIRE — pas en la diese.
+        const STEP_PC = [0, 2, 4, 5, 7, 9, 11];
+        const ORDRE_BEMOLS = [6, 2, 5, 1, 4, 0, 3];
+        function ecrit(midi, sharps) {
+            for (let oct = 0; oct < 9; oct++) {
+                for (let step = 0; step < 7; step++) {
+                    const alt = (sharps < 0 && ORDRE_BEMOLS.slice(0, -sharps).indexOf(step) >= 0)
+                        ? -1 : 0;
+                    if ((oct + 1) * 12 + STEP_PC[step] + alt === midi)
+                        return { d: oct * 7 + step, step, oct, alter: alt, midi };
+                }
+            }
+            return null;
+        }
+
+        // Toutes les notes de la meme valeur : c'est le but de l'exercice.
+        function enPiece(midis, div, accents) {
+            const dur = 48 / div, parMes = div * 4, mes = [];
+            for (let i = 0; i < midis.length; i += parMes) {
+                const rh = [];
+                midis.slice(i, i + parMes).forEach((m, k) => {
+                    const e = ecrit(m, S.sharps);
+                    rh.push({
+                        d: e.d, step: e.step, oct: e.oct, alter: e.alter, midi: m,
+                        on: k * dur, dur: dur, rest: false, acc: false,
+                        leap: false, shift: !!(accents && (i + k) % accents === 0)
+                    });
+                });
+                mes.push({ rh, lh: [] });
+            }
+            return {
+                level: 0, levelLabel: '', seed: 0, sharps: S.sharps, minor: false,
+                tonicStep: 3, keyName: 'Fa majeur', ts: { num: 4, den: 4 },
+                barTicks: 192, beatTicks: 48, compound: false, tpq: 48,
+                bpm: S.bpm, bars: mes.length, plan: mes.map(() => 0),
+                measures: mes, variant: { hands: 'rh', content: 'melody' }, sig: ''
+            };
+        }
+
+        // Les notes du passage choisi
+        function passage() {
+            const A = S.suite, B = A.map(m => m + 12);
+            let n = S.partie === 'A' ? A : S.partie === 'B' ? B : A.concat(B);
+            if (S.ex === 'cellule') {
+                const t = 8, d = S.cell * t;
+                n = n.slice(d, d + t);
+            }
+            return n;
+        }
+
+        // Les instants attendus. « Pointe » alterne long-court : c'est le plus
+        // vieux remede connu a un jeu inegal, parce qu'il force chaque doigt a
+        // attendre puis a partir vite, a tour de role.
+        function grille(n) {
+            const pas = 60000 / S.bpm / S.div, out = [];
+            let t = 0;
+            for (let i = 0; i < n; i++) {
+                out.push(t);
+                if (S.ex === 'pointe') t += (i % 2 === 0 ? 1.5 : 0.5) * pas;
+                else t += pas;
+            }
+            return out;
+        }
+
+        function dessine(notes, accents) {
+            const p = enPiece(notes, S.div, accents);
+            SightRender.draw($('score'), p, {
+                fromBar: 0, toBar: Math.min(p.bars, 4), width: 940, showTimeSig: true
+            });
+            return p;
+        }
+
+        // ------------------------------------------------------------------
+        //  Le metronome, et la mesure
+        // ------------------------------------------------------------------
+        function clic(t, fort) {
+            const c = S.ctx, o = c.createOscillator(), g = c.createGain();
+            o.frequency.value = fort ? 1760 : 1100;
+            g.gain.setValueAtTime(0.0001, t);
+            g.gain.exponentialRampToValueAtTime(fort ? 0.3 : 0.14, t + 0.002);
+            g.gain.exponentialRampToValueAtTime(0.0001, t + 0.05);
+            o.connect(g); g.connect(c.destination);
+            o.start(t); o.stop(t + 0.06);
+        }
+
+        function lance() {
+            S.ctx = S.ctx || new (window.AudioContext || window.webkitAudioContext)();
+            if (S.ctx.state === 'suspended') S.ctx.resume();
+            const notes = passage();
+            const acc = S.ex === 'accents' ? 4 : 0;
+            S.piece = dessine(notes, acc);
+            S.attendus = grille(notes.length);
+            S.cibles = notes.slice();
+            S.joue = []; S.on = true;
+            $('go').disabled = true; $('stop').disabled = false;
+
+            const temps = 60000 / S.bpm;
+            const depart = S.ctx.currentTime + 0.25;
+            for (let k = 0; k < 4; k++) clic(depart + k * temps / 1000, k === 0);
+            // le metronome bat le TEMPS, jamais la note : sinon il joue le
+            // rythme a la place du doigt
+            const nTemps = Math.ceil(notes.length / S.div) + 1;
+            for (let k = 0; k < nTemps; k++)
+                clic(depart + (4 + k) * temps / 1000, k % 4 === 0);
+
+            S.t0 = performance.now() + 250 + 4 * temps;
+            $('phase').className = 'compte';
+            $('phase').textContent = 'Décompte… quatre temps.';
+            pousse('travailDebut', {
+                ex: S.ex, bpm: S.bpm, div: S.div, partie: S.partie,
+                cell: S.ex === 'cellule' ? S.cell : null, notes: notes.length
+            });
+            setTimeout(() => {
+                if (!S.on) return;
+                $('phase').className = 'joue';
+                $('phase').textContent = 'Joue — ' + notes.length + ' notes, toutes égales.';
+            }, 250 + 4 * temps);
+            const total = 250 + 4 * temps + S.attendus[S.attendus.length - 1] + 2200;
+            S.timer = setTimeout(fin, total);
+        }
+
+        function arrete() { if (S.on) fin(); }
+
+        function fin() {
+            if (!S.on) return;
+            S.on = false;
+            clearTimeout(S.timer);
+            $('go').disabled = false; $('stop').disabled = true;
+            $('phase').className = '';
+            analyse();
+        }
+
+        // ------------------------------------------------------------------
+        //  Ce qu'on mesure : la REGULARITE, pas la justesse
+        // ------------------------------------------------------------------
+        function analyse() {
+            const j = S.joue, att = S.attendus, cib = S.cibles;
+            if (j.length < 3) {
+                $('phase').textContent = 'Trop peu de notes pour mesurer.';
+                return;
+            }
+            // on apparie dans l'ORDRE : il joue la suite, pas autre chose
+            const n = Math.min(j.length, att.length);
+            const t0 = j[0].t;
+            const ecarts = [], ioi = [], justes = [];
+            for (let i = 0; i < n; i++) {
+                ecarts.push((j[i].t - t0) - att[i]);
+                justes.push(j[i].midi === cib[i]);
+                if (i) ioi.push(j[i].t - j[i - 1].t);
+            }
+            const pas = 60000 / S.bpm / S.div;
+            const absEc = ecarts.map(Math.abs);
+            const irr = moy(ioi.map(x => Math.abs(x - med(ioi)))); // ecart moyen a la mediane
+            const pire = Math.max(...absEc);
+            const justesN = justes.filter(Boolean).length;
+            const tenu = 60000 / (med(ioi) * S.div);
+
+            const pc = v => Math.round(100 * v / pas);
+            const classe = v => v <= 10 ? 'bon' : v <= 20 ? 'moyen' : 'mauvais';
+            $('board').innerHTML = [
+                ['Notes jouées', j.length + ' / ' + att.length, ''],
+                ['Notes justes', justesN + ' / ' + n, classe(100 - 100 * justesN / n)],
+                ['Irrégularité', pc(irr) + ' %', classe(pc(irr))],
+                ['Pire écart', Math.round(pire) + ' ms', classe(pc(pire))],
+                ['Tempo tenu', '♩≈ ' + Math.round(tenu), ''],
+                ['Par note', Math.round(med(ioi)) + ' ms', '']
+            ].map(([k, v, c]) => '<div class="tuile"><div class="k">' + k
+                + '</div><div class="v ' + c + '">' + v + '</div></div>').join('');
+
+            // la haie des ecarts
+            const h = 34;
+            $('ecarts').innerHTML = ecarts.map((e, i) => {
+                const v = Math.max(-h, Math.min(h, e / pas * h));
+                const cl = e > pas * 0.15 ? 'tard' : e < -pas * 0.15 ? 'tot' : '';
+                return '<div class="' + cl + '" title="note ' + (i + 1) + ' : '
+                    + Math.round(e) + ' ms" style="height:' + (h + v) + 'px"></div>';
+            }).join('');
+
+            // les notes qui trainent toujours : la vraie information
+            // ioi[i] est l'ecart qui MENE a la note i+1 : c'est donc elle
+            // qui traine, et son rang dans le groupe de huit se compte a
+            // partir de un.
+            const parRang = {};
+            ioi.forEach((x, i) => {
+                const k = ((i + 1) % 8) + 1;
+                (parRang[k] = parRang[k] || []).push(x - med(ioi));
+            });
+            const lignes = Object.keys(parRang).map(k => ({
+                rang: +k, dev: moy(parRang[k]), n: parRang[k].length
+            })).sort((a, b) => b.dev - a.dev);
+            const faux = [];
+            for (let i = 0; i < n; i++)
+                if (!justes[i]) faux.push((i + 1) + ' : ' + nom(j[i].midi)
+                    + ' au lieu de ' + nom(cib[i]));
+
+            $('detail').innerHTML =
+                '<table><tr><th>Position dans le groupe de 8</th><th>Retard moyen</th></tr>'
+                + lignes.slice(0, 3).map(l => '<tr><td>note ' + l.rang
+                    + '</td><td>' + (l.dev > 0 ? '+' : '') + Math.round(l.dev)
+                    + ' ms</td></tr>').join('')
+                + '</table>'
+                + (faux.length ? '<p class="aide">Fausses notes — ' + faux.slice(0, 6).join(' · ')
+                    + (faux.length > 6 ? ' …' : '') + '</p>' : '');
+
+            // Deux conditions, pas une : un jeu peut etre regulier EN MOYENNE
+            // et porter un trou de trente pour cent une note sur huit — c'est
+            // justement le defaut qu'on cherche.
+            const reussi = pc(irr) <= 10 && pc(pire) <= 30
+                && justesN === n && j.length >= att.length;
+            $('phase').textContent = reussi
+                ? 'Réussi à ♩=' + S.bpm + '. Monte de 4.'
+                : (justesN < n ? (n - justesN) + ' fausse(s) note(s) — '
+                    : pc(pire) > 30 ? 'Un trou de ' + Math.round(pire) + ' ms — '
+                        : 'Irrégularité ' + pc(irr) + ' % — ')
+                + 'vise 10 % d\'irrégularité et moins de 30 % de trou avant de monter.';
+            pousse('travailBilan', {
+                ex: S.ex, bpm: S.bpm, div: S.div, partie: S.partie,
+                notes: j.length, attendues: att.length, justes: justesN,
+                irregularite: pc(irr), pireEcart: Math.round(pire),
+                tempoTenu: Math.round(tenu), reussi,
+                ecarts: ecarts.map(Math.round),
+                forces: j.map(x => x.vel)
+            });
+        }
+
+        // ------------------------------------------------------------------
+        //  MIDI
+        // ------------------------------------------------------------------
+        const dern = new Map();
+        function onMidi(e) {
+            const [st, pitch, vel] = e.data;
+            const t = e.timeStamp || performance.now();
+            if ((st & 0xf0) !== 0x90 || !vel) return;
+            // ton routeur duplique le flux : la meme note a moins de 40 ms
+            // est le meme coup, pas deux
+            const p = dern.get(pitch);
+            if (p !== undefined && Math.abs(t - p) < 40) return;
+            dern.set(pitch, t);
+            if (!S.on) return;
+            S.joue.push({ t, midi: pitch, vel });
+            pousse('travailNote', {
+                midi: pitch, vel, ms: Math.round(t - S.t0), rang: S.joue.length
+            });
+            if (S.joue.length >= S.attendus.length) setTimeout(fin, 350);
+        }
+
+        if (navigator.requestMIDIAccess) {
+            navigator.requestMIDIAccess().then(a => {
+                const brancher = () => [...a.inputs.values()].forEach(i => i.onmidimessage = onMidi);
+                brancher(); a.onstatechange = brancher;
+                const l = [...a.inputs.values()];
+                $('port').textContent = l.length ? 'piano : ' + l[0].name : 'aucun piano';
+            }, () => { $('port').textContent = 'MIDI refusé'; });
+        } else $('port').textContent = 'pas de MIDI';
+
+        // ------------------------------------------------------------------
+        //  Commandes
+        // ------------------------------------------------------------------
+        const AIDES = {
+            entier: 'Le passage en entier, toutes les notes de la même valeur. C\'est la cible.',
+            cellule: 'Huit notes en boucle. On ne répare pas un passage entier : on répare la cellule qui coince, puis on recolle.',
+            pointe: 'Long-court, un temps sur deux. Le plus vieux remède connu à un jeu inégal : chaque doigt apprend à attendre, puis à partir vite, à tour de rôle.',
+            accents: 'Un accent toutes les quatre notes. L\'accent oblige à placer le temps, et révèle les notes qui flottent entre deux.',
+            blocs: 'Chaque groupe de quatre se plaque en un accord. La main prend la forme d\'un coup, et les doigts n\'ont plus qu\'à la dérouler.'
+        };
+        function majAide() {
+            $('exAide').textContent = AIDES[S.ex];
+            $('cellule').hidden = S.ex !== 'cellule';
+            $('parNote').textContent = Math.round(60000 / S.bpm / S.div) + ' ms par note';
+        }
+        document.querySelectorAll('[data-ex]').forEach(b => b.addEventListener('click', () => {
+            document.querySelectorAll('[data-ex]').forEach(x => x.classList.remove('actif'));
+            b.classList.add('actif'); S.ex = b.dataset.ex; majAide();
+            dessine(passage(), S.ex === 'accents' ? 4 : 0);
+        }));
+        $('moins').addEventListener('click', () => { S.bpm = Math.max(30, S.bpm - 4); majBpm(); });
+        $('plus').addEventListener('click', () => { S.bpm = Math.min(200, S.bpm + 4); majBpm(); });
+        function majBpm() { $('bpm').textContent = S.bpm; majAide(); }
+        $('valeur').addEventListener('change', e => {
+            S.div = +e.target.value; majAide(); dessine(passage(), 0);
+        });
+        $('partie').addEventListener('change', e => {
+            S.partie = e.target.value; dessine(passage(), 0);
+        });
+        $('cellule').addEventListener('change', e => {
+            S.cell = +e.target.value; dessine(passage(), 0);
+        });
+        $('go').addEventListener('click', lance);
+        $('stop').addEventListener('click', arrete);
+
+        fetch('suite-main-droite.json').then(r => r.json()).then(d => {
+            S.suite = d.notes; S.sharps = d.sharps;
+            $('soustitre').textContent = d.titre + ' — ' + d.notes.length
+                + ' notes, puis les mêmes à l\'octave. Cible : ♩=' + d.bpm
+                + ', toutes les notes de la même valeur.';
+            $('cellule').innerHTML = Array.from(
+                { length: Math.ceil(d.notes.length / 8) },
+                (_, i) => '<option value="' + i + '">cellule ' + (i + 1)
+                    + ' (notes ' + (i * 8 + 1) + '-' + (i * 8 + 8) + ')</option>').join('');
+            majBpm(); majAide();
+            dessine(passage(), 0);
+        });
+    </script>
+</body>
+
+</html>
