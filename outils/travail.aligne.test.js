@@ -38,7 +38,7 @@ setTimeout(()=>{
     joue.forEach((m,i)=>w.eval('S.joue.push({t:'+(i*pas)+',midi:'+m+',vel:70})'));
     w.eval('fin()');
     console.log(titre.padEnd(16), tuiles());
-    if (/apres/.test(titre)) console.log(' '.repeat(16), 'verdict :', d.getElementById('phase').textContent.slice(0,50));
+    console.log(' '.repeat(16), 'verdict :', d.getElementById('phase').textContent.slice(0,70));
   }
   console.log('erreurs :', erreurs.length?erreurs.slice(0,2):'aucune');
   process.exit(0);

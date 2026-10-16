@@ -518,11 +518,18 @@
             // Deux conditions, pas une : un jeu peut etre regulier EN MOYENNE
             // et porter un trou de trente pour cent une note sur huit — c'est
             // justement le defaut qu'on cherche.
-            const fini = justesN >= att.length - 1;
+            // toutes les notes, sans tolerance : une note oubliee est une
+            // note oubliee, et l'annoncer « reussi » apprendrait le contraire
+            const fini = justesN >= att.length;
             const reussi = pc(irr) <= 10 && pc(pire) <= 30 && fini
                 && al.fausses === 0 && al.enTrop === 0;
+            // Le pas suit la marge qui reste : a 6 % d'irregularite sur un
+            // seuil de 10, monter de quatre fait perdre des seances.
+            const marge = Math.min(10 - pc(irr), (30 - pc(pire)) / 3);
+            const pas2 = marge >= 4 ? 10 : marge >= 2 ? 6 : 3;
             $('phase').textContent = reussi
-                ? 'Réussi à ♩=' + S.bpm + '. Monte de 4.'
+                ? 'Réussi à ♩=' + S.bpm + '. Monte à ' + Math.min(200, S.bpm + pas2)
+                + ' (il te reste de la marge).'
                 : !fini ? 'Passage joué aux ' + Math.round(100 * justesN / att.length)
                     + ' % — va jusqu\'au bout, le tempo viendra après.'
                 : (al.fausses + al.enTrop + al.oublis > 0
