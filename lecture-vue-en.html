@@ -351,6 +351,40 @@
         const STOP_FLOOR = 350;        // ...et au moins ce surplus, en ms
         const UP_STREAK = 2, DOWN_STREAK = 2;
 
+        // =====================================================================
+        //  Mouchard : le journal des essais
+        // =====================================================================
+        // N'envoie rien tant qu'on ne le demande pas — ?essais=1, ou le
+        // drapeau dans le stockage. Sans cela aucune horloge ne tourne.
+        const ESS = {
+            on: false, file: [],
+            init() {
+                let flag = false;
+                try { flag = localStorage.getItem('lecture.essais') === '1'; } catch (e) { }
+                this.on = flag || /[?&]essais=1/.test(location.search);
+                if (!this.on) return;
+                setInterval(() => this.vide(), 400);
+                addEventListener('beforeunload', () => this.vide());
+                this.pousse('ouverture', { page: location.pathname });
+            },
+            pousse(type, quoi) {
+                if (!this.on) return;
+                this.file.push(Object.assign({ t: Date.now(), type: type }, quoi || {}));
+                if (this.file.length > 200) this.vide();
+            },
+            vide() {
+                if (!this.on || !this.file.length) return;
+                const lot = this.file.splice(0, this.file.length);
+                try {
+                    fetch('/essais', {
+                        method: 'POST', keepalive: true,
+                        headers: { 'content-type': 'application/json' },
+                        body: JSON.stringify(lot)
+                    }).catch(() => { });
+                } catch (e) { }
+            }
+        };
+
         const LS_SEEN = 'lecture.seen';
         const LS_LEVEL = 'lecture.level';
         const LS_SET = 'lecture.settings';
@@ -544,8 +578,69 @@
         // Un doigt qui deborde accroche la touche voisine : deux attaques a
         // quelques millisecondes, a un ou deux demi-tons. C'est UNE frappe.
         const BRUSH_SEMI = 2, BRUSH_MS = 35;
+        // --- Ce que le journal doit porter pour qu'on puisse analyser le
+        //     GESTE, et pas seulement le resultat.
+
+        // Un accord « plaque » ne l'est jamais : les notes arrivent sur
+        // quelques millisecondes. L'ordre d'arrivee, l'ecart entre la
+        // premiere et la derniere, et l'ecart de force entre les doigts
+        // disent ce qu'une forme juste ou fausse ne dit pas.
+        function geste(buf) {
+            if (!ESS.on || !buf || !buf.length) return {};
+            const t0 = Math.min.apply(null, buf.map(n => n.t));
+            const doigts = buf.slice()
+                .sort((a, b) => a.t - b.t)
+                .map(n => ({
+                    midi: n.midi, dt: Math.round(n.t - t0), vel: n.vel || null
+                }));
+            const vels = doigts.map(d => d.vel).filter(v => v !== null);
+            return {
+                doigts: doigts,
+                etalement: doigts.length > 1 ? doigts[doigts.length - 1].dt : 0,
+                forceMin: vels.length ? Math.min.apply(null, vels) : null,
+                forceMax: vels.length ? Math.max.apply(null, vels) : null
+            };
+        }
+
+        // Note par note : ce qui etait ecrit, ce qui a ete joue, l'ecart au
+        // temps et la force. On s'arrete a deux cents notes — au-dela le
+        // journal pese plus qu'il n'apprend.
+        function detailNotes(piece, tl, played) {
+            if (!ESS.on || !played.length) return null;
+            const { pairs } = matchAligned(tl, played);
+            const bons = pairs.filter(p => p.exp);
+            if (!bons.length) return null;
+            const rs = [];
+            for (let i = 1; i < bons.length; i++) {
+                const de = bons[i].exp.ms - bons[i - 1].exp.ms;
+                const dt = bons[i].played.t - bons[i - 1].played.t;
+                if (de > 0 && dt > 0) rs.push(dt / de);
+            }
+            const rate = rs.length ? median(rs) : 1;
+            const off = median(bons.map(p => p.played.t - rate * p.exp.ms));
+            return pairs.slice(0, 200).map(p => ({
+                midi: p.played.midi,
+                vel: p.played.vel === undefined ? null : p.played.vel,
+                ecrit: p.exp ? Math.round(p.exp.ms) : null,
+                joue: Math.round((p.played.t - off) / (rate || 1)),
+                mesure: p.exp ? p.exp.bar + 1 : null,
+                main: p.exp ? p.exp.hand : null,
+                juste: !!p.exp
+            }));
+        }
+
         function onMIDIMessage(e) {
             const [st, pitch, vel] = e.data;
+            // Un relachement ne compte pour aucun jugement, mais il dit
+            // combien de temps la note a ete tenue — donc le legato, le
+            // detache, et les doigts qui restent colles.
+            if ((st & 0xf0) === 0x80 || ((st & 0xf0) === 0x90 && !vel)) {
+                ESS.pousse('off', {
+                    midi: pitch, ms: Math.round(e.timeStamp || performance.now()),
+                    vel: vel || 0
+                });
+                return;
+            }
             if ((st & 0xf0) !== 0x90 || !vel) return;      // seules les attaques comptent
             const t = e.timeStamp || performance.now();
             // Un effleurement n'est une note dans aucun mode — et il ne doit
@@ -558,10 +653,14 @@
             // ferait passer une note legitime pour un doublon
             if (prev !== undefined && Math.abs(t - prev) < DUP_MS) { S.dupes++; return; }
             S.lastOn.set(pitch, Math.max(t, prev === undefined ? t : prev));
+            ESS.pousse('note', {
+                midi: pitch, vel: vel, ms: Math.round(t),
+                phase: S.phase, atelier: D.on ? (D.sous || D.kind) : null
+            });
             // L'atelier ecoute avant tout le reste : il a ses propres regles.
             if (D.on) {
                 if (D.done) return;
-                D.buf.push({ t: t, midi: pitch });
+                D.buf.push({ t: t, midi: pitch, vel: vel });
                 D.last = t;
                 return;
             }
@@ -1444,6 +1543,18 @@
             S.phase = 'verdict';
             const a = analyse(S.piece, S.tl, S.played);
             const v = judge(a);
+            ESS.pousse('bilan', {
+                niveau: S.piece.level, tonalite: S.piece.keyName,
+                mains: S.hands, contenu: S.content, occl: S.occl, vue: S.view,
+                notes: a.total, justes: Math.round(a.accuracy),
+                couvert: Math.round(a.covered), arrets: a.stops,
+                plusLong: Math.round(a.longest), ecartMs: Math.round(a.offMs),
+                derive: Math.round(a.drift), bpmTenu: Math.round(a.bpmPlayed),
+                propre: v.cleanRun,
+                // note par note : l'ecart au temps ecrit a cote de la force,
+                // pour voir si l'un derive avec l'autre
+                notes: detailNotes(S.piece, S.tl, S.played)
+            });
             // le bilan fait foi : le tableau reprend ses chiffres, sinon
             // les deux se contredisent sous les yeux de l'eleve
             showBoard(a, false);
@@ -1918,6 +2029,12 @@
                 + (quoi.echelle ? ' · level ' + D.niv : ''), 0);
             $('drillInfo').textContent = quoi.aide
                 + (quoi.echelle ? ' ' + NIV_TEXTE(NIV_INT[D.niv - 1]) : '');
+            ESS.pousse('item', {
+                exo: D.sous || D.kind, niv: D.niv, no: D.item,
+                suite: !!D.expect.suite, shape: D.expect.shape,
+                degs: D.expect.degs, pas: D.expect.pas || null,
+                grave: !!D.expect.grave, texte: D.expect.texte
+            });
         }
 
         function showFragment(piece) {
@@ -2014,6 +2131,12 @@
                 r.n++;
                 if (juste) { r.ok++; if (!sui || bon) r.ms.push(mis / pas.length); }
             }
+
+            ESS.pousse('verdict', Object.assign({
+                exo: D.sous || D.kind, niv: D.niv, no: D.item, bon: bon,
+                joue: forme, attendu: att, ms: Math.round(mis),
+                serie: D.serie, rates: D.rates
+            }, geste(D.buf)));
 
             for (const h of $('paper').querySelectorAll('.sr-head'))
                 h.setAttribute('fill', bon ? COL_OK : COL_MISS);
@@ -2354,6 +2477,7 @@
             if (n0) D.niv = Math.max(1, Math.min(NIV_INT.length, n0));
         } catch (e) { }
         showNiv();
+        ESS.init();
 
         const OCCL_HINT = {
             none: 'The score stays whole, as it would on paper.',
