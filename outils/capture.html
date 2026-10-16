@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Capture — main droite</title>
+    <style>
+        :root {
+            --fond: #11131a;
+            --carte: #1a1d26;
+            --trait: #2b2f3c;
+            --texte: #e8eaf0;
+            --doux: #959cb0;
+            --accent: #4a8cff;
+            --bon: #38c172;
+            --chaud: #e0a33e;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            margin: 0; padding: 24px 16px; background: var(--fond); color: var(--texte);
+            font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+        }
+
+        .page { max-width: 940px; margin: 0 auto; }
+
+        h1 { font-size: 22px; margin: 0 0 4px; }
+
+        .doux { color: var(--doux); }
+
+        .carte {
+            background: var(--carte); border: 1px solid var(--trait); border-radius: 14px;
+            padding: 16px; margin-bottom: 14px;
+        }
+
+        .commandes { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+
+        button {
+            font: inherit; padding: 9px 16px; border-radius: 10px; cursor: pointer;
+            border: 1px solid var(--trait); background: #242836; color: var(--texte);
+        }
+
+        button.fort { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+        button:disabled { opacity: .45; cursor: default; }
+
+        .etat {
+            display: flex; gap: 22px; flex-wrap: wrap; align-items: baseline;
+            margin-top: 12px;
+        }
+
+        .chiffre { font-size: 30px; font-weight: 600; font-variant-numeric: tabular-nums; }
+
+        .voyant {
+            display: inline-block; width: 11px; height: 11px; border-radius: 50%;
+            background: #555; margin-right: 7px; vertical-align: middle;
+        }
+
+        .voyant.on { background: var(--bon); box-shadow: 0 0 10px var(--bon); }
+
+        .voyant.attente { background: var(--chaud); }
+
+        #suite {
+            font: 14px/1.9 ui-monospace, "Cascadia Mono", Consolas, monospace;
+            max-height: 320px; overflow: auto; word-break: break-word;
+        }
+
+        #suite b { color: var(--accent); font-weight: 600; }
+
+        #suite .recent { color: var(--bon); }
+
+        .aide { font-size: 13px; color: var(--doux); margin-top: 10px; }
+    </style>
+</head>
+
+<body>
+    <div class="page">
+        <h1>Capture — main droite</h1>
+        <p class="doux">Joue toutes les notes dans le bon ordre. Le rythme n'a aucune
+            importance : seule la suite des hauteurs est retenue. Les accords (notes
+            jouées ensemble) sont gardés comme tels.</p>
+
+        <div class="carte">
+            <div class="commandes">
+                <button id="go" class="fort">● Démarrer la capture</button>
+                <button id="stop" disabled>■ Arrêter</button>
+                <button id="raz">Effacer et recommencer</button>
+                <span id="port" class="doux"><span class="voyant attente"></span>piano : recherche…</span>
+            </div>
+            <div class="etat">
+                <div><span class="chiffre" id="nNotes">0</span> <span class="doux">notes</span></div>
+                <div><span class="chiffre" id="nEv">0</span> <span class="doux">événements</span></div>
+                <div class="doux" id="derniere">—</div>
+            </div>
+        </div>
+
+        <div class="carte">
+            <div id="suite" class="doux">Rien pour l'instant.</div>
+            <div class="aide">Une prise = un identifiant. Dis « regarde » quand tu as fini :
+                la suite est relue depuis le journal, pas depuis cette page.</div>
+        </div>
+    </div>
+
+    <script>
+        const $ = i => document.getElementById(i);
+        const NOMS = ['do', 'do#', 'ré', 'ré#', 'mi', 'fa', 'fa#', 'sol', 'sol#', 'la', 'la#', 'si'];
+        const nom = m => NOMS[m % 12] + (Math.floor(m / 12) - 1);
+
+        // Une prise porte son identifiant : le journal peut en contenir
+        // plusieurs, et il faut pouvoir relire LA bonne.
+        const PRISE = 'prise-' + new Date().toISOString().slice(0, 19).replace(/[:T]/g, '');
+
+        const E = { on: false, file: [], notes: [], nEv: 0 };
+
+        function pousse(type, quoi) {
+            E.file.push(Object.assign({ t: Date.now(), prise: PRISE, type }, quoi || {}));
+            if (E.file.length > 120) vide();
+        }
+        function vide() {
+            if (!E.file.length) return;
+            const lot = E.file.splice(0, E.file.length);
+            fetch('/essais', {
+                method: 'POST', keepalive: true,
+                headers: { 'content-type': 'application/json' },
+                body: JSON.stringify(lot)
+            }).catch(() => { });
+        }
+        setInterval(vide, 400);
+        addEventListener('beforeunload', vide);
+
+        // --- affichage de la suite, accords groupes a 60 ms
+        function redessine() {
+            const n = E.notes;
+            if (!n.length) { $('suite').textContent = 'Rien pour l\'instant.'; return; }
+            const grp = [];
+            for (const x of n) {
+                const d = grp[grp.length - 1];
+                if (d && x.ms - d.ms <= 60) d.midis.push(x.midi);
+                else grp.push({ ms: x.ms, midis: [x.midi] });
+            }
+            const html = grp.map((g, i) => {
+                const txt = g.midis.length > 1
+                    ? '[' + g.midis.slice().sort((a, b) => a - b).map(nom).join(' ') + ']'
+                    : nom(g.midis[0]);
+                const chaud = i >= grp.length - 4 ? ' class="recent"' : '';
+                return '<span' + chaud + '>' + txt + '</span>';
+            }).join('  ·  ');
+            $('suite').innerHTML = html;
+            $('suite').scrollTop = $('suite').scrollHeight;
+            $('nNotes').textContent = n.length;
+            $('nEv').textContent = E.nEv;
+            const d = n[n.length - 1];
+            $('derniere').textContent = 'dernière : ' + nom(d.midi) + ' (force ' + d.vel + ')';
+        }
+
+        // --- MIDI
+        function onMidi(e) {
+            const [st, pitch, vel] = e.data;
+            const ms = Math.round(e.timeStamp || performance.now());
+            const estOn = (st & 0xf0) === 0x90 && vel > 0;
+            const estOff = (st & 0xf0) === 0x80 || ((st & 0xf0) === 0x90 && !vel);
+            if (!E.on || (!estOn && !estOff)) return;
+            E.nEv++;
+            if (estOff) { pousse('capOff', { midi: pitch, ms }); redessine(); return; }
+            E.notes.push({ midi: pitch, vel, ms });
+            pousse('capNote', { midi: pitch, vel, ms, rang: E.notes.length });
+            redessine();
+        }
+
+        if (navigator.requestMIDIAccess) {
+            navigator.requestMIDIAccess().then(acces => {
+                const liste = [...acces.inputs.values()];
+                liste.forEach(i => i.onmidimessage = onMidi);
+                acces.onstatechange = () => {
+                    [...acces.inputs.values()].forEach(i => i.onmidimessage = onMidi);
+                };
+                $('port').innerHTML = liste.length
+                    ? '<span class="voyant on"></span>piano : ' + liste.map(i => i.name).join(', ')
+                    : '<span class="voyant attente"></span>aucun piano détecté';
+            }, () => {
+                $('port').innerHTML = '<span class="voyant"></span>MIDI refusé';
+            });
+        } else {
+            $('port').innerHTML = '<span class="voyant"></span>pas de MIDI dans ce navigateur';
+        }
+
+        $('go').addEventListener('click', () => {
+            E.on = true;
+            $('go').disabled = true; $('stop').disabled = false;
+            pousse('capDebut', { quoi: 'main droite' });
+            $('derniere').textContent = 'capture en cours…';
+        });
+        $('stop').addEventListener('click', () => {
+            E.on = false;
+            $('go').disabled = false; $('stop').disabled = true;
+            pousse('capFin', { notes: E.notes.length });
+            vide();
+            $('derniere').textContent = E.notes.length + ' notes enregistrées';
+        });
+        $('raz').addEventListener('click', () => {
+            E.notes = []; E.nEv = 0;
+            pousse('capRaz', {});
+            redessine();
+            $('nNotes').textContent = '0'; $('nEv').textContent = '0';
+            $('derniere').textContent = '—';
+        });
+    </script>
+</body>
+
+</html>
