@@ -81,6 +81,8 @@
                 <button id="moins">−</button>
                 <b id="bpm" style="font-size:19px;min-width:3.4em;text-align:center">60</b>
                 <button id="plus">+</button>
+                <input type="range" id="curseur" min="40" max="200" step="1" value="60"
+                    style="width:190px">
                 <select id="valeur">
                     <option value="4">doubles croches (4 par temps)</option>
                     <option value="8">triples croches (8 par temps)</option>
@@ -96,8 +98,15 @@
                 </select>
                 <select id="cellule" hidden></select>
             </div>
+            <div class="ligne" style="margin-top:10px">
+                <label><input type="checkbox" id="sousClics" checked>
+                    un clic par note</label>
+                <label><input type="checkbox" id="libre" checked>
+                    départ libre (la prise commence à ta première note)</label>
+            </div>
             <div class="ligne" style="margin-top:12px">
                 <button id="go" class="fort">▶ Lancer</button>
+                <button id="fini">✓ J'ai fini</button>
                 <button id="stop" disabled>■ Arrêter</button>
                 <button id="enchaine">↻ Enchaîner</button>
                 <span class="doux">ou <b>Entrée</b> / <b>Espace</b> pour relancer</span>
@@ -164,6 +173,7 @@
             suite: [], sharps: -1, ex: 'entier', bpm: 60, div: 4,
             partie: 'A', cell: 0, on: false, t0: 0, joue: [], attendus: [],
             timer: null, ctx: null, depart: null, bus: null, sons: [],
+            horloge: null, metro: null, sousClics: true, libre: true,
             essais: [], enchaine: false, no: 0
         };
         const LS_HISTO = 'travail.essais';
@@ -259,16 +269,42 @@
             S.sons = [];
             if (S.bus) { try { S.bus.disconnect(); } catch (e) { } S.bus = null; }
         }
-        function clic(t, fort) {
+        // Trois niveaux : la mesure, le temps, et la note. Le sous-clic est
+        // volontairement discret — il doit se sentir, pas s'imposer.
+        const NIVEAUX = {
+            mesure: { f: 1760, v: 0.30 },
+            temps: { f: 1240, v: 0.17 },
+            note: { f: 880, v: 0.055 }
+        };
+        function clic(t, quoi) {
             if (!S.bus) return;
-            const c = S.ctx, o = c.createOscillator(), g = c.createGain();
-            o.frequency.value = fort ? 1760 : 1100;
+            const n = NIVEAUX[quoi], c = S.ctx;
+            const o = c.createOscillator(), g = c.createGain();
+            o.frequency.value = n.f;
             g.gain.setValueAtTime(0.0001, t);
-            g.gain.exponentialRampToValueAtTime(fort ? 0.3 : 0.14, t + 0.002);
-            g.gain.exponentialRampToValueAtTime(0.0001, t + 0.05);
+            g.gain.exponentialRampToValueAtTime(n.v, t + 0.002);
+            g.gain.exponentialRampToValueAtTime(0.0001, t + (quoi === 'note' ? 0.03 : 0.05));
             o.connect(g); g.connect(S.bus);
             o.start(t); o.stop(t + 0.06);
             S.sons.push(o);
+        }
+
+        // Ordonnanceur glissant : un reveil toutes les 25 ms ne programme que
+        // les 150 ms qui viennent. Programmer toute la prise d'avance ne
+        // marchait que pour une prise de duree connue — un depart libre n'en
+        // a pas, et un clic par note en aurait demande des milliers.
+        function bat() {
+            const c = S.ctx;
+            while (S.metro.prochain < c.currentTime + 0.15) {
+                const i = S.metro.i;
+                const quoi = i % (S.div * 4) === 0 ? 'mesure'
+                    : i % S.div === 0 ? 'temps' : 'note';
+                if (quoi !== 'note' || S.sousClics) clic(S.metro.prochain, quoi);
+                S.metro.prochain += S.metro.pas;
+                S.metro.i++;
+                // on ne garde pas la liste des sons indefiniment
+                if (S.sons.length > 400) S.sons = S.sons.slice(-200);
+            }
         }
 
         function lance() {
@@ -276,6 +312,7 @@
             if (S.ctx.state === 'suspended') S.ctx.resume();
             // une prise en cours ne doit jamais survivre au lancement d'une autre
             if (S.on) { S.on = false; clearInterval(S.timer); }
+            clearInterval(S.horloge);
             clearTimeout(S.depart);
             ouvreSortie();
             const notes = passage();
@@ -287,35 +324,44 @@
             $('go').disabled = true; $('stop').disabled = false;
 
             const temps = 60000 / S.bpm;
-            const depart = S.ctx.currentTime + 0.25;
-            for (let k = 0; k < 4; k++) clic(depart + k * temps / 1000, k === 0);
-            // le metronome bat le TEMPS, jamais la note : sinon il joue le
-            // rythme a la place du doigt
-            const nTemps = Math.ceil(notes.length / S.div) + 1;
-            for (let k = 0; k < nTemps; k++)
-                clic(depart + (4 + k) * temps / 1000, k % 4 === 0);
+            S.sousClics = $('sousClics').checked;
+            S.libre = $('libre').checked;
+            S.metro = {
+                prochain: S.ctx.currentTime + 0.2,
+                pas: 60 / S.bpm / S.div, i: 0
+            };
+            S.horloge = setInterval(bat, 25);
+            bat();
 
-            S.t0 = performance.now() + 250 + 4 * temps;
-            $('phase').className = 'compte';
-            $('phase').textContent = 'Décompte… quatre temps.';
+            // Depart libre : la prise commence a sa premiere note. Sinon,
+            // quatre temps de decompte comme avant.
+            S.t0 = S.libre ? null : performance.now() + 200 + 4 * temps;
+            $('phase').className = S.libre ? 'joue' : 'compte';
+            $('phase').textContent = S.libre
+                ? 'Quand tu veux — la prise part à ta première note.'
+                : 'Décompte… quatre temps.';
             pousse('travailDebut', {
                 ex: S.ex, bpm: S.bpm, div: S.div, partie: S.partie,
                 cell: S.ex === 'cellule' ? S.cell : null, notes: notes.length
             });
-            S.depart = setTimeout(() => {
+            if (!S.libre) S.depart = setTimeout(() => {
                 if (!S.on) return;
                 $('phase').className = 'joue';
                 $('phase').textContent = 'Joue — ' + notes.length + ' notes, toutes égales.';
-            }, 250 + 4 * temps);
+            }, 200 + 4 * temps);
             // On s'arrete quand IL a fini, pas quand la grille finit : jouer
             // moins vite que demande est le cas NORMAL d'un entrainement a
             // l'egalite, et couper la prise revenait a sanctionner le travail.
-            S.finGrille = performance.now() + 250 + 4 * temps
-                + S.attendus[S.attendus.length - 1];
-            S.plafond = performance.now() + 250 + 4 * temps
-                + S.attendus[S.attendus.length - 1] * 4 + 15000;
+            const base = performance.now() + 200 + (S.libre ? 0 : 4 * temps);
+            S.finGrille = base + S.attendus[S.attendus.length - 1];
+            S.plafond = base + S.attendus[S.attendus.length - 1] * 4 + 60000;
             S.timer = setInterval(() => {
                 const now = performance.now();
+                // en depart libre, rien ne court tant qu'il n'a pas commence
+                if (S.libre && S.t0 === null) {
+                    if (now > base + 120000) fin();
+                    return;
+                }
                 const der = S.joue.length ? S.joue[S.joue.length - 1].t : S.t0;
                 if (now > S.plafond) return fin();
                 if (now > S.finGrille && now - der > 3000) return fin();
@@ -328,6 +374,7 @@
             if (!S.on) return;
             S.on = false;
             clearInterval(S.timer);
+            clearInterval(S.horloge);
             clearTimeout(S.depart);
             coupeSortie();
             $('go').disabled = false; $('stop').disabled = true;
@@ -544,6 +591,14 @@
             if (p !== undefined && Math.abs(t - p) < 40) return;
             dern.set(pitch, t);
             if (!S.on) return;
+            if (S.t0 === null) {
+                S.t0 = t;                      // depart libre : c'est parti
+                $('phase').className = 'joue';
+                $('phase').textContent = 'Joue — ' + S.attendus.length
+                    + ' notes, toutes égales.';
+                S.finGrille = performance.now() + S.attendus[S.attendus.length - 1];
+                S.plafond = S.finGrille + S.attendus[S.attendus.length - 1] * 3 + 60000;
+            }
             S.joue.push({ t, midi: pitch, vel });
             pousse('travailNote', {
                 midi: pitch, vel, ms: Math.round(t - S.t0), rang: S.joue.length
@@ -580,9 +635,16 @@
             b.classList.add('actif'); S.ex = b.dataset.ex; majAide();
             dessine(passage(), S.ex === 'accents' ? 4 : 0);
         }));
-        $('moins').addEventListener('click', () => { S.bpm = Math.max(30, S.bpm - 4); majBpm(); });
-        $('plus').addEventListener('click', () => { S.bpm = Math.min(200, S.bpm + 4); majBpm(); });
-        function majBpm() { $('bpm').textContent = S.bpm; majAide(); }
+        $('moins').addEventListener('click', () => { S.bpm = Math.max(40, S.bpm - 1); majBpm(); });
+        $('plus').addEventListener('click', () => { S.bpm = Math.min(200, S.bpm + 1); majBpm(); });
+        $('curseur').addEventListener('input', e => { S.bpm = +e.target.value; majBpm(); });
+        function majBpm() {
+            $('bpm').textContent = S.bpm;
+            $('curseur').value = S.bpm;
+            majAide();
+            // regler le tempo en pleine prise doit s'entendre tout de suite
+            if (S.on && S.metro) S.metro.pas = 60 / S.bpm / S.div;
+        }
         $('valeur').addEventListener('change', e => {
             S.div = +e.target.value; majAide(); dessine(passage(), 0);
         });
@@ -594,6 +656,8 @@
         });
         $('go').addEventListener('click', lance);
         $('stop').addEventListener('click', arrete);
+        $('fini').addEventListener('click', arrete);
+        $('sousClics').addEventListener('change', e => { S.sousClics = e.target.checked; });
         $('enchaine').addEventListener('click', () => {
             S.enchaine = !S.enchaine;
             $('enchaine').classList.toggle('actif', S.enchaine);
