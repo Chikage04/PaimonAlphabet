@@ -408,20 +408,26 @@
                 }
             }
             const paires = [];
-            let oublis = 0, enTrop = 0, fausses = 0;
-            let i = n, j = m;
+            let oublis = 0, enTrop = 0, fausses = 0, queue = 0;
+            let i = n, j = m, fini = false;
             while (i > 0 || j > 0) {
                 const d = (i > 0 && j > 0) ? dir[i * W + j] : (i > 0 ? 2 : 3);
                 if (d === 1) {
                     if (joue[i - 1].midi === cible[j - 1])
                         paires.push({ j: i - 1, c: j - 1 });
                     else fausses++;
+                    fini = true;              // on a atteint le passage
                     i--; j--;
-                } else if (d === 2) { enTrop++; i--; }
-                else { oublis++; j--; }
+                } else if (d === 2) {
+                    // avant d'avoir rencontre la moindre note appariee, on
+                    // remonte encore la QUEUE : ces notes tombent apres la
+                    // fin, c'est le doigt qui continue, pas une faute
+                    if (fini) enTrop++; else queue++;
+                    i--;
+                } else { oublis++; j--; }
             }
             paires.reverse();
-            return { paires, oublis, enTrop, fausses };
+            return { paires, oublis, enTrop, fausses, queue };
         }
 
         function analyse() {
@@ -462,7 +468,8 @@
                 ['Notes justes', justesN + ' / ' + att.length,
                     classe(100 - 100 * justesN / att.length)],
                 ['Oubliées', String(al.oublis), al.oublis ? 'moyen' : 'bon'],
-                ['En trop', String(al.enTrop), al.enTrop ? 'moyen' : 'bon'],
+                ['En trop', al.enTrop + (al.queue ? ' (+' + al.queue + ' après)' : ''),
+                    al.enTrop ? 'moyen' : 'bon'],
                 ['Fausses', String(al.fausses), al.fausses ? 'mauvais' : 'bon'],
                 ['Irrégularité', pc(irr) + ' %', classe(pc(irr))],
                 ['Pire trou', Math.round(pire) + ' ms', classe(pc(pire))],
