@@ -163,7 +163,7 @@
         const S = {
             suite: [], sharps: -1, ex: 'entier', bpm: 60, div: 4,
             partie: 'A', cell: 0, on: false, t0: 0, joue: [], attendus: [],
-            timer: null, ctx: null, prochain: 0, clicT: 0,
+            timer: null, ctx: null, depart: null, bus: null, sons: [],
             essais: [], enchaine: false, no: 0
         };
         const LS_HISTO = 'travail.essais';
@@ -244,19 +244,40 @@
         // ------------------------------------------------------------------
         //  Le metronome, et la mesure
         // ------------------------------------------------------------------
+        // Tous les clics passent par une sortie dediee, refaite a chaque
+        // prise. La couper fait taire d'un coup tout ce qui etait programme
+        // — sans quoi arreter ne coupait rien et relancer empilait.
+        function ouvreSortie() {
+            coupeSortie();
+            S.bus = S.ctx.createGain();
+            S.bus.gain.value = 1;
+            S.bus.connect(S.ctx.destination);
+            S.sons = [];
+        }
+        function coupeSortie() {
+            for (const o of (S.sons || [])) { try { o.stop(); } catch (e) { } }
+            S.sons = [];
+            if (S.bus) { try { S.bus.disconnect(); } catch (e) { } S.bus = null; }
+        }
         function clic(t, fort) {
+            if (!S.bus) return;
             const c = S.ctx, o = c.createOscillator(), g = c.createGain();
             o.frequency.value = fort ? 1760 : 1100;
             g.gain.setValueAtTime(0.0001, t);
             g.gain.exponentialRampToValueAtTime(fort ? 0.3 : 0.14, t + 0.002);
             g.gain.exponentialRampToValueAtTime(0.0001, t + 0.05);
-            o.connect(g); g.connect(c.destination);
+            o.connect(g); g.connect(S.bus);
             o.start(t); o.stop(t + 0.06);
+            S.sons.push(o);
         }
 
         function lance() {
             S.ctx = S.ctx || new (window.AudioContext || window.webkitAudioContext)();
             if (S.ctx.state === 'suspended') S.ctx.resume();
+            // une prise en cours ne doit jamais survivre au lancement d'une autre
+            if (S.on) { S.on = false; clearInterval(S.timer); }
+            clearTimeout(S.depart);
+            ouvreSortie();
             const notes = passage();
             const acc = S.ex === 'accents' ? 4 : 0;
             S.piece = dessine(notes, acc);
@@ -281,7 +302,7 @@
                 ex: S.ex, bpm: S.bpm, div: S.div, partie: S.partie,
                 cell: S.ex === 'cellule' ? S.cell : null, notes: notes.length
             });
-            setTimeout(() => {
+            S.depart = setTimeout(() => {
                 if (!S.on) return;
                 $('phase').className = 'joue';
                 $('phase').textContent = 'Joue — ' + notes.length + ' notes, toutes égales.';
@@ -307,6 +328,8 @@
             if (!S.on) return;
             S.on = false;
             clearInterval(S.timer);
+            clearTimeout(S.depart);
+            coupeSortie();
             $('go').disabled = false; $('stop').disabled = true;
             $('phase').className = '';
             analyse();
