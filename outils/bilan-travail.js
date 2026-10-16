@@ -29,17 +29,57 @@ if (!bilans.length) {
 }
 const suite = JSON.parse(fs.readFileSync(SUITE, 'utf8')).notes;
 
+// Realigner ici : les essais ecrits par une version qui appariait dans
+// l'ordre strict portent un compte faux, et un oubli y decalait tout.
+function aligne(joue, cible) {
+    const n = joue.length, m = cible.length, W = m + 1;
+    const cout = new Int32Array((n + 1) * W), dir = new Uint8Array((n + 1) * W);
+    for (let j = 1; j <= m; j++) { cout[j] = j * 2; dir[j] = 3; }
+    for (let i = 1; i <= n; i++) { cout[i * W] = i * 2; dir[i * W] = 2; }
+    for (let i = 1; i <= n; i++) {
+        const p = joue[i - 1], li = i * W, pre = (i - 1) * W;
+        for (let j = 1; j <= m; j++) {
+            let best = cout[pre + j - 1] + (p === cible[j - 1] ? 0 : 3), d = 1;
+            if (cout[pre + j] + 2 < best) { best = cout[pre + j] + 2; d = 2; }
+            if (cout[li + j - 1] + 2 < best) { best = cout[li + j - 1] + 2; d = 3; }
+            cout[li + j] = best; dir[li + j] = d;
+        }
+    }
+    let i = n, j = m, justes = 0, oublis = 0, enTrop = 0, fausses = 0, atteint = 0;
+    while (i > 0 || j > 0) {
+        const d = (i > 0 && j > 0) ? dir[i * W + j] : (i > 0 ? 2 : 3);
+        if (d === 1) {
+            if (joue[i - 1] === cible[j - 1]) { justes++; atteint = Math.max(atteint, j); }
+            else fausses++;
+            i--; j--;
+        } else if (d === 2) { enTrop++; i--; }
+        else { oublis++; j--; }
+    }
+    return { justes, oublis, enTrop, fausses, atteint };
+}
+
 // --------------------------------------------------------------- essais
+// la cible de chaque essai, pour pouvoir realigner
+const cibleDe = b => b.partie === 'A' ? suite
+    : b.partie === 'B' ? suite.map(m => m + 12)
+        : suite.concat(suite.map(m => m + 12));
+for (const b of bilans) {
+    b.al = b.midis ? aligne(b.midis, cibleDe(b).slice(0, b.attendues)) : null;
+}
+
 console.log(bilans.length + ' essais\n');
-console.log('  #   exercice        tempo   justes   irreg   pire trou');
+console.log('  #   exercice        tempo   justes  oubl  trop  faux   irreg   pire trou');
 for (const b of bilans.slice(-15)) {
+    const a = b.al;
     console.log('  ' + String(b.no || '?').padStart(2)
         + '   ' + (b.ex + (b.cell ? ' ' + b.cell : '') + ' · ' + b.partie).padEnd(16)
         + ' ♩' + String(b.bpm).padEnd(5)
-        + ' ' + (b.justes + '/' + b.attendues).padStart(7)
+        + ' ' + ((a ? a.justes : b.justes) + '/' + b.attendues).padStart(7)
+        + ' ' + String(a ? a.oublis : '-').padStart(5)
+        + ' ' + String(a ? a.enTrop : '-').padStart(5)
+        + ' ' + String(a ? a.fausses : '-').padStart(5)
         + ' ' + (b.irregularite + ' %').padStart(7)
-        + ' ' + (b.pireEcart + ' ms').padStart(10)
-        + (b.reussi ? '  ✓' : ''));
+        + ' ' + (b.pireEcart + ' ms').padStart(10));
 }
 
 // ------------------------------------------------------- le plafond reel
@@ -69,18 +109,28 @@ for (const b of bilans) {
         (parPos[pos] = parPos[pos] || []).push(ioi);
     }
 }
-const positions = Object.keys(parPos).map(p => ({
+// Centre sur la moyenne : jouer plus lentement que la grille decale
+// TOUTES les positions vers le haut, et le classement ne voudrait plus
+// rien dire. Ce qu'on cherche, c'est l'ecart d'une position AUX AUTRES.
+const brut = Object.keys(parPos).map(p => ({
     pos: +p, dev: moy(parPos[p]), n: parPos[p].length
-})).sort((a, b) => b.dev - a.dev);
+}));
+const centre = moy(brut.map(x => x.dev));
+const positions = brut.map(x => ({ pos: x.pos, n: x.n, dev: x.dev - centre }))
+    .sort((a, b) => b.dev - a.dev);
 if (positions.length) {
     console.log('\nQUELLE NOTE TRAINE, dans le groupe de huit');
     for (const p of positions)
         console.log('  note ' + p.pos + ' : '
             + (p.dev > 0 ? '+' : '') + r0(p.dev) + ' ms  (' + p.n + ' mesures)');
-    const pire = positions[0];
-    if (pire.dev > 8)
-        console.log('  -> la note ' + pire.pos + ' du groupe est en retard de façon'
-            + ' systematique : c\'est un doigt, pas un accident.');
+    const ecartPos = positions[0].dev - positions[positions.length - 1].dev;
+    console.log(ecartPos > 25
+        ? '  -> ' + Math.round(ecartPos) + ' ms separent la position la plus lente'
+        + ' de la plus rapide : la note ' + positions[0].pos
+        + ' du groupe traine vraiment.'
+        : '  -> ' + Math.round(ecartPos) + ' ms seulement entre la plus lente et la'
+        + ' plus rapide : aucun doigt ne traine en particulier, c\'est l\'allure'
+        + ' d\'ensemble qui est a travailler.');
 }
 
 // ------------------------------------------- ou ca casse dans le passage
@@ -93,14 +143,26 @@ for (const b of bilans) {
         if (Math.abs(d) > seuil) casses[i] = (casses[i] || 0) + 1;
     });
 }
-const chauds = Object.entries(casses).map(([i, n]) => ({ i: +i, n }))
-    .sort((a, b) => b.n - a.n).slice(0, 8);
+// Rapporte au nombre de fois ou la note a ete ATTEINTE : on recommence
+// toujours par le debut, donc les premieres notes sont jouees bien plus
+// souvent, et sortaient toujours en tete sans rien vouloir dire.
+const atteintes = {};
+for (const b of bilans) {
+    const jusque = b.al ? b.al.atteint : (b.ecarts || []).length;
+    for (let i = 0; i < jusque; i++) atteintes[i] = (atteintes[i] || 0) + 1;
+}
+const chauds = Object.entries(casses)
+    .map(([i, n]) => ({ i: +i, n, sur: atteintes[i] || 1 }))
+    .filter(c => c.sur >= 2)
+    .map(c => Object.assign(c, { part: c.n / c.sur }))
+    .sort((a, b) => b.part - a.part || b.n - a.n).slice(0, 8);
 if (chauds.length) {
     console.log('\nOU CA CASSE (notes ou le trou depasse 30 % de la valeur)');
     for (const c of chauds) {
         const cell = Math.floor(c.i / 8) + 1;
         const avant = suite[c.i - 1], ici = suite[c.i];
-        console.log('  note ' + (c.i + 1) + ' (cellule ' + cell + ') : ' + c.n + ' fois'
+        console.log('  note ' + (c.i + 1) + ' (cellule ' + cell + ') : '
+            + c.n + ' fois sur ' + c.sur + ' (' + Math.round(100 * c.part) + ' %)'
             + (ici !== undefined
                 ? '  —  ' + (avant !== undefined ? nom(avant) + ' → ' : '') + nom(ici)
                 + (avant !== undefined ? '  (' + (ici - avant > 0 ? '+' : '')
@@ -109,7 +171,7 @@ if (chauds.length) {
     }
     const cells = {};
     for (const c of chauds) cells[Math.floor(c.i / 8) + 1] =
-        (cells[Math.floor(c.i / 8) + 1] || 0) + c.n;
+        (cells[Math.floor(c.i / 8) + 1] || 0) + c.part;
     const pire = Object.entries(cells).sort((a, b) => b[1] - a[1])[0];
     if (pire) console.log('  -> travaille la cellule ' + pire[0] + ' seule, en boucle.');
 }

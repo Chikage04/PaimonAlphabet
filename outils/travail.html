@@ -338,21 +338,63 @@
         // ------------------------------------------------------------------
         //  Ce qu'on mesure : la REGULARITE, pas la justesse
         // ------------------------------------------------------------------
+        // Aligner par distance d'edition, pas par rang. Un oubli au rang 26
+        // faisait compter fausses les cent notes suivantes : l'essai sortait
+        // a 60 justes sur 128 alors que 124 notes etaient bonnes.
+        const C_SUB = 3, C_TROU = 2;
+        function aligne(joue, cible) {
+            const n = joue.length, m = cible.length;
+            const W = m + 1;
+            const cout = new Int32Array((n + 1) * W);
+            const dir = new Uint8Array((n + 1) * W);   // 1 diag, 2 haut, 3 gauche
+            for (let j = 1; j <= m; j++) { cout[j] = j * C_TROU; dir[j] = 3; }
+            for (let i = 1; i <= n; i++) { cout[i * W] = i * C_TROU; dir[i * W] = 2; }
+            for (let i = 1; i <= n; i++) {
+                const p = joue[i - 1].midi, li = i * W, pre = (i - 1) * W;
+                for (let j = 1; j <= m; j++) {
+                    let best = cout[pre + j - 1] + (p === cible[j - 1] ? 0 : C_SUB), d = 1;
+                    const haut = cout[pre + j] + C_TROU;
+                    if (haut < best) { best = haut; d = 2; }
+                    const gauche = cout[li + j - 1] + C_TROU;
+                    if (gauche < best) { best = gauche; d = 3; }
+                    cout[li + j] = best; dir[li + j] = d;
+                }
+            }
+            const paires = [];
+            let oublis = 0, enTrop = 0, fausses = 0;
+            let i = n, j = m;
+            while (i > 0 || j > 0) {
+                const d = (i > 0 && j > 0) ? dir[i * W + j] : (i > 0 ? 2 : 3);
+                if (d === 1) {
+                    if (joue[i - 1].midi === cible[j - 1])
+                        paires.push({ j: i - 1, c: j - 1 });
+                    else fausses++;
+                    i--; j--;
+                } else if (d === 2) { enTrop++; i--; }
+                else { oublis++; j--; }
+            }
+            paires.reverse();
+            return { paires, oublis, enTrop, fausses };
+        }
+
         function analyse() {
             const j = S.joue, att = S.attendus, cib = S.cibles;
             if (j.length < 3) {
                 $('phase').textContent = 'Trop peu de notes pour mesurer.';
                 return;
             }
-            // on apparie dans l'ORDRE : il joue la suite, pas autre chose
-            const n = Math.min(j.length, att.length);
+            // Un oubli ne doit pas invalider tout ce qui suit.
+            const al = aligne(j, cib);
+            const n = al.paires.length;
+            if (!n) { $('phase').textContent = 'Aucune note reconnue.'; return; }
             const t0 = j[0].t;
-            const ecarts = [], ioi = [], justes = [];
-            for (let i = 0; i < n; i++) {
-                ecarts.push((j[i].t - t0) - att[i]);
-                justes.push(j[i].midi === cib[i]);
-                if (i) ioi.push(j[i].t - j[i - 1].t);
+            const ecarts = [], ioi = [];
+            for (let k = 0; k < n; k++) {
+                const p = al.paires[k];
+                ecarts.push((j[p.j].t - t0) - att[p.c]);
+                if (k) ioi.push(j[p.j].t - j[al.paires[k - 1].j].t);
             }
+            const justesN = n;
             const pas = 60000 / S.bpm / S.div;
             // L'irregularite et le pire trou se mesurent sur TON allure, pas
             // sur la grille : jouer plus lentement que demande est le cas
@@ -361,21 +403,24 @@
             const mioi = med(ioi);
             const irr = moy(ioi.map(x => Math.abs(x - mioi)));
             const pire = ioi.length ? Math.max(...ioi.map(x => Math.abs(x - mioi))) : 0;
-            const justesN = justes.filter(Boolean).length;
-            const tenu = 60000 / (med(ioi) * S.div);
+            const tenu = 60000 / ((mioi || pas) * S.div);
 
             const pc = v => Math.round(100 * v / (mioi || pas));
             const classe = v => v <= 10 ? 'bon' : v <= 20 ? 'moyen' : 'mauvais';
             // Une note non jouee n'est pas une faute : les deux comptes se
             // disent separement, sinon un passage inachevé passe pour faux.
+            // Oublier, ajouter ou changer une note ne se corrigent pas de la
+            // meme façon : les trois se comptent separement.
             $('board').innerHTML = [
-                ['Passage joué', Math.round(100 * j.length / att.length) + ' %',
-                    classe(100 - 100 * j.length / att.length)],
-                ['Notes justes', justesN + ' / ' + n, classe(100 - 100 * justesN / n)],
+                ['Notes justes', justesN + ' / ' + att.length,
+                    classe(100 - 100 * justesN / att.length)],
+                ['Oubliées', String(al.oublis), al.oublis ? 'moyen' : 'bon'],
+                ['En trop', String(al.enTrop), al.enTrop ? 'moyen' : 'bon'],
+                ['Fausses', String(al.fausses), al.fausses ? 'mauvais' : 'bon'],
                 ['Irrégularité', pc(irr) + ' %', classe(pc(irr))],
-                ['Pire écart', Math.round(pire) + ' ms', classe(pc(pire))],
+                ['Pire trou', Math.round(pire) + ' ms', classe(pc(pire))],
                 ['Tempo tenu', '♩≈ ' + Math.round(tenu), ''],
-                ['Par note', Math.round(med(ioi)) + ' ms', '']
+                ['Par note', Math.round(mioi) + ' ms', '']
             ].map(([k, v, c]) => '<div class="tuile"><div class="k">' + k
                 + '</div><div class="v ' + c + '">' + v + '</div></div>').join('');
 
@@ -401,10 +446,11 @@
             const lignes = Object.keys(parRang).map(k => ({
                 rang: +k, dev: moy(parRang[k]), n: parRang[k].length
             })).sort((a, b) => b.dev - a.dev);
+            // les notes ecrites qu'aucune note jouee n'a reclamees
+            const pris = new Set(al.paires.map(p => p.c));
             const faux = [];
-            for (let i = 0; i < n; i++)
-                if (!justes[i]) faux.push((i + 1) + ' : ' + nom(j[i].midi)
-                    + ' au lieu de ' + nom(cib[i]));
+            for (let c = 0; c < cib.length && faux.length < 8; c++)
+                if (!pris.has(c)) faux.push((c + 1) + ' : ' + nom(cib[c]));
 
             $('detail').innerHTML =
                 '<table><tr><th>Position dans le groupe de 8</th><th>Retard moyen</th></tr>'
@@ -412,19 +458,23 @@
                     + '</td><td>' + (l.dev > 0 ? '+' : '') + Math.round(l.dev)
                     + ' ms</td></tr>').join('')
                 + '</table>'
-                + (faux.length ? '<p class="aide">Fausses notes — ' + faux.slice(0, 6).join(' · ')
-                    + (faux.length > 6 ? ' …' : '') + '</p>' : '');
+                + (faux.length ? '<p class="aide">Notes écrites non jouées — '
+                    + faux.join(' · ') + '</p>' : '');
 
             // Deux conditions, pas une : un jeu peut etre regulier EN MOYENNE
             // et porter un trou de trente pour cent une note sur huit — c'est
             // justement le defaut qu'on cherche.
-            const fini = j.length >= att.length;
-            const reussi = pc(irr) <= 10 && pc(pire) <= 30 && justesN === n && fini;
+            const fini = justesN >= att.length - 1;
+            const reussi = pc(irr) <= 10 && pc(pire) <= 30 && fini
+                && al.fausses === 0 && al.enTrop === 0;
             $('phase').textContent = reussi
                 ? 'Réussi à ♩=' + S.bpm + '. Monte de 4.'
-                : !fini ? 'Passage joué aux ' + Math.round(100 * j.length / att.length)
+                : !fini ? 'Passage joué aux ' + Math.round(100 * justesN / att.length)
                     + ' % — va jusqu\'au bout, le tempo viendra après.'
-                : (justesN < n ? (n - justesN) + ' fausse(s) note(s) — '
+                : (al.fausses + al.enTrop + al.oublis > 0
+                    ? (al.oublis ? al.oublis + ' oubliée(s) ' : '')
+                    + (al.enTrop ? al.enTrop + ' en trop ' : '')
+                    + (al.fausses ? al.fausses + ' fausse(s) ' : '') + '— '
                     : pc(pire) > 30 ? 'Un trou de ' + Math.round(pire) + ' ms — '
                         : 'Irrégularité ' + pc(irr) + ' % — ')
                 + 'vise 10 % d\'irrégularité et moins de 30 % de trou avant de monter.';
@@ -433,6 +483,7 @@
                 no: S.no, t: Date.now(), ex: S.ex, bpm: S.bpm, div: S.div,
                 partie: S.partie, cell: S.ex === 'cellule' ? S.cell + 1 : null,
                 notes: j.length, attendues: att.length, justes: justesN,
+                oublis: al.oublis, enTrop: al.enTrop, fausses: al.fausses,
                 irregularite: pc(irr), pireEcart: Math.round(pire),
                 tempoTenu: Math.round(tenu), reussi: reussi
             };
