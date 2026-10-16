@@ -60,9 +60,18 @@ function aligne(joue, cible) {
 
 // --------------------------------------------------------------- essais
 // la cible de chaque essai, pour pouvoir realigner
-const cibleDe = b => b.partie === 'A' ? suite
-    : b.partie === 'B' ? suite.map(m => m + 12)
-        : suite.concat(suite.map(m => m + 12));
+function cibleDe(b) {
+    const A = suite, B = suite.map(m => m + 12);
+    const tout = b.partie === 'A' ? A : b.partie === 'B' ? B : A.concat(B);
+    // un essai de cellule ne porte que SA tranche : comparer ses huit notes
+    // a la partie entiere rendait « 1 juste, 6 fausses » pour une cellule
+    // jouee parfaitement.
+    if (b.ex === 'cellule' && b.cell) {
+        const d = (b.cell - 1) * 8;
+        return tout.slice(d, d + 8);
+    }
+    return tout;
+}
 for (const b of bilans) {
     b.al = b.midis ? aligne(b.midis, cibleDe(b).slice(0, b.attendues)) : null;
 }
@@ -140,7 +149,9 @@ for (const b of bilans) {
     const seuil = 60000 / b.bpm / b.div * 0.3;
     b.ecarts.forEach((e, i) => {
         const d = i ? e - b.ecarts[i - 1] : 0;
-        if (Math.abs(d) > seuil) casses[i] = (casses[i] || 0) + 1;
+        // une cellule se replace a sa position dans le passage
+        const r = i + (b.ex === 'cellule' && b.cell ? (b.cell - 1) * 8 : 0);
+        if (Math.abs(d) > seuil) casses[r] = (casses[r] || 0) + 1;
     });
 }
 // Rapporte au nombre de fois ou la note a ete ATTEINTE : on recommence
@@ -148,8 +159,10 @@ for (const b of bilans) {
 // souvent, et sortaient toujours en tete sans rien vouloir dire.
 const atteintes = {};
 for (const b of bilans) {
+    const base = b.ex === 'cellule' && b.cell ? (b.cell - 1) * 8 : 0;
     const jusque = b.al ? b.al.atteint : (b.ecarts || []).length;
-    for (let i = 0; i < jusque; i++) atteintes[i] = (atteintes[i] || 0) + 1;
+    for (let i = 0; i < jusque; i++)
+        atteintes[base + i] = (atteintes[base + i] || 0) + 1;
 }
 const chauds = Object.entries(casses)
     .map(([i, n]) => ({ i: +i, n, sur: atteintes[i] || 1 }))
